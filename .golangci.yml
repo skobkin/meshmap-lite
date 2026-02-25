@@ -20,10 +20,6 @@ linters:
     - misspell
     - gosec
   settings:
-    errcheck:
-      exclude-functions:
-        - os.Remove
-        - (io.Closer).Close
     revive:
       rules:
         - name: blank-imports
