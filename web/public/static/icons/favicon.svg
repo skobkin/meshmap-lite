@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MeshMap Lite">
+  <rect width="64" height="64" rx="12" fill="#16324f"/>
+  <path d="M32 8C22.06 8 14 16.06 14 26c0 11.27 12.24 24.53 16.58 28.85.79.78 2.05.78 2.84 0C37.76 50.53 50 37.27 50 26 50 16.06 41.94 8 32 8Z" fill="#30c26b"/>
+  <circle cx="32" cy="26" r="7" fill="#fff"/>
+</svg>

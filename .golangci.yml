@@ -19,12 +19,16 @@ linters:
     - nilerr
     - misspell
     - gosec
+    - nlreturn
   settings:
     revive:
       rules:
         - name: blank-imports
         - name: context-keys-type
         - name: errorf
+        - name: exported
+          arguments:
+            - disableStutteringCheck
         - name: if-return
         - name: range
         - name: time-naming
@@ -32,6 +36,9 @@ linters:
         - name: unnecessary-stmt
   exclusions:
     rules:
+      - path: internal/meshtasticpb/.*
+        linters:
+          - revive
       - path: _test\.go
         linters:
           - errcheck

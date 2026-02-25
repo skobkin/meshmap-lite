@@ -1,0 +1,47 @@
+package repo
+
+import (
+	"context"
+	"time"
+
+	"meshmap-lite/internal/domain"
+)
+
+// Store defines persistence operations used by ingest and API layers.
+type Store interface {
+	UpsertNode(ctx context.Context, node domain.Node) (created bool, err error)
+	UpsertPosition(ctx context.Context, pos domain.NodePosition) error
+	MergeTelemetry(ctx context.Context, snapshot domain.NodeTelemetrySnapshot) error
+	InsertChatEvent(ctx context.Context, event domain.ChatEvent) (int64, error)
+
+	GetMapNodes(ctx context.Context) ([]MapNode, error)
+	ListNodes(ctx context.Context) ([]NodeSummary, error)
+	GetNodeDetails(ctx context.Context, nodeID string) (NodeDetails, error)
+	ListChatEvents(ctx context.Context, channel string, limit int, before int64) ([]domain.ChatEvent, error)
+	Stats(ctx context.Context, disconnectedThreshold time.Duration) (domain.Stats, error)
+}
+
+// MapNode combines node identity with an optional latest position.
+type MapNode struct {
+	Node     domain.Node          `json:"node"`
+	Position *domain.NodePosition `json:"position,omitempty"`
+}
+
+// NodeSummary is a compact record for node list views.
+type NodeSummary struct {
+	NodeID             string     `json:"node_id"`
+	DisplayName        string     `json:"display_name"`
+	LastSeenAnyEventAt time.Time  `json:"last_seen_any_event_at"`
+	LastSeenPositionAt *time.Time `json:"last_seen_position_at,omitempty"`
+	LastSeenMQTTAt     *time.Time `json:"last_seen_mqtt_gateway_at,omitempty"`
+	HasPosition        bool       `json:"has_position"`
+	Role               string     `json:"role,omitempty"`
+	BoardModel         string     `json:"board_model,omitempty"`
+}
+
+// NodeDetails is the full node details payload.
+type NodeDetails struct {
+	Node      domain.Node                   `json:"node"`
+	Position  *domain.NodePosition          `json:"position,omitempty"`
+	Telemetry *domain.NodeTelemetrySnapshot `json:"telemetry,omitempty"`
+}

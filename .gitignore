@@ -1,4 +1,9 @@
-/.idea
-/PRD.md
-/PLAN.md
+.idea
+PRD.md
+PLAN.md
 
+web/node_modules
+web/dist
+/data
+*.db
+/db.sqlite

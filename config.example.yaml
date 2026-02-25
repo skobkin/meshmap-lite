@@ -1,0 +1,53 @@
+mqtt:
+  host: localhost
+  port: 1883
+  root_topic: msh/RU/ARKH
+  protocol_version: 3.1.1
+  subscribe_qos: 1
+  clean_session: false
+  reconnect_timeout: 10s
+  connect_timeout: 10s
+  keepalive: 60s
+
+storage:
+  kv:
+    driver: memory
+    size: 100000
+    ttl: 6h
+  sql:
+    driver: sqlite
+    url: ./data/db.sqlite
+    auto_migrate: true
+
+map_reports:
+  enabled: true
+  topic_suffix: 2/map
+
+channels:
+  LongFast:
+    psk: AQ==
+    events: [text_message, node_info, position, telemetry]
+    primary: true
+  PingPong:
+    psk: AQ==
+    events: [text_message]
+    primary: false
+
+web:
+  listen_addr: :8080
+  chat:
+    enabled: true
+    default_channel: LongFast
+    show_recent_messages: 50
+  ws:
+    heartbeat_interval: 30s
+  map:
+    clustering: true
+    disconnected_threshold: 60m
+    default_view:
+      latitude: 64.5
+      longitude: 40.6
+      zoom: 13
+
+logging:
+  level: info

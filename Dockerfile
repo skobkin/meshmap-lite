@@ -1,19 +1,25 @@
 # syntax=docker/dockerfile:1
 
-FROM golang:1.25-alpine AS build
+FROM node:22-alpine AS web-build
+WORKDIR /src/web
+COPY web/package.json web/package-lock.json* ./
+RUN npm install
+COPY web/ ./
+RUN npm run build
+
+FROM golang:1.25-alpine AS go-build
 WORKDIR /src
-ENV CGO_ENABLED=0
 COPY go.mod go.sum ./
 RUN go mod download
-COPY cmd cmd
-COPY internal internal
-RUN go build -trimpath -ldflags='-s -w' -o /out/app ./cmd/app
+COPY cmd ./cmd
+COPY internal ./internal
+COPY --from=web-build /src/web/dist ./web/dist
+RUN go build -trimpath -ldflags='-s -w' -o /out/server ./cmd/server
 
 FROM alpine:3.23
 WORKDIR /app
 RUN addgroup -S app && adduser -S app -G app
-COPY --from=build /out/app /usr/local/bin/app
+COPY --from=go-build /out/server /usr/local/bin/server
 EXPOSE 8080
-ENV APP_ADDR=:8080
 USER app
-ENTRYPOINT ["app"]
+ENTRYPOINT ["server"]

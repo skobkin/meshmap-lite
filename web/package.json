@@ -1,0 +1,26 @@
+{
+  "name": "meshmap-lite-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo 'lint not configured'",
+    "test": "echo 'no frontend tests configured'"
+  },
+  "dependencies": {
+    "@picocss/pico": "^2.1.1",
+    "leaflet": "^1.9.4",
+    "preact": "^10.27.2",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.10.2",
+    "@types/leaflet": "^1.9.21",
+    "@types/node": "^24.3.0",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.5"
+  }
+}
