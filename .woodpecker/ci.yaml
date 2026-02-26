@@ -42,7 +42,9 @@ steps:
     environment:
       GOCACHE: /tmp/.gocache
     commands:
-      - CGO_ENABLED=0 go build -trimpath -o app ./cmd/app
+      - CGO_ENABLED=0 go build -trimpath -o server ./cmd/server
+    when:
+      - event: push
 
   release:
     image: goreleaser/goreleaser:v2
@@ -72,5 +74,7 @@ steps:
       tags:
         - ${CI_COMMIT_TAG}
         - latest
+      platforms:
+        - linux/amd64
     when:
       - event: tag

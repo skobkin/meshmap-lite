@@ -1,5 +1,7 @@
 # MeshMap Lite
 
+[![status-badge](https://ci.skobk.in/api/badges/6/status.svg?events=push%2Ctag)](https://ci.skobk.in/repos/6)
+
 Lightweight read-only Meshtastic regional map and chat viewer.
 
 ## Run locally

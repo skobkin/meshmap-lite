@@ -1,6 +1,6 @@
 version: 2
 
-project_name: app
+project_name: meshmap-lite
 
 gitea_urls:
   api: "{{ .Env.FORGE_API_URL }}"
@@ -11,16 +11,13 @@ before:
     - go mod tidy
 
 builds:
-  - id: app
-    main: ./cmd/app
-    binary: app
+  - id: server
+    main: ./cmd/server
+    binary: server
     env:
-      - CGO_ENABLED=1
-      - CC={{ if eq .Os "windows" }}x86_64-w64-mingw32-gcc{{ else }}gcc{{ end }}
-      - CXX={{ if eq .Os "windows" }}x86_64-w64-mingw32-g++{{ else }}g++{{ end }}
+      - CGO_ENABLED=0
     goos:
       - linux
-      - windows
     goarch:
       - amd64
     flags:
@@ -32,10 +29,6 @@ archives:
   - formats:
       - tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    format_overrides:
-      - goos: windows
-        formats:
-          - zip
 
 checksum:
   name_template: "checksums.txt"
@@ -44,5 +37,10 @@ changelog:
   sort: asc
   filters:
     exclude:
-      - '^docs:'
-      - '^test:'
+      - '^build(\([^)]*\))?!?:'
+      - '^ci(\([^)]*\))?!?:'
+      - '^chore(\([^)]*\))?!?:'
+      - '^docs(\([^)]*\))?!?:'
+      - '^refactor(\([^)]*\))?!?:'
+      - '^style(\([^)]*\))?!?:'
+      - '^test(\([^)]*\))?!?:'
