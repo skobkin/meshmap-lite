@@ -17,9 +17,61 @@ Lightweight read-only Meshtastic regional map and chat viewer.
 
 ## Config
 
-- YAML and `MML_` environment variables are supported.
-- Env keys use `__` as nesting separator (example: `MML_MQTT__ROOT_TOPIC=msh/RU/ARKH`).
-- Channel keys are normalized to lowercase internally.
+YAML and `MML_` environment variables are supported. ENV keys use `__` as nesting separator.
+
+Example:
+
+```bash
+MML_MQTT__ROOT_TOPIC=msh/RU/ARKH
+MML_CHANNELS__LONGFAST__PRIMARY=true
+```
+
+Reference:
+
+| YAML key | ENV key | Default | Description |
+| --- | --- | --- | --- |
+| `mqtt.host` | `MML_MQTT__HOST` | `""` | MQTT broker host. |
+| `mqtt.port` | `MML_MQTT__PORT` | `1883` | MQTT broker port. |
+| `mqtt.tls` | `MML_MQTT__TLS` | `false` | Enable TLS for MQTT connection. |
+| `mqtt.username` | `MML_MQTT__USERNAME` | `""` | MQTT username. |
+| `mqtt.password` | `MML_MQTT__PASSWORD` | `""` | MQTT password. |
+| `mqtt.root_topic` | `MML_MQTT__ROOT_TOPIC` | `""` | Root Meshtastic topic prefix. Required. |
+| `mqtt.protocol_version` | `MML_MQTT__PROTOCOL_VERSION` | `"3.1.1"` | MQTT protocol version. |
+| `mqtt.subscribe_qos` | `MML_MQTT__SUBSCRIBE_QOS` | `1` | MQTT subscription QoS. |
+| `mqtt.clean_session` | `MML_MQTT__CLEAN_SESSION` | `false` | MQTT clean session flag. |
+| `mqtt.reconnect_timeout` | `MML_MQTT__RECONNECT_TIMEOUT` | `10s` | Reconnect timeout. |
+| `mqtt.connect_timeout` | `MML_MQTT__CONNECT_TIMEOUT` | `10s` | Connection timeout. |
+| `mqtt.keepalive` | `MML_MQTT__KEEPALIVE` | `60s` | MQTT keepalive interval. |
+| `storage.kv.driver` | `MML_STORAGE__KV__DRIVER` | `"memory"` | Dedup KV backend driver. Only `memory` is supported. |
+| `storage.kv.size` | `MML_STORAGE__KV__SIZE` | `100000` | Dedup KV max entries. |
+| `storage.kv.ttl` | `MML_STORAGE__KV__TTL` | `6h` | Dedup KV entry TTL. |
+| `storage.sql.driver` | `MML_STORAGE__SQL__DRIVER` | `"sqlite"` | SQL backend driver. Only `sqlite` is supported. |
+| `storage.sql.url` | `MML_STORAGE__SQL__URL` | `"/data/db.sqlite"` | SQL connection URL/path. |
+| `storage.sql.auto_migrate` | `MML_STORAGE__SQL__AUTO_MIGRATE` | `true` | Run DB migrations on startup. |
+| `map_reports.enabled` | `MML_MAP_REPORTS__ENABLED` | `true` | Enable map report ingest. |
+| `map_reports.topic_suffix` | `MML_MAP_REPORTS__TOPIC_SUFFIX` | `"2/map"` | Topic suffix for map reports under root topic. |
+| `channels[]` | `MML_CHANNELS__<CHANNEL_NAME>__...` | `{}` | Channel map keyed by channel name. At least one channel is required. |
+| `channels[].ChannelName.psk` | `MML_CHANNELS__<CHANNEL_NAME>__PSK` | `"AQ=="` | Channel PSK (applied during normalization if empty). |
+| `channels[].ChannelName.events` | `MML_CHANNELS__<CHANNEL_NAME>__EVENTS` | `["text_message","node_info","position","telemetry"]` | Enabled event families. In ENV format use CSV (for example `text_message,node_info`). |
+| `channels[].ChannelName.primary` | `MML_CHANNELS__<CHANNEL_NAME>__PRIMARY` | `false` | Marks primary channel. At most one channel can be primary. |
+| `web.listen_addr` | `MML_WEB__LISTEN_ADDR` | `":8080"` | HTTP listen address. |
+| `web.base_path` | `MML_WEB__BASE_PATH` | `"/"` | Base path for web/API routing. |
+| `web.chat.enabled` | `MML_WEB__CHAT__ENABLED` | `true` | Enable chat API/UI features. |
+| `web.chat.default_channel` | `MML_WEB__CHAT__DEFAULT_CHANNEL` | first channel name (sorted) | Default channel for chat UI/API. If set, it is normalized to lowercase. |
+| `web.chat.show_recent_messages` | `MML_WEB__CHAT__SHOW_RECENT_MESSAGES` | `50` | Initial recent messages count. |
+| `web.ws.heartbeat_interval` | `MML_WEB__WS__HEARTBEAT_INTERVAL` | `30s` | WebSocket heartbeat interval. |
+| `web.map.clustering` | `MML_WEB__MAP__CLUSTERING` | `true` | Enable marker clustering on map. |
+| `web.map.disconnected_threshold` | `MML_WEB__MAP__DISCONNECTED_THRESHOLD` | `60m` | Node stale/disconnected threshold. |
+| `web.map.default_view.latitude` | `MML_WEB__MAP__DEFAULT_VIEW__LATITUDE` | `64.5` | Initial map center latitude. |
+| `web.map.default_view.longitude` | `MML_WEB__MAP__DEFAULT_VIEW__LONGITUDE` | `40.6` | Initial map center longitude. |
+| `web.map.default_view.zoom` | `MML_WEB__MAP__DEFAULT_VIEW__ZOOM` | `13` | Initial map zoom. |
+| `logging.level` | `MML_LOGGING__LEVEL` | `"info"` | Log level. |
+
+Notes:
+- Channel names are normalized to lowercase internally.
+- ENV overrides are parsed as: `bool` (`true/false`), `int`, `float`, `time.Duration` (`10s`, `60m`, `6h`), or string.
+- Unknown ENV keys are ignored.
+- `mqtt.root_topic` must be set and at least one channel must be configured.
 
 ## API
 
