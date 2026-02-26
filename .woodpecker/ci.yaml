@@ -50,7 +50,7 @@ steps:
       - event: push
 
   release:
-    image: goreleaser/goreleaser:v2
+    image: goreleaser/goreleaser-cross:v1.25-v2.12.7
     environment:
       FORGE_TOKEN:
         from_secret: FORGE_TOKEN
