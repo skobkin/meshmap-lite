@@ -261,7 +261,7 @@ func setPath(cfg *Config, parts []string, value string) {
 		cfg.Logging.Level = value
 	default:
 		if len(parts) >= 3 && parts[0] == "channels" {
-			name := parts[1]
+			name := resolveChannelKey(cfg.Channels, parts[1])
 			ch := cfg.Channels[name]
 			switch parts[2] {
 			case "psk":
@@ -274,6 +274,16 @@ func setPath(cfg *Config, parts []string, value string) {
 			cfg.Channels[name] = ch
 		}
 	}
+}
+
+func resolveChannelKey(channels map[string]ChannelConfig, name string) string {
+	for existing := range channels {
+		if strings.EqualFold(existing, name) {
+			return existing
+		}
+	}
+
+	return name
 }
 
 func normalize(cfg *Config) {
