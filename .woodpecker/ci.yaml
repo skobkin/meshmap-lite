@@ -2,7 +2,10 @@ when:
   - event: [push, tag]
 
 clone:
-  depth: 0
+  git:
+    image: woodpeckerci/plugin-git
+    settings:
+      depth: 0
 
 steps:
   fmt:
