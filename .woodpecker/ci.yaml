@@ -52,13 +52,13 @@ steps:
   release:
     image: goreleaser/goreleaser:v2
     environment:
-      GITEA_TOKEN:
+      FORGE_TOKEN:
         from_secret: FORGE_TOKEN
-      FORGE_API_URL:
-        from_secret: FORGE_API_URL
-      FORGE_DOWNLOAD_URL:
-        from_secret: FORGE_DOWNLOAD_URL
     commands:
+      - test -n "$CI_FORGE_URL" || (echo "CI_FORGE_URL is empty. Cannot derive Forge URLs for GoReleaser." && exit 1)
+      - export GITEA_TOKEN="${GITEA_TOKEN:-$FORGE_TOKEN}"
+      - test -n "$FORGE_API_URL" || export FORGE_API_URL="$CI_FORGE_URL/api/v1"
+      - test -n "$FORGE_DOWNLOAD_URL" || export FORGE_DOWNLOAD_URL="$CI_FORGE_URL"
       - goreleaser release --clean
     when:
       - event: tag
