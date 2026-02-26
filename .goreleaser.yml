@@ -9,6 +9,7 @@ gitea_urls:
 before:
   hooks:
     - go mod tidy
+    - sh -c "cd web && npm ci && npm run build"
 
 builds:
   - id: server
@@ -29,6 +30,8 @@ archives:
   - formats:
       - tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - web/dist/**
 
 checksum:
   name_template: "checksums.txt"

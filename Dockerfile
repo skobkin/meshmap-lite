@@ -20,6 +20,7 @@ FROM alpine:3.23
 WORKDIR /app
 RUN addgroup -S app && adduser -S app -G app
 COPY --from=go-build /out/server /usr/local/bin/server
+COPY --from=web-build /src/web/dist ./web/dist
 EXPOSE 8080
 USER app
 ENTRYPOINT ["server"]
