@@ -192,11 +192,20 @@ body {
   border-bottom: 1px solid #dacb7e;
 }
 
+.banner.warning {
+  background: #ffe3e3;
+  border-bottom-color: #ffc9c9;
+}
+
 .map-layout {
   display: grid;
   grid-template-columns: 1fr 340px;
   min-height: 0;
   overflow: hidden;
+}
+
+.map-layout.chat-collapsed {
+  grid-template-columns: 1fr 3.25rem;
 }
 
 .map-canvas {
@@ -212,6 +221,29 @@ body {
   border-left: 1px solid var(--surface-border);
   padding: 0.75rem;
   overflow: hidden;
+}
+
+.chat-panel.collapsed {
+  width: 3.25rem;
+  min-width: 3.25rem;
+  padding: 0.5rem;
+}
+
+.chat-panel-head {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.chat-panel-head select {
+  flex: 1 1 auto;
+}
+
+.collapse-toggle {
+  margin: 0;
+  width: 2.2rem;
+  min-width: 2.2rem;
+  padding: 0;
 }
 
 .chat-panel label {
@@ -263,6 +295,23 @@ body {
 .node-list a.active {
   border-color: #3663c5;
   background: #ecf2ff;
+}
+
+.load-error {
+  margin: 0 0 0.5rem;
+  color: #c92a2a;
+}
+
+.node-details section {
+  margin-bottom: 0.9rem;
+}
+
+.node-details h4 {
+  margin-bottom: 0.3rem;
+}
+
+.node-details p {
+  margin: 0.12rem 0;
 }
 
 .leaflet-control-attribution .leaflet-attribution-flag {

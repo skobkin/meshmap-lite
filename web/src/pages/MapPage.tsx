@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'preact/hooks'
+import { useEffect, useRef, useState } from 'preact/hooks'
 import { LeafletMapAdapter } from '../maps/leafletMap'
 import { useNodeStore } from '../stores/nodes'
 import { useChatStore } from '../stores/chat'
@@ -8,16 +8,24 @@ interface Props {
   center: [number, number]
   zoom: number
   channels: string[]
+  disconnectedThreshold?: string
   onViewChange: (center: [number, number], zoom: number) => void
 }
 
-export function MapPage({ center, zoom, channels, onViewChange }: Props) {
+const sidebarStateKey = 'meshmap-lite.map.chat.collapsed'
+
+function readSidebarState(): boolean {
+  return localStorage.getItem(sidebarStateKey) === '1'
+}
+
+export function MapPage({ center, zoom, channels, disconnectedThreshold, onViewChange }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const adapterRef = useRef<LeafletMapAdapter | null>(null)
   const nodes = useNodeStore((s) => s.mapNodes)
   const chat = useChatStore((s) => s.messages)
   const channel = useChatStore((s) => s.channel)
   const setChannel = useChatStore((s) => s.setChannel)
+  const [collapsed, setCollapsed] = useState<boolean>(() => readSidebarState())
 
   useEffect(() => {
     if (!ref.current) return
@@ -33,8 +41,8 @@ export function MapPage({ center, zoom, channels, onViewChange }: Props) {
   }, [center[0], center[1], zoom])
 
   useEffect(() => {
-    adapterRef.current?.render(nodes)
-  }, [nodes])
+    adapterRef.current?.render(nodes, disconnectedThreshold)
+  }, [nodes, disconnectedThreshold])
 
   const nodeNameByID = new Map<string, string>()
   for (const item of nodes) {
@@ -52,19 +60,38 @@ export function MapPage({ center, zoom, channels, onViewChange }: Props) {
   }
 
   return (
-    <section className="map-layout">
+    <section className={`map-layout${collapsed ? ' chat-collapsed' : ''}`}>
       <div className="map-canvas" ref={ref} />
-      <aside className="chat-panel">
-        <select aria-label="Channel" value={channel} onChange={(e) => setChannel((e.target as HTMLSelectElement).value)}>
-          {channels.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <div className="chat-list">
-          {chat.map((m) => (
-            <p key={m.id} className={m.event_type === 'system' ? 'system' : ''}>
-              <code>{hhmm(m.observed_at)}</code> <mark>{m.node_id ? (nodeNameByID.get(m.node_id) ?? m.node_id) : 'system'}</mark> {m.event_type === 'system' ? systemText(m.system_code) : (m.message_text ?? '')}
-            </p>
-          ))}
+      <aside className={`chat-panel${collapsed ? ' collapsed' : ''}`}>
+        <div className="chat-panel-head">
+          {!collapsed && (
+            <select aria-label="Channel" value={channel} onChange={(e) => setChannel((e.target as HTMLSelectElement).value)}>
+              {channels.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          )}
+          <button
+            type="button"
+            className="secondary outline collapse-toggle"
+            onClick={() => {
+              const next = !collapsed
+              setCollapsed(next)
+              localStorage.setItem(sidebarStateKey, next ? '1' : '0')
+            }}
+            aria-label={collapsed ? 'Expand chat sidebar' : 'Collapse chat sidebar'}
+            title={collapsed ? 'Expand chat sidebar' : 'Collapse chat sidebar'}
+          >
+            {collapsed ? '<' : '>'}
+          </button>
         </div>
+        {!collapsed && (
+          <div className="chat-list">
+            {chat.map((m) => (
+              <p key={m.id} className={m.event_type === 'system' ? 'system' : ''}>
+                <code>{hhmm(m.observed_at)}</code> <mark>{m.node_id ? (nodeNameByID.get(m.node_id) ?? m.node_id) : 'system'}</mark> {m.event_type === 'system' ? systemText(m.system_code) : (m.message_text ?? '')}
+              </p>
+            ))}
+          </div>
+        )}
       </aside>
     </section>
   )

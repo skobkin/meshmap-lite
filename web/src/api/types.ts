@@ -15,6 +15,7 @@ export interface ChannelItem {
 
 export interface Node {
   node_id: string
+  node_num?: number
   long_name?: string
   short_name?: string
   role?: string
@@ -24,9 +25,12 @@ export interface Node {
   lora_frequency_desc?: string
   modem_preset?: string
   neighbor_nodes_count?: number
+  mqtt_gateway_capable?: boolean
+  first_seen_at?: string
   last_seen_any_event_at: string
   last_seen_mqtt_gateway_at?: string
   last_seen_position_at?: string
+  updated_at?: string
 }
 
 export interface NodePosition {
@@ -34,9 +38,12 @@ export interface NodePosition {
   latitude: number
   longitude: number
   altitude_m?: number
+  position_precision?: number
   source_kind: string
   source_channel?: string
+  reported_at?: string
   observed_at: string
+  updated_at?: string
 }
 
 export interface MapNode {
@@ -67,7 +74,29 @@ export interface NodeSummary {
 export interface NodeDetails {
   node: Node
   position?: NodePosition
-  telemetry?: Record<string, unknown>
+  telemetry?: NodeTelemetry
+}
+
+export interface NodeTelemetry {
+  node_id: string
+  power: {
+    voltage?: number
+    battery_level?: number
+  }
+  environment: {
+    temperature_c?: number
+    humidity?: number
+    pressure_hpa?: number
+  }
+  air_quality: {
+    pm25?: number
+    pm10?: number
+    co2?: number
+  }
+  source_channel?: string
+  reported_at?: string
+  observed_at: string
+  updated_at: string
 }
 
 export interface Meta {

@@ -42,11 +42,28 @@ export class LeafletMapAdapter {
     this.map.setView(center, zoom)
   }
 
-  render(nodes: MapNode[]): void {
+  render(nodes: MapNode[], disconnectedThreshold?: string): void {
     for (const n of nodes) {
       if (!n.position) continue
       const id = n.node.node_id
-      const html = `<b>${n.node.long_name ?? n.node.short_name ?? id}</b><br/>ID: ${id}<br/>Role: ${n.node.role ?? '-'}<br/>FW: ${n.node.firmware_version ?? '-'}<br/>Last update: ${relativeTime(n.node.last_seen_any_event_at)}`
+      const mqtt = mqttStatus(n.node.last_seen_mqtt_gateway_at, disconnectedThreshold)
+      const lora = n.node.lora_region || n.node.lora_frequency_desc
+        ? `${n.node.lora_region ?? '-'} / ${n.node.lora_frequency_desc ?? '-'}`
+        : '-'
+      const html = [
+        `<b>${n.node.long_name ?? id}</b>`,
+        `Short: ${n.node.short_name ?? '-'}`,
+        `ID: ${id}`,
+        `MQTT: ${mqtt.status}${mqtt.age ? ` (${mqtt.age})` : ''}`,
+        `Neighbors: ${n.node.neighbor_nodes_count ?? '-'}`,
+        `Role: ${n.node.role ?? '-'}`,
+        `LoRa: ${lora}`,
+        `Modem: ${n.node.modem_preset ?? '-'}`,
+        `Board: ${n.node.board_model ?? '-'}`,
+        `FW: ${n.node.firmware_version ?? '-'}`,
+        `Last update: ${relativeTime(n.node.last_seen_any_event_at)}`,
+        `Last position: ${relativeTime(n.node.last_seen_position_at)}`
+      ].join('<br/>')
       const latlng: [number, number] = [n.position.latitude, n.position.longitude]
       const m = this.markers[id]
       if (m) {
@@ -61,4 +78,36 @@ export class LeafletMapAdapter {
   destroy(): void {
     this.map.remove()
   }
+}
+
+function parseDurationMs(raw?: string): number | undefined {
+  if (!raw) return undefined
+  const token = /([0-9]+(?:\.[0-9]+)?)(ns|us|µs|ms|s|m|h)/g
+  let total = 0
+  let found = false
+  for (const match of raw.matchAll(token)) {
+    found = true
+    const n = Number(match[1])
+    const unit = match[2]
+    if (!Number.isFinite(n)) continue
+    if (unit === 'h') total += n * 3600000
+    if (unit === 'm') total += n * 60000
+    if (unit === 's') total += n * 1000
+    if (unit === 'ms') total += n
+    if (unit === 'us' || unit === 'µs') total += n / 1000
+    if (unit === 'ns') total += n / 1000000
+  }
+  if (!found) return undefined
+  return Math.max(0, Math.floor(total))
+}
+
+function mqttStatus(lastSeen?: string, disconnectedThreshold?: string): { status: 'Connected' | 'Disconnected'; age?: string } {
+  if (!lastSeen) return { status: 'Disconnected' }
+  const t = new Date(lastSeen)
+  if (Number.isNaN(t.getTime())) return { status: 'Disconnected' }
+  const thresholdMs = parseDurationMs(disconnectedThreshold)
+  const ageMs = Date.now() - t.getTime()
+  const age = relativeTime(lastSeen)
+  if (typeof thresholdMs !== 'number') return { status: 'Connected', age }
+  return ageMs <= thresholdMs ? { status: 'Connected', age } : { status: 'Disconnected', age }
 }
