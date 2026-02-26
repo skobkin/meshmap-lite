@@ -199,12 +199,16 @@ func setPath(cfg *Config, parts []string, value string) {
 		cfg.MQTT.Host = value
 	case "mqtt.port":
 		cfg.MQTT.Port = mustInt(value, cfg.MQTT.Port)
+	case "mqtt.tls":
+		cfg.MQTT.TLS = mustBool(value, cfg.MQTT.TLS)
 	case "mqtt.username":
 		cfg.MQTT.Username = value
 	case "mqtt.password":
 		cfg.MQTT.Password = value
 	case "mqtt.root_topic":
 		cfg.MQTT.RootTopic = value
+	case "mqtt.protocol_version":
+		cfg.MQTT.ProtocolVersion = value
 	case "mqtt.subscribe_qos":
 		cfg.MQTT.SubscribeQoS = byte(mustInt(value, int(cfg.MQTT.SubscribeQoS)))
 	case "mqtt.clean_session":
