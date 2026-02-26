@@ -35,7 +35,7 @@ channels:
 	if cfg.MQTT.ProtocolVersion != "5" {
 		t.Fatalf("expected protocol_version env override")
 	}
-	if !cfg.Channels["longfast"].Primary {
+	if !cfg.Channels["LongFast"].Primary {
 		t.Fatalf("expected channel env override")
 	}
 }

@@ -143,8 +143,8 @@ func (s *Store) MergeTelemetry(ctx context.Context, snap domain.NodeTelemetrySna
 	merged := domain.MergeTelemetry(cur, snap)
 	_, err := s.db.ExecContext(ctx, `
 INSERT INTO node_telemetry_snapshots(
- node_id,power_voltage,power_battery_level,env_temperature_c,env_humidity,env_pressure_hpa,air_pm25,air_pm10,air_co2,source_channel,reported_at,observed_at,updated_at
-) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+ node_id,power_voltage,power_battery_level,env_temperature_c,env_humidity,env_pressure_hpa,air_pm25,air_pm10,air_co2,air_iaq,source_channel,reported_at,observed_at,updated_at
+) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(node_id) DO UPDATE SET
  power_voltage=excluded.power_voltage,
  power_battery_level=excluded.power_battery_level,
@@ -154,6 +154,7 @@ ON CONFLICT(node_id) DO UPDATE SET
  air_pm25=excluded.air_pm25,
  air_pm10=excluded.air_pm10,
  air_co2=excluded.air_co2,
+ air_iaq=excluded.air_iaq,
  source_channel=excluded.source_channel,
  reported_at=excluded.reported_at,
  observed_at=excluded.observed_at,
@@ -161,7 +162,7 @@ ON CONFLICT(node_id) DO UPDATE SET
 	`, merged.NodeID,
 		ptrFloat(merged.Power.Voltage), ptrFloat(merged.Power.BatteryLevel),
 		ptrFloat(merged.Environment.TemperatureC), ptrFloat(merged.Environment.Humidity), ptrFloat(merged.Environment.PressureHpa),
-		ptrFloat(merged.AirQuality.PM25), ptrFloat(merged.AirQuality.PM10), ptrFloat(merged.AirQuality.CO2),
+		ptrFloat(merged.AirQuality.PM25), ptrFloat(merged.AirQuality.PM10), ptrFloat(merged.AirQuality.CO2), ptrFloat(merged.AirQuality.IAQ),
 		merged.SourceChannel, ptrTime(merged.ReportedAt), merged.ObservedAt.UTC().Format(time.RFC3339Nano), merged.UpdatedAt.UTC().Format(time.RFC3339Nano))
 
 	return err
@@ -293,7 +294,7 @@ func (s *Store) ListChatEvents(ctx context.Context, channel string, limit int, b
 	query := `
 SELECT id,event_type,channel_name,node_id,message_text,system_code,message_time,reported_at,observed_at,packet_id,created_at
 FROM chat_events
-WHERE (channel_name=? OR channel_name='')`
+WHERE (LOWER(channel_name)=LOWER(?) OR channel_name='')`
 	args := []interface{}{channel}
 	if before > 0 {
 		query += ` AND id < ?`
@@ -341,12 +342,12 @@ func (s *Store) Stats(ctx context.Context, threshold time.Duration) (domain.Stat
 func (s *Store) getTelemetry(ctx context.Context, nodeID string) (domain.NodeTelemetrySnapshot, error) {
 	var out domain.NodeTelemetrySnapshot
 	var reported sql.NullString
-	var pv, pbl, etc, eh, eph, ap25, ap10, aco2 sql.NullFloat64
+	var pv, pbl, etc, eh, eph, ap25, ap10, aco2, aiaq sql.NullFloat64
 	var observed, updated, source string
 	err := s.db.QueryRowContext(ctx, `
-SELECT node_id,power_voltage,power_battery_level,env_temperature_c,env_humidity,env_pressure_hpa,air_pm25,air_pm10,air_co2,source_channel,reported_at,observed_at,updated_at
+SELECT node_id,power_voltage,power_battery_level,env_temperature_c,env_humidity,env_pressure_hpa,air_pm25,air_pm10,air_co2,air_iaq,source_channel,reported_at,observed_at,updated_at
 FROM node_telemetry_snapshots WHERE node_id=?`, nodeID).Scan(
-		&out.NodeID, &pv, &pbl, &etc, &eh, &eph, &ap25, &ap10, &aco2, &source, &reported, &observed, &updated)
+		&out.NodeID, &pv, &pbl, &etc, &eh, &eph, &ap25, &ap10, &aco2, &aiaq, &source, &reported, &observed, &updated)
 	if err != nil {
 		return out, err
 	}
@@ -358,6 +359,7 @@ FROM node_telemetry_snapshots WHERE node_id=?`, nodeID).Scan(
 	out.AirQuality.PM25 = parseNullableFloat(ap25)
 	out.AirQuality.PM10 = parseNullableFloat(ap10)
 	out.AirQuality.CO2 = parseNullableFloat(aco2)
+	out.AirQuality.IAQ = parseNullableFloat(aiaq)
 	out.SourceChannel = source
 	out.ReportedAt = parseNullableTime(reported)
 	out.ObservedAt, _ = time.Parse(time.RFC3339Nano, observed)

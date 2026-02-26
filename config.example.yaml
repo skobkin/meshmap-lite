@@ -1,6 +1,8 @@
 mqtt:
   host: localhost
   port: 1883
+  # Optional: stable MQTT client ID. If omitted, app derives one from hostname + root topic.
+  client_id: ""
   root_topic: msh/RU/ARKH
   protocol_version: 3.1.1
   subscribe_qos: 1

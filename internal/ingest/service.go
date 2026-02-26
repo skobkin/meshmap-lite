@@ -81,7 +81,7 @@ func (s *Service) HandleMessage(ctx context.Context, topic string, payload []byt
 			return
 		}
 	}
-	channel := strings.ToLower(topicInfo.Channel)
+	channel := strings.TrimSpace(topicInfo.Channel)
 	if !s.allowEvent(channel, evt.Kind) {
 		s.log.Debug("skip packet by channel policy", "channel", channel, "kind", evt.Kind, "node_id", evt.NodeID)
 
@@ -246,6 +246,7 @@ func (s *Service) handleTelemetry(ctx context.Context, evt meshtastic.ParsedEven
 	t.AirQuality.PM25 = in.AirQuality.PM25
 	t.AirQuality.PM10 = in.AirQuality.PM10
 	t.AirQuality.CO2 = in.AirQuality.CO2
+	t.AirQuality.IAQ = in.AirQuality.IAQ
 	if err := s.store.MergeTelemetry(ctx, t); err != nil {
 		s.log.Error("merge telemetry failed", "node_id", evt.NodeID, "err", err)
 

@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-const targetSchemaVersion = 2
+const targetSchemaVersion = 4
 
 type migrationStep struct {
 	version int
@@ -17,6 +17,8 @@ type migrationStep struct {
 var schemaMigrations = []migrationStep{
 	{version: 1, name: "bootstrap_core_schema", apply: migrateV1BootstrapCoreSchema},
 	{version: 2, name: "chat_system_code", apply: migrateV2ChatSystemCode},
+	{version: 3, name: "telemetry_iaq", apply: migrateV3TelemetryIAQ},
+	{version: 4, name: "normalize_default_channel_names", apply: migrateV4NormalizeDefaultChannelNames},
 }
 
 // Apply upgrades the SQLite schema to the latest supported version.
@@ -104,6 +106,15 @@ func setSchemaVersionTx(ctx context.Context, tx *sql.Tx, version int) error {
 func tableExists(ctx context.Context, db *sql.DB, table string) (bool, error) {
 	var count int
 	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?`, table).Scan(&count); err != nil {
+		return false, fmt.Errorf("table exists %s: %w", table, err)
+	}
+
+	return count > 0, nil
+}
+
+func tableExistsTx(ctx context.Context, tx *sql.Tx, table string) (bool, error) {
+	var count int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=?`, table).Scan(&count); err != nil {
 		return false, fmt.Errorf("table exists %s: %w", table, err)
 	}
 

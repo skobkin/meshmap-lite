@@ -32,7 +32,7 @@ var (
 func ConfigureChannelKeys(m map[string]string) {
 	next := make(map[string]string, len(m))
 	for k, v := range m {
-		name := strings.TrimSpace(strings.ToLower(k))
+		name := strings.TrimSpace(k)
 		if name == "" {
 			continue
 		}
@@ -112,6 +112,7 @@ type TelemetryPayload struct {
 		PM25 *float64 `json:"pm25"`
 		PM10 *float64 `json:"pm10"`
 		CO2  *float64 `json:"co2"`
+		IAQ  *float64 `json:"iaq"`
 	} `json:"air_quality"`
 }
 
@@ -242,6 +243,10 @@ func parseServiceEnvelope(payload []byte, channelHint string) (ParsedEvent, erro
 				x := float64(v.GetBarometricPressure())
 				t.Environment.PressureHpa = &x
 			}
+			if v.Iaq != nil {
+				x := float64(v.GetIaq())
+				t.AirQuality.IAQ = &x
+			}
 		}
 		if v := tel.GetAirQualityMetrics(); v != nil {
 			if v.Pm25Standard != nil {
@@ -366,21 +371,15 @@ func buildChannelCandidates(keys map[string]string, envelopeChannelID, topicChan
 }
 
 func keyForChannelName(keys map[string]string, name string) (string, bool) {
-	lower := strings.ToLower(strings.TrimSpace(name))
-	psk, ok := keys[lower]
+	needle := strings.TrimSpace(name)
+	psk, ok := keys[needle]
 	if ok {
 		return psk, true
 	}
-	// Common preset aliases.
-	switch lower {
-	case "longfast":
-		return keys["longfast"], keys["longfast"] != ""
-	case "longslow":
-		return keys["longslow"], keys["longslow"] != ""
-	case "mediumslow":
-		return keys["mediumslow"], keys["mediumslow"] != ""
-	case "shortfast":
-		return keys["shortfast"], keys["shortfast"] != ""
+	for key, value := range keys {
+		if strings.EqualFold(strings.TrimSpace(key), needle) {
+			return value, true
+		}
 	}
 
 	return "", false
@@ -390,7 +389,7 @@ func decodeAndExpandPSK(encoded string) ([32]byte, int, bool) {
 	var out [32]byte
 	encoded = strings.TrimSpace(encoded)
 	if encoded == "" {
-		encoded = "AQ=="
+		return out, 0, false
 	}
 
 	keyBytes, err := base64.StdEncoding.DecodeString(encoded)

@@ -48,6 +48,7 @@ func migrateV1BootstrapCoreSchema(ctx context.Context, tx *sql.Tx) error {
   air_pm25 REAL,
   air_pm10 REAL,
   air_co2 REAL,
+  air_iaq REAL,
   source_channel TEXT,
   reported_at TEXT,
   observed_at TEXT NOT NULL,

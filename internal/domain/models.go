@@ -65,6 +65,7 @@ type TelemetrySectionAirQuality struct {
 	PM25 *float64 `json:"pm25,omitempty"`
 	PM10 *float64 `json:"pm10,omitempty"`
 	CO2  *float64 `json:"co2,omitempty"`
+	IAQ  *float64 `json:"iaq,omitempty"`
 }
 
 // NodeTelemetrySnapshot stores merged telemetry readings for a node.

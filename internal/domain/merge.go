@@ -12,6 +12,7 @@ func MergeTelemetry(current NodeTelemetrySnapshot, incoming NodeTelemetrySnapsho
 	mergeFloat(&merged.AirQuality.PM25, incoming.AirQuality.PM25)
 	mergeFloat(&merged.AirQuality.PM10, incoming.AirQuality.PM10)
 	mergeFloat(&merged.AirQuality.CO2, incoming.AirQuality.CO2)
+	mergeFloat(&merged.AirQuality.IAQ, incoming.AirQuality.IAQ)
 	if incoming.SourceChannel != "" {
 		merged.SourceChannel = incoming.SourceChannel
 	}

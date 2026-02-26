@@ -16,6 +16,15 @@ interface SavedMapView {
   zoom: number
 }
 
+function canonicalChannelName(channels: string[], value: string | undefined): string {
+  const needle = value?.trim()
+  if (!needle) return ''
+  const exact = channels.find((c) => c === needle)
+  if (exact) return exact
+  const folded = channels.find((c) => c.toLowerCase() === needle.toLowerCase())
+  return folded ?? needle
+}
+
 function readSavedMapView(): SavedMapView | null {
   const raw = localStorage.getItem(mapViewKey)
   if (!raw) return null
@@ -87,7 +96,7 @@ export function App() {
         errors.push('Failed to load map nodes snapshot.')
       }
 
-      const selected = channel || nextMeta?.default_chat_channel || nextChannels[0]
+      const selected = canonicalChannelName(nextChannels, channel || nextMeta?.default_chat_channel || nextChannels[0])
       if (selected && !cancelled) {
         setChannel(selected)
       }
@@ -156,6 +165,12 @@ export function App() {
         setBootstrapErrors((prev) => [...prev, `Failed to load details for node "${selectedId}".`])
       })
   }, [selectedId])
+
+  useEffect(() => {
+    if (!channels.length || !channel) return
+    const canonical = canonicalChannelName(channels, channel)
+    if (canonical !== channel) setChannel(canonical)
+  }, [channels, channel])
 
   useEffect(() => {
     if (!meta) return

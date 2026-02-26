@@ -4,9 +4,12 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"hash/fnv"
 	"log/slog"
 	"net/url"
-	"time"
+	"os"
+	"regexp"
+	"strings"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 
@@ -32,7 +35,7 @@ func New(cfg config.MQTTConfig, log *slog.Logger, handler Handler) *Client {
 // Start connects to MQTT, subscribes to root topic, and blocks until context cancellation.
 func (c *Client) Start(ctx context.Context) error {
 	brokerURL := fmt.Sprintf("tcp://%s:%d", c.cfg.Host, c.cfg.Port)
-	clientID := fmt.Sprintf("meshmap-lite-%d", time.Now().UnixNano())
+	clientID := resolveClientID(c.cfg)
 	opts := mqtt.NewClientOptions().
 		AddBroker(brokerURL).
 		SetClientID(clientID).
@@ -94,6 +97,48 @@ func (c *Client) Start(ctx context.Context) error {
 	c.log.Info("mqtt client stopped")
 
 	return nil
+}
+
+func resolveClientID(cfg config.MQTTConfig) string {
+	if id := strings.TrimSpace(cfg.ClientID); id != "" {
+		return sanitizeClientID(id)
+	}
+
+	host, err := os.Hostname()
+	if err != nil || strings.TrimSpace(host) == "" {
+		host = "host"
+	}
+	hostPart := sanitizeClientID(host)
+	if len(hostPart) > 10 {
+		hostPart = hostPart[:10]
+	}
+	if hostPart == "" {
+		hostPart = "host"
+	}
+
+	// Stable ID keeps persistent sessions usable across restarts.
+	sum := fnv.New32a()
+	_, _ = sum.Write([]byte(host + "|" + cfg.RootTopic))
+
+	return fmt.Sprintf("mml-%s-%08x", hostPart, sum.Sum32())
+}
+
+var mqttClientIDUnsafe = regexp.MustCompile(`[^a-zA-Z0-9._-]`)
+
+func sanitizeClientID(v string) string {
+	s := strings.TrimSpace(v)
+	if s == "" {
+		return "mml-client"
+	}
+	s = mqttClientIDUnsafe.ReplaceAllString(s, "-")
+	if len(s) > 23 {
+		s = s[:23]
+	}
+	if s == "" {
+		return "mml-client"
+	}
+
+	return s
 }
 
 func (c *Client) messageHandler(_ mqtt.Client, msg mqtt.Message) {

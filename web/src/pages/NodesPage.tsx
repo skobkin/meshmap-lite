@@ -76,6 +76,7 @@ export function NodesPage({ items, selected, details, loadError, onSelect }: Pro
               <p>PM2.5: {value(details.telemetry?.air_quality?.pm25)}</p>
               <p>PM10: {value(details.telemetry?.air_quality?.pm10)}</p>
               <p>CO2: {value(details.telemetry?.air_quality?.co2)}</p>
+              <p>IAQ: {value(details.telemetry?.air_quality?.iaq)}</p>
             </section>
             <section>
               <h4>Source / Timestamps</h4>

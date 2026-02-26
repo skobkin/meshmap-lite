@@ -42,6 +42,7 @@ function wsStateMeta(state: WSState, wsStats: WSStats | null): { title: string; 
 
 export function Header({ page, ws, wsStats, onPage }: Props) {
   const status = wsStateMeta(ws, wsStats)
+  const wsIcon = `/static/icons/ws-dot-${status.tone}.svg`
 
   return (
     <header className="topbar container-fluid">
@@ -74,18 +75,10 @@ export function Header({ page, ws, wsStats, onPage }: Props) {
       </nav>
       <div className="header-icons">
         <span className={`ws-dot ${status.tone}`} title={status.title} aria-label={status.title}>
-          <svg viewBox="0 0 12 12" aria-hidden="true">
-            <circle cx="6" cy="6" r="5" />
-          </svg>
+          <img src={wsIcon} alt="" aria-hidden="true" />
         </span>
         <a className="repo-link" href="https://git.skobk.in/skobkin/meshmap-lite" target="_blank" rel="noreferrer" title="Source repository" aria-label="Source repository">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="5" cy="6" r="2" />
-            <circle cx="5" cy="18" r="2" />
-            <circle cx="19" cy="12" r="2" />
-            <path d="M7 6h5a3 3 0 0 1 3 3v1" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            <path d="M7 18h5a3 3 0 0 0 3-3v-1" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-          </svg>
+          <img src="/static/icons/repo-graph.svg" alt="" aria-hidden="true" />
         </a>
         <a href="https://meshtastic.org" target="_blank" rel="noreferrer" title="Powered by Meshtastic">
           <img className="meshtastic-logo" src="/static/icons/meshtastic-powered.svg" alt="Powered by Meshtastic" />

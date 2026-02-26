@@ -92,6 +92,7 @@ export interface NodeTelemetry {
     pm25?: number
     pm10?: number
     co2?: number
+    iaq?: number
   }
   source_channel?: string
   reported_at?: string

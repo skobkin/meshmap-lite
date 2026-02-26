@@ -87,6 +87,97 @@ VALUES
 	}
 }
 
+func TestApply_NormalizesDefaultChannelNames(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite", "file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	_, err = db.ExecContext(ctx, `
+CREATE TABLE nodes (
+  node_id TEXT PRIMARY KEY
+);
+CREATE TABLE node_positions (
+  node_id TEXT PRIMARY KEY REFERENCES nodes(node_id) ON DELETE CASCADE,
+  latitude REAL NOT NULL,
+  longitude REAL NOT NULL,
+  source_kind TEXT NOT NULL,
+  source_channel TEXT,
+  observed_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE node_telemetry_snapshots (
+  node_id TEXT PRIMARY KEY REFERENCES nodes(node_id) ON DELETE CASCADE,
+  source_channel TEXT,
+  observed_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE chat_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_type TEXT NOT NULL,
+  channel_name TEXT,
+  node_id TEXT,
+  message_text TEXT,
+  system_code TEXT,
+  message_time TEXT NOT NULL,
+  reported_at TEXT,
+  observed_at TEXT NOT NULL,
+  packet_id INTEGER,
+  created_at TEXT NOT NULL
+);
+INSERT INTO nodes(node_id) VALUES ('!00000001');
+INSERT INTO node_positions(node_id,latitude,longitude,source_kind,source_channel,observed_at,updated_at)
+VALUES ('!00000001',0,0,'channel_position','longfast','2026-02-26T00:00:00Z','2026-02-26T00:00:00Z');
+INSERT INTO node_telemetry_snapshots(node_id,source_channel,observed_at,updated_at)
+VALUES ('!00000001','mediumslow','2026-02-26T00:00:00Z','2026-02-26T00:00:00Z');
+INSERT INTO chat_events(event_type,channel_name,node_id,message_text,message_time,observed_at,created_at)
+VALUES
+  ('message','shortfast','!00000001','a','2026-02-26T00:00:00Z','2026-02-26T00:00:00Z','2026-02-26T00:00:00Z'),
+  ('message','pingpong','!00000001','b','2026-02-26T00:00:00Z','2026-02-26T00:00:00Z','2026-02-26T00:00:00Z');
+`)
+	if err != nil {
+		t.Fatalf("seed schema: %v", err)
+	}
+
+	if err := Apply(ctx, db); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	var posChannel string
+	if err := db.QueryRowContext(ctx, `SELECT source_channel FROM node_positions WHERE node_id='!00000001'`).Scan(&posChannel); err != nil {
+		t.Fatalf("read node_positions: %v", err)
+	}
+	if posChannel != "LongFast" {
+		t.Fatalf("expected LongFast, got %q", posChannel)
+	}
+
+	var telChannel string
+	if err := db.QueryRowContext(ctx, `SELECT source_channel FROM node_telemetry_snapshots WHERE node_id='!00000001'`).Scan(&telChannel); err != nil {
+		t.Fatalf("read node_telemetry_snapshots: %v", err)
+	}
+	if telChannel != "MediumSlow" {
+		t.Fatalf("expected MediumSlow, got %q", telChannel)
+	}
+
+	var chatDefault string
+	if err := db.QueryRowContext(ctx, `SELECT channel_name FROM chat_events WHERE message_text='a'`).Scan(&chatDefault); err != nil {
+		t.Fatalf("read chat default: %v", err)
+	}
+	if chatDefault != "ShortFast" {
+		t.Fatalf("expected ShortFast, got %q", chatDefault)
+	}
+
+	var chatCustom string
+	if err := db.QueryRowContext(ctx, `SELECT channel_name FROM chat_events WHERE message_text='b'`).Scan(&chatCustom); err != nil {
+		t.Fatalf("read chat custom: %v", err)
+	}
+	if chatCustom != "pingpong" {
+		t.Fatalf("expected custom channel unchanged, got %q", chatCustom)
+	}
+}
+
 func tableHasColumn(ctx context.Context, db *sql.DB, table, column string) (bool, error) {
 	rows, err := db.QueryContext(ctx, "PRAGMA table_info("+table+")")
 	if err != nil {

@@ -29,6 +29,7 @@ type MQTTConfig struct {
 	Host             string        `koanf:"host"`
 	Port             int           `koanf:"port"`
 	TLS              bool          `koanf:"tls"`
+	ClientID         string        `koanf:"client_id"`
 	Username         string        `koanf:"username"`
 	Password         string        `koanf:"password"`
 	RootTopic        string        `koanf:"root_topic"`
@@ -181,9 +182,16 @@ func applyEnv(cfg *Config) {
 			continue
 		}
 		path := strings.TrimPrefix(k, "MML_")
-		segments := strings.Split(path, "__")
+		rawSegments := strings.Split(path, "__")
+		segments := make([]string, len(rawSegments))
+		copy(segments, rawSegments)
 		for i := range segments {
 			segments[i] = strings.ToLower(segments[i])
+		}
+		// Preserve user-provided channel key casing for MML_CHANNELS__<name>__...
+		if len(rawSegments) >= 3 && strings.EqualFold(rawSegments[0], "channels") {
+			segments[0] = "channels"
+			segments[1] = strings.TrimSpace(rawSegments[1])
 		}
 		setPath(cfg, segments, v)
 	}
@@ -201,6 +209,8 @@ func setPath(cfg *Config, parts []string, value string) {
 		cfg.MQTT.Port = mustInt(value, cfg.MQTT.Port)
 	case "mqtt.tls":
 		cfg.MQTT.TLS = mustBool(value, cfg.MQTT.TLS)
+	case "mqtt.client_id":
+		cfg.MQTT.ClientID = value
 	case "mqtt.username":
 		cfg.MQTT.Username = value
 	case "mqtt.password":
@@ -292,7 +302,10 @@ func normalize(cfg *Config) {
 	}
 	normalized := make(map[string]ChannelConfig, len(cfg.Channels))
 	for k, v := range cfg.Channels {
-		key := strings.ToLower(strings.TrimSpace(k))
+		key := strings.TrimSpace(k)
+		if key == "" {
+			continue
+		}
 		if v.PSK == "" {
 			v.PSK = "AQ=="
 		}
@@ -312,7 +325,7 @@ func normalize(cfg *Config) {
 			cfg.Web.Chat.DefaultChannel = names[0]
 		}
 	} else {
-		cfg.Web.Chat.DefaultChannel = strings.ToLower(cfg.Web.Chat.DefaultChannel)
+		cfg.Web.Chat.DefaultChannel = resolveChannelKey(cfg.Channels, strings.TrimSpace(cfg.Web.Chat.DefaultChannel))
 	}
 }
 
