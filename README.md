@@ -9,6 +9,12 @@ Lightweight read-only Meshtastic regional map and chat viewer.
 1. `go run ./cmd/server --config ./config.example.yaml`
 2. Open `http://localhost:8080`
 
+## Run in Docker
+
+[`skobkin/meshmap-lite`](https://hub.docker.com/r/skobkin/meshmap-lite) Docker image is available for deploy.
+
+Docker Compose [example](https://git.skobk.in/skobkin/docker-stacks/src/branch/master/meshmap-lite).
+
 ## Frontend dev
 
 1. `cd web`
