@@ -49,7 +49,12 @@ steps:
     when:
       - event: push
 
-  release:
+  release-forgejo:
+    depends_on:
+      - fmt
+      - lint
+      - vet
+      - test
     image: goreleaser/goreleaser-cross:v1.25-v2.12.7
     environment:
       FORGE_TOKEN:
@@ -74,7 +79,12 @@ steps:
     when:
       - event: tag
 
-  docker:
+  release-docker:
+    depends_on:
+      - fmt
+      - lint
+      - vet
+      - test
     # 'woodpeckerci/plugin-docker-buildx:6' should be added to WOODPECKER_PLUGINS_PRIVILEGED for Woodpecker stack
     image: woodpeckerci/plugin-docker-buildx:6
     settings:
