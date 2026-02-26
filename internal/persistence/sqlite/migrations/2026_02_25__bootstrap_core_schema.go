@@ -18,6 +18,8 @@ func migrateV1BootstrapCoreSchema(ctx context.Context, tx *sql.Tx) error {
   lora_region TEXT,
   lora_frequency_desc TEXT,
   modem_preset TEXT,
+  has_default_channel INTEGER,
+  has_opted_report_location INTEGER,
   neighbor_nodes_count INTEGER,
   mqtt_gateway_capable INTEGER,
   first_seen_at TEXT NOT NULL,

@@ -79,22 +79,25 @@ type ChatPayload struct {
 
 // NodeInfoPayload contains decoded node identity and capabilities fields.
 type NodeInfoPayload struct {
-	LongName           string `json:"long_name"`
-	ShortName          string `json:"short_name"`
-	Role               string `json:"role"`
-	BoardModel         string `json:"board_model"`
-	FirmwareVersion    string `json:"firmware_version"`
-	LoRaRegion         string `json:"lora_region"`
-	LoRaFrequencyDesc  string `json:"lora_frequency_desc"`
-	ModemPreset        string `json:"modem_preset"`
-	NeighborNodesCount *int   `json:"neighbor_nodes_count"`
+	LongName               string `json:"long_name"`
+	ShortName              string `json:"short_name"`
+	Role                   string `json:"role"`
+	BoardModel             string `json:"board_model"`
+	FirmwareVersion        string `json:"firmware_version"`
+	LoRaRegion             string `json:"lora_region"`
+	LoRaFrequencyDesc      string `json:"lora_frequency_desc"`
+	ModemPreset            string `json:"modem_preset"`
+	HasDefaultChannel      *bool  `json:"has_default_channel,omitempty"`
+	HasOptedReportLocation *bool  `json:"has_opted_report_location,omitempty"`
+	NeighborNodesCount     *int   `json:"neighbor_nodes_count"`
 }
 
 // PositionPayload contains decoded geolocation fields.
 type PositionPayload struct {
-	Latitude  float64  `json:"latitude"`
-	Longitude float64  `json:"longitude"`
-	AltitudeM *float64 `json:"altitude_m"`
+	Latitude          float64  `json:"latitude"`
+	Longitude         float64  `json:"longitude"`
+	AltitudeM         *float64 `json:"altitude_m"`
+	PositionPrecision *uint32  `json:"position_precision,omitempty"`
 }
 
 // TelemetryPayload contains decoded telemetry sections.
@@ -118,19 +121,21 @@ type TelemetryPayload struct {
 
 // MapReportPayload contains decoded map report content.
 type MapReportPayload struct {
-	NodeID             string   `json:"node_id"`
-	LongName           string   `json:"long_name"`
-	ShortName          string   `json:"short_name"`
-	Role               string   `json:"role"`
-	BoardModel         string   `json:"board_model"`
-	FirmwareVersion    string   `json:"firmware_version"`
-	LoRaRegion         string   `json:"lora_region"`
-	ModemPreset        string   `json:"modem_preset"`
-	NeighborNodesCount *int     `json:"neighbor_nodes_count"`
-	Latitude           float64  `json:"latitude"`
-	Longitude          float64  `json:"longitude"`
-	AltitudeM          *float64 `json:"altitude_m"`
-	PositionPrecision  *uint32  `json:"position_precision"`
+	NodeID                 string   `json:"node_id"`
+	LongName               string   `json:"long_name"`
+	ShortName              string   `json:"short_name"`
+	Role                   string   `json:"role"`
+	BoardModel             string   `json:"board_model"`
+	FirmwareVersion        string   `json:"firmware_version"`
+	LoRaRegion             string   `json:"lora_region"`
+	ModemPreset            string   `json:"modem_preset"`
+	HasDefaultChannel      bool     `json:"has_default_channel"`
+	HasOptedReportLocation bool     `json:"has_opted_report_location"`
+	NeighborNodesCount     *int     `json:"neighbor_nodes_count"`
+	Latitude               float64  `json:"latitude"`
+	Longitude              float64  `json:"longitude"`
+	AltitudeM              *float64 `json:"altitude_m"`
+	PositionPrecision      *uint32  `json:"position_precision"`
 }
 
 // ParsePayload decodes real Meshtastic MQTT protobuf payloads.
@@ -138,6 +143,9 @@ type MapReportPayload struct {
 func ParsePayload(kind TopicKind, payload []byte, channelHint, mapNodeHint string) (ParsedEvent, error) {
 	if kind == TopicKindMapReport {
 		if evt, err := parseMapReportProtobuf(payload, mapNodeHint); err == nil {
+			return evt, nil
+		}
+		if evt, err := parseMapReportEnvelope(payload, channelHint, mapNodeHint); err == nil {
 			return evt, nil
 		}
 	}
@@ -486,16 +494,18 @@ func parseMapReportProtobuf(payload []byte, mapNodeHint string) (ParsedEvent, er
 	}
 	out := ParsedEvent{Kind: ParsedMapReport, NodeID: normalizeNodeID(mapNodeHint), Format: "protobuf"}
 	m := &MapReportPayload{
-		NodeID:          out.NodeID,
-		LongName:        strings.TrimSpace(report.GetLongName()),
-		ShortName:       strings.TrimSpace(report.GetShortName()),
-		Role:            report.GetRole().String(),
-		BoardModel:      report.GetHwModel().String(),
-		FirmwareVersion: strings.TrimSpace(report.GetFirmwareVersion()),
-		LoRaRegion:      report.GetRegion().String(),
-		ModemPreset:     report.GetModemPreset().String(),
-		Latitude:        float64(report.GetLatitudeI()) * positionScale,
-		Longitude:       float64(report.GetLongitudeI()) * positionScale,
+		NodeID:                 out.NodeID,
+		LongName:               strings.TrimSpace(report.GetLongName()),
+		ShortName:              strings.TrimSpace(report.GetShortName()),
+		Role:                   report.GetRole().String(),
+		BoardModel:             report.GetHwModel().String(),
+		FirmwareVersion:        strings.TrimSpace(report.GetFirmwareVersion()),
+		LoRaRegion:             report.GetRegion().String(),
+		ModemPreset:            report.GetModemPreset().String(),
+		HasDefaultChannel:      report.GetHasDefaultChannel(),
+		HasOptedReportLocation: report.GetHasOptedReportLocation(),
+		Latitude:               float64(report.GetLatitudeI()) * positionScale,
+		Longitude:              float64(report.GetLongitudeI()) * positionScale,
 	}
 	if report.GetAltitude() != 0 {
 		alt := float64(report.GetAltitude())
@@ -510,6 +520,48 @@ func parseMapReportProtobuf(payload []byte, mapNodeHint string) (ParsedEvent, er
 		m.NeighborNodesCount = &n
 	}
 	out.MapReport = m
+
+	return out, nil
+}
+
+func parseMapReportEnvelope(payload []byte, channelHint, mapNodeHint string) (ParsedEvent, error) {
+	var env generated.ServiceEnvelope
+	if err := proto.Unmarshal(payload, &env); err != nil {
+		return ParsedEvent{}, fmt.Errorf("decode service envelope: %w", err)
+	}
+	packet := env.GetPacket()
+	if packet == nil {
+		return ParsedEvent{}, fmt.Errorf("empty packet")
+	}
+	decoded := packet.GetDecoded()
+	encrypted := decoded == nil
+	wasDecrypted := false
+	if decoded == nil {
+		decryptedData, err := decryptPacket(packet, env.GetChannelId(), channelHint)
+		if err != nil {
+			return ParsedEvent{}, err
+		}
+		decoded = decryptedData
+		wasDecrypted = true
+	}
+	if decoded == nil || len(decoded.GetPayload()) == 0 {
+		return ParsedEvent{}, fmt.Errorf("missing map report payload")
+	}
+	nodeID := nodeIDFromNum(packet.GetFrom())
+	if nodeID == "" {
+		nodeID = mapNodeHint
+	}
+	out, err := parseMapReportProtobuf(decoded.GetPayload(), nodeID)
+	if err != nil {
+		return ParsedEvent{}, err
+	}
+	out.PacketID = packet.GetId()
+	out.Encrypted = encrypted
+	out.Decrypted = wasDecrypted
+	if rx := packet.GetRxTime(); rx > 0 {
+		ts := time.Unix(int64(rx), 0).UTC()
+		out.Timestamp = &ts
+	}
 
 	return out, nil
 }

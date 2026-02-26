@@ -24,6 +24,8 @@ export interface Node {
   lora_region?: string
   lora_frequency_desc?: string
   modem_preset?: string
+  has_default_channel?: boolean
+  has_opted_report_location?: boolean
   neighbor_nodes_count?: number
   mqtt_gateway_capable?: boolean
   first_seen_at?: string

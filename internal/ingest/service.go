@@ -211,7 +211,23 @@ func (s *Service) handleChat(ctx context.Context, evt meshtastic.ParsedEvent, ch
 
 func (s *Service) handleNodeInfo(ctx context.Context, evt meshtastic.ParsedEvent, now time.Time) bool {
 	in := evt.NodeInfo
-	n := domain.Node{NodeID: evt.NodeID, LongName: in.LongName, ShortName: in.ShortName, Role: in.Role, BoardModel: in.BoardModel, FirmwareVersion: in.FirmwareVersion, LoRaRegion: in.LoRaRegion, LoRaFrequencyDesc: in.LoRaFrequencyDesc, ModemPreset: in.ModemPreset, NeighborNodesCount: in.NeighborNodesCount, FirstSeenAt: now, LastSeenAnyEventAt: now, UpdatedAt: now}
+	n := domain.Node{
+		NodeID:                 evt.NodeID,
+		LongName:               in.LongName,
+		ShortName:              in.ShortName,
+		Role:                   in.Role,
+		BoardModel:             in.BoardModel,
+		FirmwareVersion:        in.FirmwareVersion,
+		LoRaRegion:             in.LoRaRegion,
+		LoRaFrequencyDesc:      in.LoRaFrequencyDesc,
+		ModemPreset:            in.ModemPreset,
+		HasDefaultChannel:      in.HasDefaultChannel,
+		HasOptedReportLocation: in.HasOptedReportLocation,
+		NeighborNodesCount:     in.NeighborNodesCount,
+		FirstSeenAt:            now,
+		LastSeenAnyEventAt:     now,
+		UpdatedAt:              now,
+	}
 	if _, err := s.store.UpsertNode(ctx, n); err != nil {
 		s.log.Error("upsert nodeinfo failed", "node_id", evt.NodeID, "err", err)
 
@@ -224,7 +240,18 @@ func (s *Service) handleNodeInfo(ctx context.Context, evt meshtastic.ParsedEvent
 
 func (s *Service) handlePosition(ctx context.Context, evt meshtastic.ParsedEvent, channel string, now time.Time, source domain.PositionSourceKind) bool {
 	in := evt.Position
-	p := domain.NodePosition{NodeID: evt.NodeID, Latitude: in.Latitude, Longitude: in.Longitude, AltitudeM: in.AltitudeM, SourceKind: source, SourceChannel: channel, ReportedAt: evt.Timestamp, ObservedAt: now, UpdatedAt: now}
+	p := domain.NodePosition{
+		NodeID:            evt.NodeID,
+		Latitude:          in.Latitude,
+		Longitude:         in.Longitude,
+		AltitudeM:         in.AltitudeM,
+		PositionPrecision: in.PositionPrecision,
+		SourceKind:        source,
+		SourceChannel:     channel,
+		ReportedAt:        evt.Timestamp,
+		ObservedAt:        now,
+		UpdatedAt:         now,
+	}
 	if err := s.store.UpsertPosition(ctx, p); err != nil {
 		s.log.Error("upsert position failed", "node_id", evt.NodeID, "err", err)
 
@@ -261,10 +288,34 @@ func (s *Service) handleMapReport(ctx context.Context, evt meshtastic.ParsedEven
 	if evt.MapReport == nil {
 		return false
 	}
+	ok := true
 	ev := evt
-	ev.Position = &meshtastic.PositionPayload{Latitude: evt.MapReport.Latitude, Longitude: evt.MapReport.Longitude, AltitudeM: evt.MapReport.AltitudeM}
+	ev.NodeInfo = &meshtastic.NodeInfoPayload{
+		LongName:               evt.MapReport.LongName,
+		ShortName:              evt.MapReport.ShortName,
+		Role:                   evt.MapReport.Role,
+		BoardModel:             evt.MapReport.BoardModel,
+		FirmwareVersion:        evt.MapReport.FirmwareVersion,
+		LoRaRegion:             evt.MapReport.LoRaRegion,
+		ModemPreset:            evt.MapReport.ModemPreset,
+		HasDefaultChannel:      boolPtr(evt.MapReport.HasDefaultChannel),
+		HasOptedReportLocation: boolPtr(evt.MapReport.HasOptedReportLocation),
+		NeighborNodesCount:     evt.MapReport.NeighborNodesCount,
+	}
+	if !s.handleNodeInfo(ctx, ev, now) {
+		ok = false
+	}
+	ev.Position = &meshtastic.PositionPayload{
+		Latitude:          evt.MapReport.Latitude,
+		Longitude:         evt.MapReport.Longitude,
+		AltitudeM:         evt.MapReport.AltitudeM,
+		PositionPrecision: evt.MapReport.PositionPrecision,
+	}
+	if !s.handlePosition(ctx, ev, "", now, domain.PositionSourceMapReport) {
+		ok = false
+	}
 
-	return s.handlePosition(ctx, ev, "", now, domain.PositionSourceMapReport)
+	return ok
 }
 
 func (s *Service) emitSystemNodeDiscovered(ctx context.Context, nodeID, channel string, now time.Time) {
@@ -286,4 +337,8 @@ func (s *Service) emitSystemNodeDiscovered(ctx context.Context, nodeID, channel 
 	ce.ID = id
 	s.log.Debug("emit chat system event", "node_id", nodeID, "channel", channel, "system_code", ce.SystemCode)
 	s.emitter.Emit(domain.RealtimeEvent{Type: "chat.system", TS: now, Payload: ce})
+}
+
+func boolPtr(v bool) *bool {
+	return &v
 }

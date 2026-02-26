@@ -51,6 +51,8 @@ export function NodesPage({ items, selected, details, loadError, onSelect }: Pro
               <p>Region: {value(details.node.lora_region)}</p>
               <p>Frequency: {value(details.node.lora_frequency_desc)}</p>
               <p>Modem preset: {value(details.node.modem_preset)}</p>
+              <p>Default channel: {value(details.node.has_default_channel)}</p>
+              <p>Location reports opted-in: {value(details.node.has_opted_report_location)}</p>
               <p>Neighbors: {value(details.node.neighbor_nodes_count)}</p>
               <p>Board model: {value(details.node.board_model)}</p>
               <p>Firmware: {value(details.node.firmware_version)}</p>

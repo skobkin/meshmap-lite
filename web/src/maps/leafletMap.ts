@@ -59,6 +59,8 @@ export class LeafletMapAdapter {
         `Role: ${n.node.role ?? '-'}`,
         `LoRa: ${lora}`,
         `Modem: ${n.node.modem_preset ?? '-'}`,
+        `Default channel: ${typeof n.node.has_default_channel === 'boolean' ? (n.node.has_default_channel ? 'yes' : 'no') : '-'}`,
+        `Location reports: ${typeof n.node.has_opted_report_location === 'boolean' ? (n.node.has_opted_report_location ? 'yes' : 'no') : '-'}`,
         `Board: ${n.node.board_model ?? '-'}`,
         `FW: ${n.node.firmware_version ?? '-'}`,
         `Last update: ${relativeTime(n.node.last_seen_any_event_at)}`,

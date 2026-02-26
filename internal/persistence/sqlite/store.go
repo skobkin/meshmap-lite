@@ -83,8 +83,8 @@ func (s *Store) UpsertNode(ctx context.Context, n domain.Node) (bool, error) {
 	_, err = s.db.ExecContext(ctx, `
 INSERT INTO nodes (
  node_id,node_num,long_name,short_name,role,board_model,firmware_version,lora_region,lora_frequency_desc,modem_preset,
- neighbor_nodes_count,mqtt_gateway_capable,first_seen_at,last_seen_any_event_at,last_seen_mqtt_gateway_at,last_seen_position_at,updated_at
-) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+ has_default_channel,has_opted_report_location,neighbor_nodes_count,mqtt_gateway_capable,first_seen_at,last_seen_any_event_at,last_seen_mqtt_gateway_at,last_seen_position_at,updated_at
+) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(node_id) DO UPDATE SET
  node_num=COALESCE(excluded.node_num,nodes.node_num),
  long_name=CASE WHEN excluded.long_name<>'' THEN excluded.long_name ELSE nodes.long_name END,
@@ -95,6 +95,8 @@ ON CONFLICT(node_id) DO UPDATE SET
  lora_region=CASE WHEN excluded.lora_region<>'' THEN excluded.lora_region ELSE nodes.lora_region END,
  lora_frequency_desc=CASE WHEN excluded.lora_frequency_desc<>'' THEN excluded.lora_frequency_desc ELSE nodes.lora_frequency_desc END,
  modem_preset=CASE WHEN excluded.modem_preset<>'' THEN excluded.modem_preset ELSE nodes.modem_preset END,
+ has_default_channel=COALESCE(excluded.has_default_channel,nodes.has_default_channel),
+ has_opted_report_location=COALESCE(excluded.has_opted_report_location,nodes.has_opted_report_location),
  neighbor_nodes_count=COALESCE(excluded.neighbor_nodes_count,nodes.neighbor_nodes_count),
  mqtt_gateway_capable=COALESCE(excluded.mqtt_gateway_capable,nodes.mqtt_gateway_capable),
  last_seen_any_event_at=excluded.last_seen_any_event_at,
@@ -102,7 +104,7 @@ ON CONFLICT(node_id) DO UPDATE SET
  last_seen_position_at=COALESCE(excluded.last_seen_position_at,nodes.last_seen_position_at),
  updated_at=excluded.updated_at
 `, n.NodeID, ptrUint32(n.NodeNum), n.LongName, n.ShortName, n.Role, n.BoardModel, n.FirmwareVersion,
-		n.LoRaRegion, n.LoRaFrequencyDesc, n.ModemPreset, ptrInt(n.NeighborNodesCount), ptrBool(n.MQTTGatewayCapable),
+		n.LoRaRegion, n.LoRaFrequencyDesc, n.ModemPreset, ptrBool(n.HasDefaultChannel), ptrBool(n.HasOptedReportLocation), ptrInt(n.NeighborNodesCount), ptrBool(n.MQTTGatewayCapable),
 		n.FirstSeenAt.UTC().Format(time.RFC3339Nano), n.LastSeenAnyEventAt.UTC().Format(time.RFC3339Nano),
 		ptrTime(n.LastSeenMQTTGatewayAt), ptrTime(n.LastSeenPositionAt), n.UpdatedAt.UTC().Format(time.RFC3339Nano))
 	if err != nil {
@@ -194,7 +196,7 @@ VALUES(?,?,?,?,?,?,?,?,?,?)
 func (s *Store) GetMapNodes(ctx context.Context) ([]repo.MapNode, error) {
 	rows, err := s.db.QueryContext(ctx, `
 SELECT n.node_id,n.node_num,n.long_name,n.short_name,n.role,n.board_model,n.firmware_version,n.lora_region,n.lora_frequency_desc,
-       n.modem_preset,n.neighbor_nodes_count,n.mqtt_gateway_capable,n.first_seen_at,n.last_seen_any_event_at,n.last_seen_mqtt_gateway_at,n.last_seen_position_at,n.updated_at,
+       n.modem_preset,n.has_default_channel,n.has_opted_report_location,n.neighbor_nodes_count,n.mqtt_gateway_capable,n.first_seen_at,n.last_seen_any_event_at,n.last_seen_mqtt_gateway_at,n.last_seen_position_at,n.updated_at,
        p.latitude,p.longitude,p.altitude_m,p.position_precision,p.source_kind,p.source_channel,p.reported_at,p.observed_at,p.updated_at
 FROM nodes n
 LEFT JOIN node_positions p ON p.node_id=n.node_id
@@ -256,7 +258,7 @@ func (s *Store) GetNodeDetails(ctx context.Context, nodeID string) (repo.NodeDet
 	var d repo.NodeDetails
 	rows, err := s.db.QueryContext(ctx, `
 SELECT n.node_id,n.node_num,n.long_name,n.short_name,n.role,n.board_model,n.firmware_version,n.lora_region,n.lora_frequency_desc,
-       n.modem_preset,n.neighbor_nodes_count,n.mqtt_gateway_capable,n.first_seen_at,n.last_seen_any_event_at,n.last_seen_mqtt_gateway_at,n.last_seen_position_at,n.updated_at,
+       n.modem_preset,n.has_default_channel,n.has_opted_report_location,n.neighbor_nodes_count,n.mqtt_gateway_capable,n.first_seen_at,n.last_seen_any_event_at,n.last_seen_mqtt_gateway_at,n.last_seen_position_at,n.updated_at,
        p.latitude,p.longitude,p.altitude_m,p.position_precision,p.source_kind,p.source_channel,p.reported_at,p.observed_at,p.updated_at
 FROM nodes n
 LEFT JOIN node_positions p ON p.node_id=n.node_id
@@ -371,6 +373,8 @@ FROM node_telemetry_snapshots WHERE node_id=?`, nodeID).Scan(
 func scanMapNode(rows *sql.Rows) (domain.Node, *domain.NodePosition, error) {
 	var n domain.Node
 	var nodeNum sql.NullInt64
+	var hasDefaultCh sql.NullInt64
+	var hasOptedReportLoc sql.NullInt64
 	var neighbor sql.NullInt64
 	var gw sql.NullInt64
 	var firstSeen, lastAny, lastMQTT, lastPos, updated sql.NullString
@@ -378,7 +382,7 @@ func scanMapNode(rows *sql.Rows) (domain.Node, *domain.NodePosition, error) {
 	var pPrec sql.NullInt64
 	var pKind, pChannel, pReported, pObserved, pUpdated sql.NullString
 	err := rows.Scan(&n.NodeID, &nodeNum, &n.LongName, &n.ShortName, &n.Role, &n.BoardModel, &n.FirmwareVersion, &n.LoRaRegion, &n.LoRaFrequencyDesc,
-		&n.ModemPreset, &neighbor, &gw, &firstSeen, &lastAny, &lastMQTT, &lastPos, &updated,
+		&n.ModemPreset, &hasDefaultCh, &hasOptedReportLoc, &neighbor, &gw, &firstSeen, &lastAny, &lastMQTT, &lastPos, &updated,
 		&pLat, &pLon, &pAlt, &pPrec, &pKind, &pChannel, &pReported, &pObserved, &pUpdated)
 	if err != nil {
 		return n, nil, err
@@ -392,6 +396,14 @@ func scanMapNode(rows *sql.Rows) (domain.Node, *domain.NodePosition, error) {
 	if neighbor.Valid {
 		v := int(neighbor.Int64)
 		n.NeighborNodesCount = &v
+	}
+	if hasDefaultCh.Valid {
+		v := hasDefaultCh.Int64 == 1
+		n.HasDefaultChannel = &v
+	}
+	if hasOptedReportLoc.Valid {
+		v := hasOptedReportLoc.Int64 == 1
+		n.HasOptedReportLocation = &v
 	}
 	if gw.Valid {
 		v := gw.Int64 == 1

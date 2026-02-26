@@ -4,23 +4,25 @@ import "time"
 
 // Node stores merged identity and liveness details for a Meshtastic node.
 type Node struct {
-	NodeID                string     `json:"node_id"`
-	NodeNum               *uint32    `json:"node_num,omitempty"`
-	LongName              string     `json:"long_name,omitempty"`
-	ShortName             string     `json:"short_name,omitempty"`
-	Role                  string     `json:"role,omitempty"`
-	BoardModel            string     `json:"board_model,omitempty"`
-	FirmwareVersion       string     `json:"firmware_version,omitempty"`
-	LoRaRegion            string     `json:"lora_region,omitempty"`
-	LoRaFrequencyDesc     string     `json:"lora_frequency_desc,omitempty"`
-	ModemPreset           string     `json:"modem_preset,omitempty"`
-	NeighborNodesCount    *int       `json:"neighbor_nodes_count,omitempty"`
-	MQTTGatewayCapable    *bool      `json:"mqtt_gateway_capable,omitempty"`
-	FirstSeenAt           time.Time  `json:"first_seen_at"`
-	LastSeenAnyEventAt    time.Time  `json:"last_seen_any_event_at"`
-	LastSeenMQTTGatewayAt *time.Time `json:"last_seen_mqtt_gateway_at,omitempty"`
-	LastSeenPositionAt    *time.Time `json:"last_seen_position_at,omitempty"`
-	UpdatedAt             time.Time  `json:"updated_at"`
+	NodeID                 string     `json:"node_id"`
+	NodeNum                *uint32    `json:"node_num,omitempty"`
+	LongName               string     `json:"long_name,omitempty"`
+	ShortName              string     `json:"short_name,omitempty"`
+	Role                   string     `json:"role,omitempty"`
+	BoardModel             string     `json:"board_model,omitempty"`
+	FirmwareVersion        string     `json:"firmware_version,omitempty"`
+	LoRaRegion             string     `json:"lora_region,omitempty"`
+	LoRaFrequencyDesc      string     `json:"lora_frequency_desc,omitempty"`
+	ModemPreset            string     `json:"modem_preset,omitempty"`
+	HasDefaultChannel      *bool      `json:"has_default_channel,omitempty"`
+	HasOptedReportLocation *bool      `json:"has_opted_report_location,omitempty"`
+	NeighborNodesCount     *int       `json:"neighbor_nodes_count,omitempty"`
+	MQTTGatewayCapable     *bool      `json:"mqtt_gateway_capable,omitempty"`
+	FirstSeenAt            time.Time  `json:"first_seen_at"`
+	LastSeenAnyEventAt     time.Time  `json:"last_seen_any_event_at"`
+	LastSeenMQTTGatewayAt  *time.Time `json:"last_seen_mqtt_gateway_at,omitempty"`
+	LastSeenPositionAt     *time.Time `json:"last_seen_position_at,omitempty"`
+	UpdatedAt              time.Time  `json:"updated_at"`
 }
 
 // PositionSourceKind identifies which ingest source produced a position update.

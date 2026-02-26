@@ -178,6 +178,44 @@ VALUES
 	}
 }
 
+func TestApply_AddsMapReportFlagsColumns(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite", "file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	_, err = db.ExecContext(ctx, `
+CREATE TABLE nodes (
+  node_id TEXT PRIMARY KEY,
+  long_name TEXT
+);`)
+	if err != nil {
+		t.Fatalf("seed schema: %v", err)
+	}
+
+	if err := Apply(ctx, db); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	hasDefaultChannel, err := tableHasColumn(ctx, db, "nodes", "has_default_channel")
+	if err != nil {
+		t.Fatalf("check has_default_channel column: %v", err)
+	}
+	if !hasDefaultChannel {
+		t.Fatalf("has_default_channel column should exist")
+	}
+
+	hasOptedReportLocation, err := tableHasColumn(ctx, db, "nodes", "has_opted_report_location")
+	if err != nil {
+		t.Fatalf("check has_opted_report_location column: %v", err)
+	}
+	if !hasOptedReportLocation {
+		t.Fatalf("has_opted_report_location column should exist")
+	}
+}
+
 func tableHasColumn(ctx context.Context, db *sql.DB, table, column string) (bool, error) {
 	rows, err := db.QueryContext(ctx, "PRAGMA table_info("+table+")")
 	if err != nil {
