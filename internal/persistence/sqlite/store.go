@@ -36,6 +36,8 @@ func Open(ctx context.Context, dsn string, autoMigrate bool, log *slog.Logger) (
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
 	if err := db.PingContext(ctx); err != nil {
+		_ = db.Close()
+
 		return nil, fmt.Errorf("ping sqlite: %w", err)
 	}
 	s := &Store{db: db, log: log}
@@ -382,32 +384,38 @@ func (s *Store) ListLogEvents(ctx context.Context, q domain.LogEventQuery) ([]do
 	var (
 		b strings.Builder
 		a []interface{}
+		w []string
 	)
 	b.WriteString(`
 SELECT e.id,e.observed_at,e.node_id,e.event_kind,e.encrypted,c.name,
        n.long_name,n.short_name,e.details_json
 FROM log_events e
 LEFT JOIN log_channels c ON c.id=e.channel_id
-LEFT JOIN nodes n ON n.node_id=e.node_id
-WHERE 1=1`)
+LEFT JOIN nodes n ON n.node_id=e.node_id`)
 	if q.BeforeID > 0 {
-		b.WriteString(` AND e.id < ?`)
+		w = append(w, `e.id < ?`)
 		a = append(a, q.BeforeID)
 	}
 	if ch := strings.TrimSpace(q.Channel); ch != "" {
-		b.WriteString(` AND LOWER(c.name)=LOWER(?)`)
+		w = append(w, `LOWER(c.name)=LOWER(?)`)
 		a = append(a, ch)
 	}
 	if len(q.EventKinds) > 0 {
-		b.WriteString(` AND e.event_kind IN (`)
+		var in strings.Builder
+		in.WriteString(`e.event_kind IN (`)
 		for i, kind := range q.EventKinds {
 			if i > 0 {
-				b.WriteString(`,`)
+				in.WriteString(`,`)
 			}
-			b.WriteString(`?`)
+			in.WriteString(`?`)
 			a = append(a, int(kind))
 		}
-		b.WriteString(`)`)
+		in.WriteString(`)`)
+		w = append(w, in.String())
+	}
+	if len(w) > 0 {
+		b.WriteString(` WHERE `)
+		b.WriteString(strings.Join(w, ` AND `))
 	}
 	b.WriteString(` ORDER BY e.id DESC LIMIT ?`)
 	a = append(a, limit)

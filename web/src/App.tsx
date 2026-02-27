@@ -239,24 +239,6 @@ export function App() {
     localStorage.setItem(mapViewKey, JSON.stringify(next))
   }, [])
 
-  const reloadLogs = useCallback(() => {
-    if (logsLoading) return
-    setLogsLoading(true)
-    void api.logEvents({
-      limit: meta?.log_page_size_default ?? 100,
-      eventKinds: logFilters.eventKinds,
-      channel: logFilters.channel
-    })
-      .then((items) => {
-        setLogInitial(items)
-        setLogLoadError('')
-      })
-      .catch(() => {
-        setLogLoadError('Failed to load log events.')
-      })
-      .finally(() => setLogsLoading(false))
-  }, [logFilters.channel, logFilters.eventKinds, logsLoading, meta?.log_page_size_default, setLogInitial, setLogLoadError])
-
   const loadMoreLogs = useCallback(() => {
     if (logsLoading) return
     const before = logItems[logItems.length - 1]?.id

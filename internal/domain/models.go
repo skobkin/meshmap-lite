@@ -31,7 +31,6 @@ type PositionSourceKind string
 // Position source values persisted with node positions.
 const (
 	PositionSourceChannel   PositionSourceKind = "channel_position"
-	PositionSourceNodeInfo  PositionSourceKind = "nodeinfo_position"
 	PositionSourceMapReport PositionSourceKind = "map_report"
 )
 
