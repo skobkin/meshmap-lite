@@ -23,6 +23,8 @@ export function MapPage({ center, zoom, clustering, channels, disconnectedThresh
   const ref = useRef<HTMLDivElement>(null)
   const adapterRef = useRef<LeafletMapAdapter | null>(null)
   const nodes = useNodeStore((s) => s.mapNodes)
+  const selectedId = useNodeStore((s) => s.selectedId)
+  const setSelectedId = useNodeStore((s) => s.setSelectedId)
   const chat = useChatStore((s) => s.messages)
   const channel = useChatStore((s) => s.channel)
   const setChannel = useChatStore((s) => s.setChannel)
@@ -36,12 +38,16 @@ export function MapPage({ center, zoom, clustering, channels, disconnectedThresh
 
   useEffect(() => {
     if (!ref.current) return
-    adapterRef.current = new LeafletMapAdapter(ref.current, center, zoom, { clustering, onViewChange })
+    adapterRef.current = new LeafletMapAdapter(ref.current, center, zoom, {
+      clustering,
+      onViewChange,
+      onSelectNode: setSelectedId
+    })
     return () => {
       adapterRef.current?.destroy()
       adapterRef.current = null
     }
-  }, [clustering, onViewChange])
+  }, [clustering, onViewChange, setSelectedId])
 
   useEffect(() => {
     adapterRef.current?.setView(center, zoom)
@@ -50,6 +56,10 @@ export function MapPage({ center, zoom, clustering, channels, disconnectedThresh
   useEffect(() => {
     adapterRef.current?.render(nodes, disconnectedThreshold)
   }, [nodes, disconnectedThreshold])
+
+  useEffect(() => {
+    adapterRef.current?.setSelectedNode(selectedId)
+  }, [selectedId])
 
   const nodeNameByID = new Map<string, string>()
   for (const item of nodes) {

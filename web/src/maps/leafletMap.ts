@@ -8,6 +8,7 @@ type MarkerMap = Record<string, L.Marker>
 interface LeafletMapOptions {
   clustering?: boolean
   onViewChange?: (center: [number, number], zoom: number) => void
+  onSelectNode?: (id?: string) => void
 }
 
 L.Icon.Default.mergeOptions({
@@ -26,8 +27,11 @@ export class LeafletMapAdapter {
   private map: Map
   private readonly markerLayer: L.FeatureGroup
   private markers: MarkerMap = {}
+  private selectedID?: string
+  private readonly onSelectNode?: (id?: string) => void
 
   constructor(el: HTMLElement, center: [number, number], zoom: number, opts: LeafletMapOptions = {}) {
+    this.onSelectNode = opts.onSelectNode
     this.map = L.map(el).setView(center, zoom)
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
@@ -87,17 +91,53 @@ export class LeafletMapAdapter {
       const m = this.markers[id]
       if (m) {
         m.setLatLng(latlng)
-        m.bindTooltip(html)
+        m.getPopup()?.setContent(html)
+        if (this.selectedID === id) {
+          m.openPopup()
+        }
       } else {
-        this.markers[id] = L.marker(latlng).bindTooltip(html).addTo(this.markerLayer)
+        const marker = L.marker(latlng).bindPopup(html, {
+          autoPan: false,
+          closeButton: false
+        })
+        marker.on('popupopen', () => {
+          this.selectedID = id
+          this.onSelectNode?.(id)
+        })
+        marker.on('popupclose', () => {
+          if (this.selectedID !== id) return
+          this.selectedID = undefined
+          this.onSelectNode?.(undefined)
+        })
+        this.markers[id] = marker.addTo(this.markerLayer)
+        if (this.selectedID === id) {
+          marker.openPopup()
+        }
       }
     }
 
     for (const [id, marker] of Object.entries(this.markers)) {
       if (visibleNodeIDs.has(id)) continue
+      if (this.selectedID === id) {
+        marker.closePopup()
+      }
       this.markerLayer.removeLayer(marker)
       delete this.markers[id]
     }
+  }
+
+  setSelectedNode(id?: string): void {
+    if (id === this.selectedID) return
+    if (!id) {
+      this.map.closePopup()
+      return
+    }
+    const marker = this.markers[id]
+    if (!marker) {
+      this.map.closePopup()
+      return
+    }
+    marker.openPopup()
   }
 
   destroy(): void {
