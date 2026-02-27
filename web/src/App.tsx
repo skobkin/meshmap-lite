@@ -319,7 +319,9 @@ export function App() {
 
   const mainClass = page === 'map'
     ? `app-shell map-page${bannerText ? ' has-banner' : ''}`
-    : 'app-shell'
+    : page === 'nodes'
+      ? `app-shell nodes-page${bannerText ? ' has-banner' : ''}`
+      : 'app-shell'
 
   return (
     <main className={mainClass}>

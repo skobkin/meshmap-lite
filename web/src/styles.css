@@ -21,11 +21,24 @@ body {
   overflow: hidden;
 }
 
+.app-shell.nodes-page {
+  height: 100dvh;
+  overflow: hidden;
+}
+
 .app-shell.map-page .map-layout {
   height: calc(100dvh - var(--topbar-height));
 }
 
 .app-shell.map-page.has-banner .map-layout {
+  height: calc(100dvh - var(--topbar-height) - var(--banner-height));
+}
+
+.app-shell.nodes-page .nodes-layout {
+  height: calc(100dvh - var(--topbar-height));
+}
+
+.app-shell.nodes-page.has-banner .nodes-layout {
   height: calc(100dvh - var(--topbar-height) - var(--banner-height));
 }
 
@@ -284,12 +297,17 @@ body {
   grid-template-columns: 320px 1fr;
   gap: 1rem;
   padding-top: 1rem;
+  padding-bottom: 1rem;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .node-list {
-  max-height: 78vh;
+  min-height: 0;
   overflow: auto;
   display: grid;
+  align-content: start;
   gap: 0.4rem;
 }
 
@@ -309,6 +327,15 @@ body {
 .load-error {
   margin: 0 0 0.5rem;
   color: #c92a2a;
+}
+
+.node-details {
+  min-height: 0;
+  overflow: auto;
+}
+
+.node-details > :first-child {
+  margin-top: 0;
 }
 
 .node-details section {
@@ -396,6 +423,19 @@ body {
 @media (max-width: 980px) {
   .map-layout, .nodes-layout {
     grid-template-columns: 1fr;
+  }
+  .app-shell.nodes-page {
+    height: auto;
+    overflow: visible;
+  }
+  .app-shell.nodes-page .nodes-layout,
+  .app-shell.nodes-page.has-banner .nodes-layout {
+    height: auto;
+    overflow: visible;
+  }
+  .node-list,
+  .node-details {
+    overflow: visible;
   }
   .log-filters-content {
     grid-template-columns: 1fr;
