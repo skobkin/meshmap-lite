@@ -7,6 +7,7 @@ import { hhmm } from '../utils/time'
 interface Props {
   center: [number, number]
   zoom: number
+  clustering: boolean
   channels: string[]
   disconnectedThreshold?: string
   onViewChange: (center: [number, number], zoom: number) => void
@@ -18,7 +19,7 @@ function readSidebarState(): boolean {
   return localStorage.getItem(sidebarStateKey) === '1'
 }
 
-export function MapPage({ center, zoom, channels, disconnectedThreshold, onViewChange }: Props) {
+export function MapPage({ center, zoom, clustering, channels, disconnectedThreshold, onViewChange }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const adapterRef = useRef<LeafletMapAdapter | null>(null)
   const nodes = useNodeStore((s) => s.mapNodes)
@@ -35,12 +36,12 @@ export function MapPage({ center, zoom, channels, disconnectedThreshold, onViewC
 
   useEffect(() => {
     if (!ref.current) return
-    adapterRef.current = new LeafletMapAdapter(ref.current, center, zoom, onViewChange)
+    adapterRef.current = new LeafletMapAdapter(ref.current, center, zoom, { clustering, onViewChange })
     return () => {
       adapterRef.current?.destroy()
       adapterRef.current = null
     }
-  }, [onViewChange])
+  }, [clustering, onViewChange])
 
   useEffect(() => {
     adapterRef.current?.setView(center, zoom)

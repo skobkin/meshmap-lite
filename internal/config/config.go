@@ -153,7 +153,7 @@ func defaultConfig() Config {
 			Chat:       ChatConfig{Enabled: true, ShowRecentMessages: 50},
 			WS:         WSConfig{HeartbeatInterval: 30 * time.Second},
 			Map: MapConfig{
-				Clustering:            true,
+				Clustering:            false,
 				DisconnectedThreshold: 60 * time.Minute,
 				DefaultView:           DefaultViewConfig{Latitude: 64.5, Longitude: 40.6, Zoom: 13},
 			},

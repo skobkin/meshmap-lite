@@ -48,7 +48,7 @@ web:
   ws:
     heartbeat_interval: 30s
   map:
-    clustering: true
+    clustering: false
     disconnected_threshold: 60m
     default_view:
       latitude: 64.5

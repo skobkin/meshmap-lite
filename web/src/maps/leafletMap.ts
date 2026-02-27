@@ -1,8 +1,14 @@
 import L, { Map } from 'leaflet'
+import 'leaflet.markercluster'
 import type { MapNode } from '../api/types'
 import { relativeTime } from '../utils/time'
 
 type MarkerMap = Record<string, L.Marker>
+
+interface LeafletMapOptions {
+  clustering?: boolean
+  onViewChange?: (center: [number, number], zoom: number) => void
+}
 
 L.Icon.Default.mergeOptions({
   iconUrl: '/static/images/node-marker.svg',
@@ -18,18 +24,27 @@ L.Icon.Default.mergeOptions({
 
 export class LeafletMapAdapter {
   private map: Map
+  private readonly markerLayer: L.FeatureGroup
   private markers: MarkerMap = {}
 
-  constructor(el: HTMLElement, center: [number, number], zoom: number, onViewChange?: (center: [number, number], zoom: number) => void) {
+  constructor(el: HTMLElement, center: [number, number], zoom: number, opts: LeafletMapOptions = {}) {
     this.map = L.map(el).setView(center, zoom)
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(this.map)
-    if (onViewChange) {
+    this.markerLayer = opts.clustering
+      ? L.markerClusterGroup({
+          chunkedLoading: true,
+          removeOutsideVisibleBounds: true,
+          showCoverageOnHover: false
+        })
+      : L.featureGroup()
+    this.markerLayer.addTo(this.map)
+    if (opts.onViewChange) {
       this.map.on('moveend', () => {
         const c = this.map.getCenter()
-        onViewChange([c.lat, c.lng], this.map.getZoom())
+        opts.onViewChange?.([c.lat, c.lng], this.map.getZoom())
       })
     }
   }
@@ -43,9 +58,11 @@ export class LeafletMapAdapter {
   }
 
   render(nodes: MapNode[], disconnectedThreshold?: string): void {
+    const visibleNodeIDs = new Set<string>()
     for (const n of nodes) {
       if (!n.position) continue
       const id = n.node.node_id
+      visibleNodeIDs.add(id)
       const mqtt = mqttStatus(n.node.last_seen_mqtt_gateway_at, disconnectedThreshold)
       const lora = n.node.lora_region || n.node.lora_frequency_desc
         ? `${n.node.lora_region ?? '-'} / ${n.node.lora_frequency_desc ?? '-'}`
@@ -72,8 +89,14 @@ export class LeafletMapAdapter {
         m.setLatLng(latlng)
         m.bindTooltip(html)
       } else {
-        this.markers[id] = L.marker(latlng).bindTooltip(html).addTo(this.map)
+        this.markers[id] = L.marker(latlng).bindTooltip(html).addTo(this.markerLayer)
       }
+    }
+
+    for (const [id, marker] of Object.entries(this.markers)) {
+      if (visibleNodeIDs.has(id)) continue
+      this.markerLayer.removeLayer(marker)
+      delete this.markers[id]
     }
   }
 

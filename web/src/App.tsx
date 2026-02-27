@@ -326,7 +326,14 @@ export function App() {
       <Header page={page} ws={ws} wsStats={wsStats} onPage={setPage} />
       {bannerText && <p className={`banner${ws === 'reconnecting' ? '' : ' warning'}`} role="alert">{bannerText}</p>}
       {page === 'map' && (
-        <MapPage center={center} zoom={zoom} channels={channels} disconnectedThreshold={meta?.disconnected_threshold} onViewChange={onMapViewChange} />
+        <MapPage
+          center={center}
+          zoom={zoom}
+          clustering={meta?.map.clustering ?? true}
+          channels={channels}
+          disconnectedThreshold={meta?.disconnected_threshold}
+          onViewChange={onMapViewChange}
+        />
       )}
       {page === 'nodes' && (
         <NodesPage items={nodes} selected={selectedId} details={details} loadError={nodesLoadError} onSelect={setSelectedId} />

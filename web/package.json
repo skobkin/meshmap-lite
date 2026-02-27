@@ -12,7 +12,9 @@
   },
   "dependencies": {
     "@picocss/pico": "^2.1.1",
+    "@types/leaflet.markercluster": "^1.5.6",
     "leaflet": "^1.9.4",
+    "leaflet.markercluster": "^1.5.3",
     "preact": "^10.27.2",
     "zustand": "^5.0.8"
   },

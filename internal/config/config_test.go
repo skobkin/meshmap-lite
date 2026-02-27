@@ -68,3 +68,25 @@ channels:
 		t.Fatalf("expected negative log_prune_batch_rows to normalize to 0, got %d", cfg.Storage.SQL.LogPruneBatchRows)
 	}
 }
+
+func TestLoadDefaultsDisableMapClustering(t *testing.T) {
+	d := t.TempDir()
+	path := filepath.Join(d, "cfg.yaml")
+	if err := os.WriteFile(path, []byte(`
+mqtt:
+  root_topic: msh/test
+channels:
+  LongFast:
+    psk: AQ==
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Web.Map.Clustering {
+		t.Fatalf("expected web.map.clustering default to be false")
+	}
+}

@@ -110,6 +110,7 @@ export interface Meta {
   log_page_size_default: number
   disconnected_threshold: string
   map: {
+    clustering: boolean
     default_view: {
       latitude: number
       longitude: number
