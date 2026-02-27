@@ -22,6 +22,8 @@ storage:
     auto_migrate: true
     # 0 disables row-cap pruning.
     log_max_rows: 50000
+    # Number of rows allowed above cap before prune runs. Prune always shrinks back to log_max_rows.
+    log_prune_batch_rows: 1000
 
 map_reports:
   enabled: true

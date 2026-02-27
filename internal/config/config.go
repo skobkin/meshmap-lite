@@ -57,10 +57,11 @@ type KVConfig struct {
 
 // SQLConfig configures the relational storage backend.
 type SQLConfig struct {
-	Driver      string `koanf:"driver"`
-	URL         string `koanf:"url"`
-	AutoMigrate bool   `koanf:"auto_migrate"`
-	LogMaxRows  int    `koanf:"log_max_rows"`
+	Driver            string `koanf:"driver"`
+	URL               string `koanf:"url"`
+	AutoMigrate       bool   `koanf:"auto_migrate"`
+	LogMaxRows        int    `koanf:"log_max_rows"`
+	LogPruneBatchRows int    `koanf:"log_prune_batch_rows"`
 }
 
 // MapReportsConfig controls optional Meshtastic map report ingest.
@@ -135,8 +136,14 @@ func defaultConfig() Config {
 			Keepalive:        60 * time.Second,
 		},
 		Storage: StorageConfig{
-			KV:  KVConfig{Driver: "memory", Size: 100000, TTL: 6 * time.Hour},
-			SQL: SQLConfig{Driver: "sqlite", URL: "/data/db.sqlite", AutoMigrate: true, LogMaxRows: 50000},
+			KV: KVConfig{Driver: "memory", Size: 100000, TTL: 6 * time.Hour},
+			SQL: SQLConfig{
+				Driver:            "sqlite",
+				URL:               "/data/db.sqlite",
+				AutoMigrate:       true,
+				LogMaxRows:        50000,
+				LogPruneBatchRows: 1000,
+			},
 		},
 		MapReports: MapReportsConfig{Enabled: true, TopicSuffix: "2/map"},
 		Channels:   map[string]ChannelConfig{},
@@ -256,6 +263,8 @@ func setPath(cfg *Config, parts []string, value string) {
 		cfg.Storage.SQL.AutoMigrate = mustBool(value, cfg.Storage.SQL.AutoMigrate)
 	case "storage.sql.log_max_rows":
 		cfg.Storage.SQL.LogMaxRows = mustInt(value, cfg.Storage.SQL.LogMaxRows)
+	case "storage.sql.log_prune_batch_rows":
+		cfg.Storage.SQL.LogPruneBatchRows = mustInt(value, cfg.Storage.SQL.LogPruneBatchRows)
 	case "map_reports.enabled":
 		cfg.MapReports.Enabled = mustBool(value, cfg.MapReports.Enabled)
 	case "map_reports.topic_suffix":
@@ -354,6 +363,9 @@ func normalize(cfg *Config) {
 	}
 	if cfg.Storage.SQL.LogMaxRows < 0 {
 		cfg.Storage.SQL.LogMaxRows = 0
+	}
+	if cfg.Storage.SQL.LogPruneBatchRows < 0 {
+		cfg.Storage.SQL.LogPruneBatchRows = 0
 	}
 }
 

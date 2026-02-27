@@ -21,9 +21,10 @@ import (
 
 // Store implements repository operations on top of SQLite.
 type Store struct {
-	db         *sql.DB
-	log        *slog.Logger
-	logMaxRows int
+	db                *sql.DB
+	log               *slog.Logger
+	logMaxRows        int
+	logPruneBatchRows int
 }
 
 // Open creates a SQLite-backed store and optionally runs migrations.
@@ -65,6 +66,14 @@ func (s *Store) SetLogMaxRows(limit int) {
 		limit = 0
 	}
 	s.logMaxRows = limit
+}
+
+// SetLogPruneBatchRows configures extra rows allowed above cap before pruning.
+func (s *Store) SetLogPruneBatchRows(batch int) {
+	if batch < 0 {
+		batch = 0
+	}
+	s.logPruneBatchRows = batch
 }
 
 // Close releases the underlying SQL database handle.
@@ -731,11 +740,18 @@ func (s *Store) pruneLogEvents(ctx context.Context) error {
 	if s.logMaxRows <= 0 {
 		return nil
 	}
+	triggerOffset := s.logMaxRows + s.logPruneBatchRows
 	_, err := s.db.ExecContext(ctx, `
-DELETE FROM log_events
-WHERE id <= (
+WITH trigger AS (
 	SELECT id FROM log_events ORDER BY id DESC LIMIT 1 OFFSET ?
-)`, s.logMaxRows)
+),
+cutoff AS (
+	SELECT id FROM log_events ORDER BY id DESC LIMIT 1 OFFSET ?
+)
+DELETE FROM log_events
+WHERE EXISTS (SELECT 1 FROM trigger)
+  AND id <= (SELECT id FROM cutoff)
+`, triggerOffset, s.logMaxRows)
 	if err != nil && !strings.Contains(strings.ToLower(err.Error()), "out of range") {
 		return err
 	}
