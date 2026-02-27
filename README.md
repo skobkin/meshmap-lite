@@ -5,6 +5,21 @@
 
 Lightweight read-only Meshtastic regional map and chat viewer.
 
+## Screenshots
+
+![Map screenshot](docs/screenshot_map.webp)
+
+<details>
+<summary>Node details</summary>
+
+![Node details screenshot](docs/screenshot_nodes_details.webp)
+</details>
+<details>
+<summary>Event log</summary>
+
+![Event log screenshot](docs/screenshot_event_log.webp)
+</details>
+
 ## Run locally
 
 1. `go run ./cmd/server --config ./config.example.yaml`
