@@ -4,6 +4,8 @@ import (
 	"container/list"
 	"sync"
 	"time"
+
+	"meshmap-lite/internal/config"
 )
 
 type entry struct {
@@ -21,7 +23,9 @@ type Store struct {
 }
 
 // New creates a dedup store with maximum key count and entry TTL.
-func New(size int, ttl time.Duration) *Store {
+func New(cfg config.KVConfig) *Store {
+	size := cfg.Size
+	ttl := cfg.TTL
 	if size < 1 {
 		size = 1
 	}

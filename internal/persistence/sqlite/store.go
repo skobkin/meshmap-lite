@@ -14,6 +14,7 @@ import (
 	// Register SQLite driver.
 	_ "modernc.org/sqlite"
 
+	"meshmap-lite/internal/config"
 	"meshmap-lite/internal/domain"
 	"meshmap-lite/internal/persistence/sqlite/migrations"
 	"meshmap-lite/internal/repo"
@@ -28,11 +29,11 @@ type Store struct {
 }
 
 // Open creates a SQLite-backed store and optionally runs migrations.
-func Open(ctx context.Context, dsn string, autoMigrate bool, log *slog.Logger) (*Store, error) {
+func Open(ctx context.Context, cfg config.SQLConfig, log *slog.Logger) (*Store, error) {
 	if log != nil {
-		log.Info("opening sqlite database", "dsn", dsn, "auto_migrate", autoMigrate)
+		log.Info("opening sqlite database", "dsn", cfg.URL, "auto_migrate", cfg.AutoMigrate)
 	}
-	db, err := sql.Open("sqlite", dsn)
+	db, err := sql.Open("sqlite", cfg.URL)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
@@ -41,8 +42,13 @@ func Open(ctx context.Context, dsn string, autoMigrate bool, log *slog.Logger) (
 
 		return nil, fmt.Errorf("ping sqlite: %w", err)
 	}
-	s := &Store{db: db, log: log}
-	if autoMigrate {
+	s := &Store{
+		db:                db,
+		log:               log,
+		logMaxRows:        normalizedLimit(cfg.LogMaxRows),
+		logPruneBatchRows: normalizedLimit(cfg.LogPruneBatchRows),
+	}
+	if cfg.AutoMigrate {
 		if s.log != nil {
 			s.log.Info("running sqlite migrations")
 		}
@@ -60,20 +66,12 @@ func Open(ctx context.Context, dsn string, autoMigrate bool, log *slog.Logger) (
 	return s, nil
 }
 
-// SetLogMaxRows configures row-cap pruning for log_events (0 disables pruning).
-func (s *Store) SetLogMaxRows(limit int) {
+func normalizedLimit(limit int) int {
 	if limit < 0 {
-		limit = 0
+		return 0
 	}
-	s.logMaxRows = limit
-}
 
-// SetLogPruneBatchRows configures extra rows allowed above cap before pruning.
-func (s *Store) SetLogPruneBatchRows(batch int) {
-	if batch < 0 {
-		batch = 0
-	}
-	s.logPruneBatchRows = batch
+	return limit
 }
 
 // Close releases the underlying SQL database handle.

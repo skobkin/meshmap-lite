@@ -21,15 +21,23 @@ type RealtimeEmitter interface {
 
 // Service ingests decoded Meshtastic events into storage and realtime streams.
 type Service struct {
-	cfg     config.Config
+	cfg     Config
 	store   repo.Store
 	dedup   *dedup.Store
 	emitter RealtimeEmitter
 	log     *slog.Logger
 }
 
+// Config contains the subset of app config required by the ingest service.
+type Config struct {
+	MQTT       config.MQTTConfig
+	MapReports config.MapReportsConfig
+	Channels   map[string]config.ChannelConfig
+	Log        config.LogConfig
+}
+
 // New constructs ingest service and configures parser channel keys.
-func New(cfg config.Config, store repo.Store, dedupStore *dedup.Store, emitter RealtimeEmitter, log *slog.Logger) *Service {
+func New(cfg Config, store repo.Store, dedupStore *dedup.Store, emitter RealtimeEmitter, log *slog.Logger) *Service {
 	keys := make(map[string]string, len(cfg.Channels))
 	for name, ch := range cfg.Channels {
 		keys[name] = ch.PSK
@@ -105,7 +113,7 @@ func (s *Service) HandleMessage(ctx context.Context, topic string, payload []byt
 				ch := logEvent.Channel
 				view.ChannelName = &ch
 			}
-			if s.cfg.Web.Log.LiveUpdates {
+			if s.cfg.Log.LiveUpdates {
 				s.emitter.Emit(domain.RealtimeEvent{Type: "log.event", TS: now, Payload: view})
 			}
 		}

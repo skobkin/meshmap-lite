@@ -5,12 +5,13 @@ import (
 	"testing"
 	"time"
 
+	"meshmap-lite/internal/config"
 	"meshmap-lite/internal/domain"
 )
 
 func TestListLogEvents_WithFiltersAndDisplayName(t *testing.T) {
 	ctx := context.Background()
-	s, err := Open(ctx, "file::memory:?cache=shared", true, nil)
+	s, err := Open(ctx, config.SQLConfig{URL: "file::memory:?cache=shared", AutoMigrate: true}, nil)
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
@@ -63,12 +64,15 @@ func TestListLogEvents_WithFiltersAndDisplayName(t *testing.T) {
 
 func TestInsertLogEvent_PrunesByMaxRows(t *testing.T) {
 	ctx := context.Background()
-	s, err := Open(ctx, "file::memory:?cache=shared", true, nil)
+	s, err := Open(ctx, config.SQLConfig{
+		URL:         "file::memory:?cache=shared",
+		AutoMigrate: true,
+		LogMaxRows:  2,
+	}, nil)
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
 	t.Cleanup(func() { _ = s.Close() })
-	s.SetLogMaxRows(2)
 
 	now := time.Now().UTC()
 	for i := 0; i < 3; i++ {
@@ -94,13 +98,16 @@ func TestInsertLogEvent_PrunesByMaxRows(t *testing.T) {
 
 func TestInsertLogEvent_PrunesInBatches(t *testing.T) {
 	ctx := context.Background()
-	s, err := Open(ctx, "file::memory:?cache=shared", true, nil)
+	s, err := Open(ctx, config.SQLConfig{
+		URL:               "file::memory:?cache=shared",
+		AutoMigrate:       true,
+		LogMaxRows:        2,
+		LogPruneBatchRows: 2,
+	}, nil)
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
 	t.Cleanup(func() { _ = s.Close() })
-	s.SetLogMaxRows(2)
-	s.SetLogPruneBatchRows(2)
 
 	now := time.Now().UTC()
 	for i := 0; i < 4; i++ {

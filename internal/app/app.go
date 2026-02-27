@@ -44,17 +44,20 @@ func Run(configPath string) error {
 	defer cancel()
 
 	storeLog := logMgr.Logger("internal/persistence/sqlite")
-	store, err := sqlite.Open(ctx, cfg.Storage.SQL.URL, cfg.Storage.SQL.AutoMigrate, storeLog)
+	store, err := sqlite.Open(ctx, cfg.Storage.SQL, storeLog)
 	if err != nil {
 		return err
 	}
-	store.SetLogMaxRows(cfg.Storage.SQL.LogMaxRows)
-	store.SetLogPruneBatchRows(cfg.Storage.SQL.LogPruneBatchRows)
 	defer func() { _ = store.Close() }()
 
 	hub := ws.NewHub(logMgr.Logger("internal/api/ws"))
-	dedupStore := dedup.New(cfg.Storage.KV.Size, cfg.Storage.KV.TTL)
-	ing := ingest.New(cfg, store, dedupStore, hub, logMgr.Logger("internal/ingest"))
+	dedupStore := dedup.New(cfg.Storage.KV)
+	ing := ingest.New(ingest.Config{
+		MQTT:       cfg.MQTT,
+		MapReports: cfg.MapReports,
+		Channels:   cfg.Channels,
+		Log:        cfg.Web.Log,
+	}, store, dedupStore, hub, logMgr.Logger("internal/ingest"))
 
 	var mqttReady atomic.Bool
 	mqtt := mqttclient.New(cfg.MQTT, logMgr.Logger("internal/mqttclient"), func(topic string, payload []byte) {
@@ -62,7 +65,10 @@ func Run(configPath string) error {
 		ing.HandleMessage(ctx, topic, payload)
 	})
 
-	api := httpapi.New(cfg, store, logMgr.Logger("internal/api/http"), mqttReady.Load, hub.ClientCount)
+	api := httpapi.New(httpapi.Config{
+		Web:      cfg.Web,
+		Channels: cfg.Channels,
+	}, store, logMgr.Logger("internal/api/http"), mqttReady.Load, hub.ClientCount)
 	apiMux := api.Routes(hub)
 	mux := http.NewServeMux()
 	mux.Handle("/api/", apiMux)

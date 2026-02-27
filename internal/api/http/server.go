@@ -23,15 +23,21 @@ import (
 
 // Server serves HTTP API routes and shared operational endpoints.
 type Server struct {
-	cfg      config.Config
+	cfg      Config
 	store    repo.Store
 	log      *slog.Logger
 	ready    func() bool
 	wsClient func() int
 }
 
+// Config contains the subset of app config required by the HTTP API.
+type Config struct {
+	Web      config.WebConfig
+	Channels map[string]config.ChannelConfig
+}
+
 // New creates an HTTP API server with configured dependencies.
-func New(cfg config.Config, store repo.Store, log *slog.Logger, ready func() bool, wsClient func() int) *Server {
+func New(cfg Config, store repo.Store, log *slog.Logger, ready func() bool, wsClient func() int) *Server {
 	return &Server{cfg: cfg, store: store, log: log, ready: ready, wsClient: wsClient}
 }
 

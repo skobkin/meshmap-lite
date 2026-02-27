@@ -3,10 +3,12 @@ package dedup
 import (
 	"testing"
 	"time"
+
+	"meshmap-lite/internal/config"
 )
 
 func TestStoreSeen(t *testing.T) {
-	s := New(2, time.Hour)
+	s := New(config.KVConfig{Size: 2, TTL: time.Hour})
 	now := time.Now()
 	if s.Seen("a", now) {
 		t.Fatal("first seen should be false")

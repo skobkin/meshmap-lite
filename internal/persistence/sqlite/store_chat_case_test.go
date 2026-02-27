@@ -5,12 +5,13 @@ import (
 	"testing"
 	"time"
 
+	"meshmap-lite/internal/config"
 	"meshmap-lite/internal/domain"
 )
 
 func TestListChatEvents_ChannelCaseInsensitive(t *testing.T) {
 	ctx := context.Background()
-	s, err := Open(ctx, "file::memory:?cache=shared", true, nil)
+	s, err := Open(ctx, config.SQLConfig{URL: "file::memory:?cache=shared", AutoMigrate: true}, nil)
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
