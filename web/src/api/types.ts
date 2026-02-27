@@ -106,6 +106,8 @@ export interface Meta {
   websocket_path: string
   default_chat_channel: string
   show_recent_messages: number
+  log_live_updates: boolean
+  log_page_size_default: number
   disconnected_threshold: string
   map: {
     default_view: {
@@ -114,4 +116,16 @@ export interface Meta {
       zoom: number
     }
   }
+}
+
+export interface LogEvent {
+  id: number
+  observed_at: string
+  node_id?: string
+  node_display_name?: string
+  event_kind_value: number
+  event_kind_title: string
+  encrypted: boolean
+  channel_name?: string | null
+  details?: Record<string, unknown>
 }

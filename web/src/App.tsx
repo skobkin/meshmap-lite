@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { api } from './api/client'
 import { startWS } from './api/ws'
 import { Header } from './components/Header'
+import { LogPage } from './pages/LogPage'
 import { MapPage } from './pages/MapPage'
 import { NodesPage } from './pages/NodesPage'
 import { useMetaStore } from './stores/meta'
 import { useChatStore } from './stores/chat'
+import { useLogStore } from './stores/log'
 import { useNodeStore } from './stores/nodes'
 import { useWSStore } from './stores/ws'
 
@@ -42,11 +44,12 @@ function readSavedMapView(): SavedMapView | null {
 }
 
 export function App() {
-  const [page, setPage] = useState<'map' | 'nodes'>('map')
+  const [page, setPage] = useState<'map' | 'nodes' | 'log'>('map')
   const [bootstrapDone, setBootstrapDone] = useState(false)
   const [bootstrapErrors, setBootstrapErrors] = useState<string[]>([])
   const [nodesLoadedOnce, setNodesLoadedOnce] = useState(false)
   const [nodesLoadError, setNodesLoadError] = useState<string>('')
+  const [logsLoading, setLogsLoading] = useState(false)
   const [channels, setChannels] = useState<string[]>([])
   const [mapView, setMapView] = useState<SavedMapView>(() => readSavedMapView() ?? { center: [64.5, 40.6], zoom: 12 })
   const ws = useWSStore((s) => s.state)
@@ -63,6 +66,14 @@ export function App() {
   const setDetails = useNodeStore((s) => s.setDetails)
   const setMapNodes = useNodeStore((s) => s.setMapNodes)
   const setSummaries = useNodeStore((s) => s.setSummaries)
+  const logItems = useLogStore((s) => s.items)
+  const logFilters = useLogStore((s) => s.filters)
+  const logLoadedOnce = useLogStore((s) => s.loadedOnce)
+  const logLoadError = useLogStore((s) => s.loadError)
+  const setLogInitial = useLogStore((s) => s.setInitial)
+  const appendOlderLogs = useLogStore((s) => s.appendOlder)
+  const setLogFilters = useLogStore((s) => s.setFilters)
+  const setLogLoadError = useLogStore((s) => s.setLoadError)
   const loadedMessagesFor = useRef('')
 
   useEffect(() => {
@@ -167,6 +178,47 @@ export function App() {
   }, [selectedId])
 
   useEffect(() => {
+    if (page !== 'log') return
+    if (!bootstrapDone) return
+    if (logsLoading) return
+    if (logLoadedOnce) return
+    setLogsLoading(true)
+    void api.logEvents({
+      limit: meta?.log_page_size_default ?? 100,
+      eventKinds: logFilters.eventKinds,
+      channel: logFilters.channel
+    })
+      .then((items) => {
+        setLogInitial(items)
+        setLogLoadError('')
+      })
+      .catch(() => {
+        setLogLoadError('Failed to load log events.')
+      })
+      .finally(() => setLogsLoading(false))
+  }, [page, bootstrapDone, logsLoading, logLoadedOnce, meta?.log_page_size_default, logFilters.eventKinds, logFilters.channel])
+
+  useEffect(() => {
+    if (page !== 'log') return
+    if (!logLoadedOnce) return
+    if (logsLoading) return
+    setLogsLoading(true)
+    void api.logEvents({
+      limit: meta?.log_page_size_default ?? 100,
+      eventKinds: logFilters.eventKinds,
+      channel: logFilters.channel
+    })
+      .then((items) => {
+        setLogInitial(items)
+        setLogLoadError('')
+      })
+      .catch(() => {
+        setLogLoadError('Failed to load log events.')
+      })
+      .finally(() => setLogsLoading(false))
+  }, [page, logLoadedOnce, logFilters.eventKinds, logFilters.channel, logsLoading, meta?.log_page_size_default, setLogInitial, setLogLoadError])
+
+  useEffect(() => {
     if (!channels.length || !channel) return
     const canonical = canonicalChannelName(channels, channel)
     if (canonical !== channel) setChannel(canonical)
@@ -187,6 +239,45 @@ export function App() {
     localStorage.setItem(mapViewKey, JSON.stringify(next))
   }, [])
 
+  const reloadLogs = useCallback(() => {
+    if (logsLoading) return
+    setLogsLoading(true)
+    void api.logEvents({
+      limit: meta?.log_page_size_default ?? 100,
+      eventKinds: logFilters.eventKinds,
+      channel: logFilters.channel
+    })
+      .then((items) => {
+        setLogInitial(items)
+        setLogLoadError('')
+      })
+      .catch(() => {
+        setLogLoadError('Failed to load log events.')
+      })
+      .finally(() => setLogsLoading(false))
+  }, [logFilters.channel, logFilters.eventKinds, logsLoading, meta?.log_page_size_default, setLogInitial, setLogLoadError])
+
+  const loadMoreLogs = useCallback(() => {
+    if (logsLoading) return
+    const before = logItems[logItems.length - 1]?.id
+    if (!before) return
+    setLogsLoading(true)
+    void api.logEvents({
+      limit: meta?.log_page_size_default ?? 100,
+      before,
+      eventKinds: logFilters.eventKinds,
+      channel: logFilters.channel
+    })
+      .then((items) => {
+        appendOlderLogs(items)
+        setLogLoadError('')
+      })
+      .catch(() => {
+        setLogLoadError('Failed to load older log events.')
+      })
+      .finally(() => setLogsLoading(false))
+  }, [appendOlderLogs, logFilters.channel, logFilters.eventKinds, logItems, logsLoading, meta?.log_page_size_default, setLogLoadError])
+
   const center = useMemo<[number, number]>(() => mapView.center, [mapView.center])
   const zoom = mapView.zoom
 
@@ -202,10 +293,28 @@ export function App() {
     <main className={mainClass}>
       <Header page={page} ws={ws} wsStats={wsStats} onPage={setPage} />
       {bannerText && <p className={`banner${ws === 'reconnecting' ? '' : ' warning'}`} role="alert">{bannerText}</p>}
-      {page === 'map'
-        ? <MapPage center={center} zoom={zoom} channels={channels} disconnectedThreshold={meta?.disconnected_threshold} onViewChange={onMapViewChange} />
-        : <NodesPage items={nodes} selected={selectedId} details={details} loadError={nodesLoadError} onSelect={setSelectedId} />
-      }
+      {page === 'map' && (
+        <MapPage center={center} zoom={zoom} channels={channels} disconnectedThreshold={meta?.disconnected_threshold} onViewChange={onMapViewChange} />
+      )}
+      {page === 'nodes' && (
+        <NodesPage items={nodes} selected={selectedId} details={details} loadError={nodesLoadError} onSelect={setSelectedId} />
+      )}
+      {page === 'log' && (
+        <LogPage
+          channels={channels}
+          items={logItems}
+          loadError={logLoadError}
+          selectedKinds={logFilters.eventKinds}
+          selectedChannel={logFilters.channel}
+          onChangeKinds={(eventKinds) => {
+            setLogFilters({ ...logFilters, eventKinds })
+          }}
+          onChangeChannel={(filterChannel) => {
+            setLogFilters({ ...logFilters, channel: filterChannel })
+          }}
+          onLoadMore={loadMoreLogs}
+        />
+      )}
     </main>
   )
 }

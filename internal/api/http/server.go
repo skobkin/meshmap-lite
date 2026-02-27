@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -43,6 +44,7 @@ func (s *Server) Routes(wsHandler http.Handler) http.Handler {
 	mux.Handle("/api/v1/channels", http.HandlerFunc(s.channels))
 	mux.Handle("/api/v1/map/nodes", http.HandlerFunc(s.mapNodes))
 	mux.Handle("/api/v1/chat/messages", http.HandlerFunc(s.chatMessages))
+	mux.Handle("/api/v1/log/events", http.HandlerFunc(s.logEvents))
 	mux.Handle("/api/v1/nodes", http.HandlerFunc(s.nodes))
 	mux.Handle("/api/v1/nodes/", http.HandlerFunc(s.nodeByID))
 	mux.Handle("/api/v1/ws", wsHandler)
@@ -90,6 +92,8 @@ func (s *Server) meta(w http.ResponseWriter, _ *http.Request) {
 		"chat_enabled":           s.cfg.Web.Chat.Enabled,
 		"default_chat_channel":   s.cfg.Web.Chat.DefaultChannel,
 		"show_recent_messages":   s.cfg.Web.Chat.ShowRecentMessages,
+		"log_live_updates":       s.cfg.Web.Log.LiveUpdates,
+		"log_page_size_default":  s.cfg.Web.Log.PageSizeDefault,
 		"disconnected_threshold": s.cfg.Web.Map.DisconnectedThreshold.String(),
 		"map": map[string]interface{}{
 			"clustering": s.cfg.Web.Map.Clustering,
@@ -101,6 +105,29 @@ func (s *Server) meta(w http.ResponseWriter, _ *http.Request) {
 		},
 	}
 	writeJSON(w, http.StatusOK, payload)
+}
+
+func (s *Server) logEvents(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	limit := s.cfg.Web.Log.PageSizeDefault
+	if raw := q.Get("limit"); raw != "" {
+		limit = parseInt(raw, limit)
+	}
+	before := int64(parseInt(q.Get("before"), 0))
+	eventKinds := parseEventKinds(q)
+	items, err := s.store.ListLogEvents(r.Context(), domain.LogEventQuery{
+		Limit:      limit,
+		BeforeID:   before,
+		EventKinds: eventKinds,
+		Channel:    q.Get("channel"),
+	})
+	if err != nil {
+		s.log.Error("log events", "err", err)
+		writeError(w, http.StatusInternalServerError, "internal_error")
+
+		return
+	}
+	writeJSON(w, http.StatusOK, items)
 }
 
 func (s *Server) channels(w http.ResponseWriter, _ *http.Request) {
@@ -237,6 +264,42 @@ func parseInt(v string, d int) int {
 	}
 
 	return n
+}
+
+func parseEventKinds(values map[string][]string) []domain.LogEventKind {
+	raw := make([]string, 0)
+	if kinds, ok := values["event_kind"]; ok {
+		raw = append(raw, kinds...)
+	}
+	if kinds, ok := values["event_kinds"]; ok {
+		raw = append(raw, kinds...)
+	}
+	if len(raw) == 0 {
+		return nil
+	}
+	out := make([]domain.LogEventKind, 0, len(raw))
+	for _, row := range raw {
+		parts := strings.Split(row, ",")
+		for _, p := range parts {
+			n, err := strconv.Atoi(strings.TrimSpace(p))
+			if err != nil {
+				continue
+			}
+			kind, ok := domain.LogEventKindFromInt(n)
+			if !ok {
+				continue
+			}
+			if slices.Contains(out, kind) {
+				continue
+			}
+			out = append(out, kind)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+
+	return out
 }
 
 type statusWriter struct {

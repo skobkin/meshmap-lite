@@ -3,10 +3,12 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"math"
+	"strings"
 	"time"
 
 	// Register SQLite driver.
@@ -19,8 +21,9 @@ import (
 
 // Store implements repository operations on top of SQLite.
 type Store struct {
-	db  *sql.DB
-	log *slog.Logger
+	db         *sql.DB
+	log        *slog.Logger
+	logMaxRows int
 }
 
 // Open creates a SQLite-backed store and optionally runs migrations.
@@ -52,6 +55,14 @@ func Open(ctx context.Context, dsn string, autoMigrate bool, log *slog.Logger) (
 	}
 
 	return s, nil
+}
+
+// SetLogMaxRows configures row-cap pruning for log_events (0 disables pruning).
+func (s *Store) SetLogMaxRows(limit int) {
+	if limit < 0 {
+		limit = 0
+	}
+	s.logMaxRows = limit
 }
 
 // Close releases the underlying SQL database handle.
@@ -192,6 +203,44 @@ VALUES(?,?,?,?,?,?,?,?,?,?)
 	return id, nil
 }
 
+// InsertLogEvent appends a compact mesh activity event and returns its row ID.
+func (s *Store) InsertLogEvent(ctx context.Context, e domain.LogEvent) (int64, error) {
+	var channelID interface{}
+	if ch := strings.TrimSpace(e.Channel); ch != "" {
+		id, err := s.ensureLogChannel(ctx, ch)
+		if err != nil {
+			return 0, err
+		}
+		channelID = id
+	}
+
+	var detailsJSON interface{}
+	if len(e.Details) > 0 {
+		body, err := json.Marshal(e.Details)
+		if err != nil {
+			return 0, fmt.Errorf("marshal log details: %w", err)
+		}
+		detailsJSON = string(body)
+	}
+
+	res, err := s.db.ExecContext(ctx, `
+INSERT INTO log_events(observed_at,node_id,event_kind,encrypted,channel_id,details_json)
+VALUES(?,?,?,?,?,?)
+`, e.ObservedAt.UTC().Format(time.RFC3339Nano), nullIfEmpty(e.NodeID), int(e.EventKind), boolAsInt(e.Encrypted), channelID, detailsJSON)
+	if err != nil {
+		return 0, err
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+	if err := s.pruneLogEvents(ctx); err != nil {
+		return id, err
+	}
+
+	return id, nil
+}
+
 // GetMapNodes returns nodes with optional latest positions for map rendering.
 func (s *Store) GetMapNodes(ctx context.Context) ([]repo.MapNode, error) {
 	rows, err := s.db.QueryContext(ctx, `
@@ -321,6 +370,65 @@ WHERE (LOWER(channel_name)=LOWER(?) OR channel_name='')`
 	return out, rows.Err()
 }
 
+// ListLogEvents returns paginated Log-tab items with node display fallback.
+func (s *Store) ListLogEvents(ctx context.Context, q domain.LogEventQuery) ([]domain.LogEventView, error) {
+	limit := q.Limit
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 500 {
+		limit = 500
+	}
+	var (
+		b strings.Builder
+		a []interface{}
+	)
+	b.WriteString(`
+SELECT e.id,e.observed_at,e.node_id,e.event_kind,e.encrypted,c.name,
+       n.long_name,n.short_name,e.details_json
+FROM log_events e
+LEFT JOIN log_channels c ON c.id=e.channel_id
+LEFT JOIN nodes n ON n.node_id=e.node_id
+WHERE 1=1`)
+	if q.BeforeID > 0 {
+		b.WriteString(` AND e.id < ?`)
+		a = append(a, q.BeforeID)
+	}
+	if ch := strings.TrimSpace(q.Channel); ch != "" {
+		b.WriteString(` AND LOWER(c.name)=LOWER(?)`)
+		a = append(a, ch)
+	}
+	if len(q.EventKinds) > 0 {
+		b.WriteString(` AND e.event_kind IN (`)
+		for i, kind := range q.EventKinds {
+			if i > 0 {
+				b.WriteString(`,`)
+			}
+			b.WriteString(`?`)
+			a = append(a, int(kind))
+		}
+		b.WriteString(`)`)
+	}
+	b.WriteString(` ORDER BY e.id DESC LIMIT ?`)
+	a = append(a, limit)
+
+	rows, err := s.db.QueryContext(ctx, b.String(), a...)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	out := make([]domain.LogEventView, 0, limit)
+	for rows.Next() {
+		v, err := scanLogEvent(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+
+	return out, rows.Err()
+}
+
 // Stats returns aggregate node and ingest statistics.
 func (s *Store) Stats(ctx context.Context, threshold time.Duration) (domain.Stats, error) {
 	var st domain.Stats
@@ -332,7 +440,11 @@ func (s *Store) Stats(ctx context.Context, threshold time.Duration) (domain.Stat
 	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM nodes WHERE last_seen_mqtt_gateway_at IS NOT NULL AND last_seen_mqtt_gateway_at >= ?`, cutoff).Scan(&st.OnlineNodesCount); err != nil {
 		return st, err
 	}
-	if err := s.db.QueryRowContext(ctx, `SELECT MAX(observed_at) FROM chat_events`).Scan(&last); err == nil && last.Valid {
+	if err := s.db.QueryRowContext(ctx, `SELECT MAX(observed_at) FROM (
+		SELECT observed_at FROM chat_events
+		UNION ALL
+		SELECT observed_at FROM log_events
+	)`).Scan(&last); err == nil && last.Valid {
 		if t, e := time.Parse(time.RFC3339Nano, last.String); e == nil {
 			st.LastIngestAt = t
 		}
@@ -456,6 +568,37 @@ func scanChat(rows *sql.Rows) (domain.ChatEvent, error) {
 	return e, nil
 }
 
+func scanLogEvent(rows *sql.Rows) (domain.LogEventView, error) {
+	var out domain.LogEventView
+	var observed, nodeID, channel, longName, shortName, detailsJSON sql.NullString
+	var kind, encrypted int
+	if err := rows.Scan(&out.ID, &observed, &nodeID, &kind, &encrypted, &channel, &longName, &shortName, &detailsJSON); err != nil {
+		return out, err
+	}
+	out.ObservedAt = mustTime(observed)
+	out.NodeID = nodeID.String
+	if parsedKind, ok := domain.LogEventKindFromInt(kind); ok {
+		out.EventKindValue = parsedKind
+	}
+	out.EventKindTitle = domain.LogEventKindTitle(out.EventKindValue)
+	out.Encrypted = encrypted == 1
+	if channel.Valid && channel.String != "" {
+		ch := channel.String
+		out.ChannelName = &ch
+	}
+	if out.NodeID != "" {
+		out.NodeDisplay = displayName(longName.String, shortName.String, out.NodeID)
+	}
+	if detailsJSON.Valid && detailsJSON.String != "" {
+		var details map[string]any
+		if err := json.Unmarshal([]byte(detailsJSON.String), &details); err == nil && len(details) > 0 {
+			out.Details = details
+		}
+	}
+
+	return out, nil
+}
+
 func displayName(longName, shortName, id string) string {
 	if longName != "" {
 		return longName
@@ -553,4 +696,41 @@ func nullIfEmpty(v string) interface{} {
 	}
 
 	return v
+}
+
+func boolAsInt(v bool) int {
+	if v {
+		return 1
+	}
+
+	return 0
+}
+
+func (s *Store) ensureLogChannel(ctx context.Context, name string) (int64, error) {
+	_, err := s.db.ExecContext(ctx, `INSERT INTO log_channels(name) VALUES(?) ON CONFLICT(name) DO NOTHING`, name)
+	if err != nil {
+		return 0, err
+	}
+	var id int64
+	if err := s.db.QueryRowContext(ctx, `SELECT id FROM log_channels WHERE name=?`, name).Scan(&id); err != nil {
+		return 0, err
+	}
+
+	return id, nil
+}
+
+func (s *Store) pruneLogEvents(ctx context.Context) error {
+	if s.logMaxRows <= 0 {
+		return nil
+	}
+	_, err := s.db.ExecContext(ctx, `
+DELETE FROM log_events
+WHERE id <= (
+	SELECT id FROM log_events ORDER BY id DESC LIMIT 1 OFFSET ?
+)`, s.logMaxRows)
+	if err != nil && !strings.Contains(strings.ToLower(err.Error()), "out of range") {
+		return err
+	}
+
+	return nil
 }

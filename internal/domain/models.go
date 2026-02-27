@@ -121,3 +121,116 @@ type Stats struct {
 	WSClientsCount   int       `json:"ws_clients_count"`
 	LastIngestAt     time.Time `json:"last_ingest_at,omitempty"`
 }
+
+// LogEventKind is a compact numeric identifier of a non-chat mesh activity event.
+type LogEventKind uint8
+
+// Log event kind values and UI titles.
+const (
+	LogEventKindMapReportValue        LogEventKind = 1
+	LogEventKindNodeInfoValue         LogEventKind = 2
+	LogEventKindPositionValue         LogEventKind = 3
+	LogEventKindTelemetryValue        LogEventKind = 4
+	LogEventKindTracerouteValue       LogEventKind = 5
+	LogEventKindNeighborInfoValue     LogEventKind = 6
+	LogEventKindRoutingValue          LogEventKind = 7
+	LogEventKindOtherPortnumValue     LogEventKind = 8
+	LogEventKindUnknownEncryptedValue LogEventKind = 9
+)
+
+// Human-friendly titles for compact log event kind values.
+const (
+	LogEventKindMapReportTitle        = "Map report"
+	LogEventKindNodeInfoTitle         = "Node info"
+	LogEventKindPositionTitle         = "Position"
+	LogEventKindTelemetryTitle        = "Telemetry"
+	LogEventKindTracerouteTitle       = "Traceroute"
+	LogEventKindNeighborInfoTitle     = "Neighbor info"
+	LogEventKindRoutingTitle          = "Routing"
+	LogEventKindOtherPortnumTitle     = "Other app packet"
+	LogEventKindUnknownEncryptedTitle = "Encrypted (undecryptable)"
+)
+
+// LogEventKindTitle returns human-ready event kind title.
+func LogEventKindTitle(kind LogEventKind) string {
+	switch kind {
+	case LogEventKindMapReportValue:
+		return LogEventKindMapReportTitle
+	case LogEventKindNodeInfoValue:
+		return LogEventKindNodeInfoTitle
+	case LogEventKindPositionValue:
+		return LogEventKindPositionTitle
+	case LogEventKindTelemetryValue:
+		return LogEventKindTelemetryTitle
+	case LogEventKindTracerouteValue:
+		return LogEventKindTracerouteTitle
+	case LogEventKindNeighborInfoValue:
+		return LogEventKindNeighborInfoTitle
+	case LogEventKindRoutingValue:
+		return LogEventKindRoutingTitle
+	case LogEventKindOtherPortnumValue:
+		return LogEventKindOtherPortnumTitle
+	case LogEventKindUnknownEncryptedValue:
+		return LogEventKindUnknownEncryptedTitle
+	default:
+		return "Unknown"
+	}
+}
+
+// LogEventKindFromInt parses a persisted integer value to a known log kind.
+func LogEventKindFromInt(v int) (LogEventKind, bool) {
+	switch v {
+	case int(LogEventKindMapReportValue):
+		return LogEventKindMapReportValue, true
+	case int(LogEventKindNodeInfoValue):
+		return LogEventKindNodeInfoValue, true
+	case int(LogEventKindPositionValue):
+		return LogEventKindPositionValue, true
+	case int(LogEventKindTelemetryValue):
+		return LogEventKindTelemetryValue, true
+	case int(LogEventKindTracerouteValue):
+		return LogEventKindTracerouteValue, true
+	case int(LogEventKindNeighborInfoValue):
+		return LogEventKindNeighborInfoValue, true
+	case int(LogEventKindRoutingValue):
+		return LogEventKindRoutingValue, true
+	case int(LogEventKindOtherPortnumValue):
+		return LogEventKindOtherPortnumValue, true
+	case int(LogEventKindUnknownEncryptedValue):
+		return LogEventKindUnknownEncryptedValue, true
+	default:
+		return 0, false
+	}
+}
+
+// LogEvent is a compact persisted row of mesh activity for Log tab.
+type LogEvent struct {
+	ID         int64          `json:"id"`
+	ObservedAt time.Time      `json:"observed_at"`
+	NodeID     string         `json:"node_id,omitempty"`
+	EventKind  LogEventKind   `json:"event_kind_value"`
+	Encrypted  bool           `json:"encrypted"`
+	Channel    string         `json:"channel_name,omitempty"`
+	Details    map[string]any `json:"details,omitempty"`
+}
+
+// LogEventView is API-ready row enriched with titles and display name fallback.
+type LogEventView struct {
+	ID             int64          `json:"id"`
+	ObservedAt     time.Time      `json:"observed_at"`
+	NodeID         string         `json:"node_id,omitempty"`
+	NodeDisplay    string         `json:"node_display_name,omitempty"`
+	EventKindValue LogEventKind   `json:"event_kind_value"`
+	EventKindTitle string         `json:"event_kind_title"`
+	Encrypted      bool           `json:"encrypted"`
+	ChannelName    *string        `json:"channel_name"`
+	Details        map[string]any `json:"details,omitempty"`
+}
+
+// LogEventQuery controls log-list pagination and filtering.
+type LogEventQuery struct {
+	Limit      int
+	BeforeID   int64
+	EventKinds []LogEventKind
+	Channel    string
+}

@@ -301,6 +301,50 @@ body {
   margin: 0.12rem 0;
 }
 
+.log-layout {
+  padding-top: 1rem;
+}
+
+.log-filters {
+  margin: 0;
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  background: var(--surface-bg);
+  padding: 0.6rem 0.85rem;
+}
+
+.log-filters summary {
+  cursor: pointer;
+  font-weight: 600;
+  user-select: none;
+}
+
+.log-filters-content {
+  display: grid;
+  grid-template-columns: 260px 260px;
+  gap: 1rem;
+  align-items: start;
+  padding-top: 0.8rem;
+}
+
+.log-filters select[multiple] {
+  min-height: 9rem;
+}
+
+.log-table-wrap {
+  margin-top: 1rem;
+}
+
+.log-table {
+  width: 100%;
+  font-size: 0.85rem;
+}
+
+.log-table th,
+.log-table td {
+  white-space: nowrap;
+}
+
 .leaflet-control-attribution .leaflet-attribution-flag {
   display: none !important;
   width: 0 !important;
@@ -329,6 +373,9 @@ body {
 
 @media (max-width: 980px) {
   .map-layout, .nodes-layout {
+    grid-template-columns: 1fr;
+  }
+  .log-filters-content {
     grid-template-columns: 1fr;
   }
   .chat-panel {

@@ -39,6 +39,10 @@ func (*testStore) InsertChatEvent(context.Context, domain.ChatEvent) (int64, err
 	return 0, nil
 }
 
+func (*testStore) InsertLogEvent(context.Context, domain.LogEvent) (int64, error) {
+	return 0, nil
+}
+
 func (*testStore) GetMapNodes(context.Context) ([]repo.MapNode, error) {
 	return nil, nil
 }
@@ -52,6 +56,10 @@ func (*testStore) GetNodeDetails(context.Context, string) (repo.NodeDetails, err
 }
 
 func (*testStore) ListChatEvents(context.Context, string, int, int64) ([]domain.ChatEvent, error) {
+	return nil, nil
+}
+
+func (*testStore) ListLogEvents(context.Context, domain.LogEventQuery) ([]domain.LogEventView, error) {
 	return nil, nil
 }
 

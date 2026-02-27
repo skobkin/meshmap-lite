@@ -1,10 +1,10 @@
 import type { WSState, WSStats } from '../api/types'
 
 interface Props {
-  page: 'map' | 'nodes'
+  page: 'map' | 'nodes' | 'log'
   ws: WSState
   wsStats: WSStats | null
-  onPage: (p: 'map' | 'nodes') => void
+  onPage: (p: 'map' | 'nodes' | 'log') => void
 }
 
 function formatTime(value?: string): string {
@@ -69,6 +69,16 @@ export function Header({ page, ws, wsStats, onPage }: Props) {
               onClick={() => onPage('nodes')}
             >
               Nodes
+            </button>
+          </li>
+          <li>
+            <button
+              type="button"
+              className={page === 'log' ? '' : 'outline'}
+              aria-current={page === 'log' ? 'page' : undefined}
+              onClick={() => onPage('log')}
+            >
+              Log
             </button>
           </li>
         </ul>

@@ -13,11 +13,13 @@ type Store interface {
 	UpsertPosition(ctx context.Context, pos domain.NodePosition) error
 	MergeTelemetry(ctx context.Context, snapshot domain.NodeTelemetrySnapshot) error
 	InsertChatEvent(ctx context.Context, event domain.ChatEvent) (int64, error)
+	InsertLogEvent(ctx context.Context, event domain.LogEvent) (int64, error)
 
 	GetMapNodes(ctx context.Context) ([]MapNode, error)
 	ListNodes(ctx context.Context) ([]NodeSummary, error)
 	GetNodeDetails(ctx context.Context, nodeID string) (NodeDetails, error)
 	ListChatEvents(ctx context.Context, channel string, limit int, before int64) ([]domain.ChatEvent, error)
+	ListLogEvents(ctx context.Context, q domain.LogEventQuery) ([]domain.LogEventView, error)
 	Stats(ctx context.Context, disconnectedThreshold time.Duration) (domain.Stats, error)
 }
 

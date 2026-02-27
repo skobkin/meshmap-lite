@@ -71,5 +71,22 @@ func migrateV1BootstrapCoreSchema(ctx context.Context, tx *sql.Tx) error {
 );`,
 		`CREATE INDEX IF NOT EXISTS idx_chat_channel_id ON chat_events(channel_name, id DESC);`,
 		`CREATE INDEX IF NOT EXISTS idx_chat_packet_id ON chat_events(packet_id);`,
+		`CREATE TABLE IF NOT EXISTS log_channels (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE
+);`,
+		`CREATE TABLE IF NOT EXISTS log_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  observed_at TEXT NOT NULL,
+  node_id TEXT,
+  event_kind INTEGER NOT NULL,
+  encrypted INTEGER NOT NULL,
+  channel_id INTEGER REFERENCES log_channels(id) ON DELETE SET NULL,
+  details_json TEXT
+);`,
+		`CREATE INDEX IF NOT EXISTS idx_log_events_id ON log_events(id DESC);`,
+		`CREATE INDEX IF NOT EXISTS idx_log_events_kind_id ON log_events(event_kind, id DESC);`,
+		`CREATE INDEX IF NOT EXISTS idx_log_events_channel_id ON log_events(channel_id, id DESC);`,
+		`CREATE INDEX IF NOT EXISTS idx_log_events_node_id ON log_events(node_id, id DESC);`,
 	})
 }

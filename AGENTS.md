@@ -133,6 +133,7 @@
 
 - Config supports YAML and ENV; ENV overrides YAML.
 - All YAML fields should be representable via ENV with `MML_` prefix and `__` nesting separator.
+- Any configuration schema change must update `README.md` config documentation in the same change.
 - Support running with ENV-only config (no file).
 - Do not hard-code broker hosts, topics, PSKs, or credentials in code/tests.
 - Keep secrets out of the repository (`mqtt.password`, etc.).

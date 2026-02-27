@@ -70,9 +70,13 @@ func (s *Service) HandleMessage(ctx context.Context, topic string, payload []byt
 		"decrypted", evt.Decrypted,
 	)
 	if evt.NodeID == "" {
-		s.log.Debug("drop payload without node_id", "topic", topic)
+		if evt.Kind == meshtastic.ParsedUnknownEncrypted {
+			s.log.Debug("continue unknown encrypted packet without node_id", "topic", topic)
+		} else {
+			s.log.Debug("drop payload without node_id", "topic", topic)
 
-		return
+			return
+		}
 	}
 	if evt.PacketID > 0 {
 		if s.dedup.Seen(fmt.Sprintf("%s:%d", evt.NodeID, evt.PacketID), now) {
@@ -82,9 +86,36 @@ func (s *Service) HandleMessage(ctx context.Context, topic string, payload []byt
 		}
 	}
 	channel := strings.TrimSpace(topicInfo.Channel)
+	if logEvent, ok := s.logEventFromParsed(evt, channel, now); ok && s.allowLogEvent(topicInfo.Kind, channel, evt.Kind) {
+		id, err := s.store.InsertLogEvent(ctx, logEvent)
+		if err != nil {
+			s.log.Error("insert log event failed", "kind", evt.Kind, "node_id", evt.NodeID, "err", err)
+		} else {
+			view := domain.LogEventView{
+				ID:             id,
+				ObservedAt:     logEvent.ObservedAt,
+				NodeID:         logEvent.NodeID,
+				NodeDisplay:    logEvent.NodeID,
+				EventKindValue: logEvent.EventKind,
+				EventKindTitle: domain.LogEventKindTitle(logEvent.EventKind),
+				Encrypted:      logEvent.Encrypted,
+				Details:        logEvent.Details,
+			}
+			if logEvent.Channel != "" {
+				ch := logEvent.Channel
+				view.ChannelName = &ch
+			}
+			if s.cfg.Web.Log.LiveUpdates {
+				s.emitter.Emit(domain.RealtimeEvent{Type: "log.event", TS: now, Payload: view})
+			}
+		}
+	}
 	if !s.allowEvent(channel, evt.Kind) {
 		s.log.Debug("skip packet by channel policy", "channel", channel, "kind", evt.Kind, "node_id", evt.NodeID)
 
+		return
+	}
+	if evt.NodeID == "" {
 		return
 	}
 
@@ -174,6 +205,103 @@ func (s *Service) HandleMessage(ctx context.Context, topic string, payload []byt
 			)
 		}
 	}
+}
+
+func (s *Service) logEventFromParsed(evt meshtastic.ParsedEvent, channel string, now time.Time) (domain.LogEvent, bool) {
+	e := domain.LogEvent{
+		ObservedAt: now,
+		NodeID:     evt.NodeID,
+		Encrypted:  evt.Encrypted,
+		Channel:    channel,
+	}
+	switch evt.Kind {
+	case meshtastic.ParsedMapReport:
+		e.Channel = ""
+		e.EventKind = domain.LogEventKindMapReportValue
+
+		return e, true
+	case meshtastic.ParsedNodeInfo:
+		e.EventKind = domain.LogEventKindNodeInfoValue
+
+		return e, true
+	case meshtastic.ParsedPosition:
+		e.EventKind = domain.LogEventKindPositionValue
+
+		return e, true
+	case meshtastic.ParsedTelemetry:
+		e.EventKind = domain.LogEventKindTelemetryValue
+
+		return e, true
+	case meshtastic.ParsedTraceroute:
+		e.EventKind = domain.LogEventKindTracerouteValue
+		if evt.Traceroute != nil {
+			e.Details = map[string]any{
+				"hops_towards": evt.Traceroute.HopsTowards,
+				"hops_back":    evt.Traceroute.HopsBack,
+				"snr_towards":  evt.Traceroute.SnrTowards,
+				"snr_back":     evt.Traceroute.SnrBack,
+			}
+		}
+
+		return e, true
+	case meshtastic.ParsedNeighborInfo:
+		e.EventKind = domain.LogEventKindNeighborInfoValue
+		if evt.Neighbor != nil {
+			e.Details = map[string]any{
+				"neighbors_count":         evt.Neighbor.NeighborsCount,
+				"broadcast_interval_secs": evt.Neighbor.BroadcastInterval,
+			}
+			if evt.Neighbor.NodeID != "" {
+				e.Details["neighbor_node_id"] = evt.Neighbor.NodeID
+			}
+		}
+
+		return e, true
+	case meshtastic.ParsedRouting:
+		e.EventKind = domain.LogEventKindRoutingValue
+		if evt.Routing != nil {
+			e.Details = map[string]any{
+				"variant": evt.Routing.Variant,
+			}
+			if evt.Routing.HopsTowards > 0 {
+				e.Details["hops_towards"] = evt.Routing.HopsTowards
+			}
+			if evt.Routing.HopsBack > 0 {
+				e.Details["hops_back"] = evt.Routing.HopsBack
+			}
+			if evt.Routing.ErrorReason != "" {
+				e.Details["error_reason"] = evt.Routing.ErrorReason
+			}
+		}
+
+		return e, true
+	case meshtastic.ParsedOtherPortnum:
+		e.EventKind = domain.LogEventKindOtherPortnumValue
+		if evt.Other != nil {
+			e.Details = map[string]any{
+				"portnum_value": evt.Other.PortnumValue,
+				"portnum_name":  evt.Other.PortnumName,
+			}
+		}
+
+		return e, true
+	case meshtastic.ParsedUnknownEncrypted:
+		e.EventKind = domain.LogEventKindUnknownEncryptedValue
+		e.Encrypted = true
+
+		return e, true
+	default:
+		return domain.LogEvent{}, false
+	}
+}
+
+func (s *Service) allowLogEvent(topicKind meshtastic.TopicKind, channel string, kind meshtastic.ParsedKind) bool {
+	if kind == meshtastic.ParsedMapReport || topicKind == meshtastic.TopicKindMapReport {
+		return s.cfg.MapReports.Enabled
+	}
+	_, ok := s.cfg.Channels[channel]
+
+	return ok
 }
 
 func (s *Service) allowEvent(channel string, kind meshtastic.ParsedKind) bool {

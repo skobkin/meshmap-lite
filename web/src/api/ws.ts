@@ -1,7 +1,9 @@
 import { useChatStore } from '../stores/chat'
+import { useLogStore } from '../stores/log'
+import { useMetaStore } from '../stores/meta'
 import { useNodeStore } from '../stores/nodes'
 import { useWSStore } from '../stores/ws'
-import type { Node, NodePosition, WSStats } from './types'
+import type { LogEvent, Node, NodePosition, WSStats } from './types'
 
 interface EventEnvelope {
   type: string
@@ -30,6 +32,16 @@ function isStatsPayload(payload: unknown): payload is WSStats {
   return typeof stats.known_nodes_count === 'number' &&
     typeof stats.online_nodes_count === 'number' &&
     typeof stats.ws_clients_count === 'number'
+}
+
+function isLogEventPayload(payload: unknown): payload is LogEvent {
+  if (!payload || typeof payload !== 'object') return false
+  const row = payload as Record<string, unknown>
+  return typeof row.id === 'number' &&
+    typeof row.observed_at === 'string' &&
+    typeof row.event_kind_value === 'number' &&
+    typeof row.event_kind_title === 'string' &&
+    typeof row.encrypted === 'boolean'
 }
 
 export function startWS(path: string): () => void {
@@ -64,6 +76,12 @@ export function startWS(path: string): () => void {
       }
       if (msg.type === 'node.position' && isNodePositionPayload(msg.payload)) {
         useNodeStore.getState().upsertPosition(msg.payload)
+        return
+      }
+      if (msg.type === 'log.event' && isLogEventPayload(msg.payload)) {
+        if (useMetaStore.getState().meta?.log_live_updates ?? true) {
+          useLogStore.getState().prependLive(msg.payload)
+        }
       }
     }
 

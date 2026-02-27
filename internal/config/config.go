@@ -26,11 +26,12 @@ type Config struct {
 
 // MQTTConfig contains MQTT broker and connection settings.
 type MQTTConfig struct {
-	Host             string        `koanf:"host"`
-	Port             int           `koanf:"port"`
-	TLS              bool          `koanf:"tls"`
-	ClientID         string        `koanf:"client_id"`
-	Username         string        `koanf:"username"`
+	Host     string `koanf:"host"`
+	Port     int    `koanf:"port"`
+	TLS      bool   `koanf:"tls"`
+	ClientID string `koanf:"client_id"`
+	Username string `koanf:"username"`
+	//nolint:gosec // configuration object intentionally carries secret value.
 	Password         string        `koanf:"password"`
 	RootTopic        string        `koanf:"root_topic"`
 	ProtocolVersion  string        `koanf:"protocol_version"`
@@ -59,6 +60,7 @@ type SQLConfig struct {
 	Driver      string `koanf:"driver"`
 	URL         string `koanf:"url"`
 	AutoMigrate bool   `koanf:"auto_migrate"`
+	LogMaxRows  int    `koanf:"log_max_rows"`
 }
 
 // MapReportsConfig controls optional Meshtastic map report ingest.
@@ -81,6 +83,7 @@ type WebConfig struct {
 	Chat       ChatConfig `koanf:"chat"`
 	WS         WSConfig   `koanf:"ws"`
 	Map        MapConfig  `koanf:"map"`
+	Log        LogConfig  `koanf:"log"`
 }
 
 // ChatConfig controls chat API/UI behavior.
@@ -100,6 +103,12 @@ type MapConfig struct {
 	Clustering            bool              `koanf:"clustering"`
 	DisconnectedThreshold time.Duration     `koanf:"disconnected_threshold"`
 	DefaultView           DefaultViewConfig `koanf:"default_view"`
+}
+
+// LogConfig controls log tab behavior.
+type LogConfig struct {
+	LiveUpdates     bool `koanf:"live_updates"`
+	PageSizeDefault int  `koanf:"page_size_default"`
 }
 
 // DefaultViewConfig defines initial map center and zoom.
@@ -127,7 +136,7 @@ func defaultConfig() Config {
 		},
 		Storage: StorageConfig{
 			KV:  KVConfig{Driver: "memory", Size: 100000, TTL: 6 * time.Hour},
-			SQL: SQLConfig{Driver: "sqlite", URL: "/data/db.sqlite", AutoMigrate: true},
+			SQL: SQLConfig{Driver: "sqlite", URL: "/data/db.sqlite", AutoMigrate: true, LogMaxRows: 50000},
 		},
 		MapReports: MapReportsConfig{Enabled: true, TopicSuffix: "2/map"},
 		Channels:   map[string]ChannelConfig{},
@@ -140,6 +149,10 @@ func defaultConfig() Config {
 				Clustering:            true,
 				DisconnectedThreshold: 60 * time.Minute,
 				DefaultView:           DefaultViewConfig{Latitude: 64.5, Longitude: 40.6, Zoom: 13},
+			},
+			Log: LogConfig{
+				LiveUpdates:     true,
+				PageSizeDefault: 100,
 			},
 		},
 		Logging: LoggingConfig{Level: "info"},
@@ -220,7 +233,7 @@ func setPath(cfg *Config, parts []string, value string) {
 	case "mqtt.protocol_version":
 		cfg.MQTT.ProtocolVersion = value
 	case "mqtt.subscribe_qos":
-		cfg.MQTT.SubscribeQoS = byte(mustInt(value, int(cfg.MQTT.SubscribeQoS)))
+		cfg.MQTT.SubscribeQoS = mustByte(value, cfg.MQTT.SubscribeQoS)
 	case "mqtt.clean_session":
 		cfg.MQTT.CleanSession = mustBool(value, cfg.MQTT.CleanSession)
 	case "mqtt.reconnect_timeout":
@@ -241,6 +254,8 @@ func setPath(cfg *Config, parts []string, value string) {
 		cfg.Storage.SQL.URL = value
 	case "storage.sql.auto_migrate":
 		cfg.Storage.SQL.AutoMigrate = mustBool(value, cfg.Storage.SQL.AutoMigrate)
+	case "storage.sql.log_max_rows":
+		cfg.Storage.SQL.LogMaxRows = mustInt(value, cfg.Storage.SQL.LogMaxRows)
 	case "map_reports.enabled":
 		cfg.MapReports.Enabled = mustBool(value, cfg.MapReports.Enabled)
 	case "map_reports.topic_suffix":
@@ -267,6 +282,10 @@ func setPath(cfg *Config, parts []string, value string) {
 		cfg.Web.Map.DefaultView.Longitude = mustFloat(value, cfg.Web.Map.DefaultView.Longitude)
 	case "web.map.default_view.zoom":
 		cfg.Web.Map.DefaultView.Zoom = mustInt(value, cfg.Web.Map.DefaultView.Zoom)
+	case "web.log.live_updates":
+		cfg.Web.Log.LiveUpdates = mustBool(value, cfg.Web.Log.LiveUpdates)
+	case "web.log.page_size_default":
+		cfg.Web.Log.PageSizeDefault = mustInt(value, cfg.Web.Log.PageSizeDefault)
 	case "logging.level":
 		cfg.Logging.Level = value
 	default:
@@ -326,6 +345,15 @@ func normalize(cfg *Config) {
 		}
 	} else {
 		cfg.Web.Chat.DefaultChannel = resolveChannelKey(cfg.Channels, strings.TrimSpace(cfg.Web.Chat.DefaultChannel))
+	}
+	if cfg.Web.Log.PageSizeDefault <= 0 {
+		cfg.Web.Log.PageSizeDefault = 100
+	}
+	if cfg.Web.Log.PageSizeDefault > 500 {
+		cfg.Web.Log.PageSizeDefault = 500
+	}
+	if cfg.Storage.SQL.LogMaxRows < 0 {
+		cfg.Storage.SQL.LogMaxRows = 0
 	}
 }
 
@@ -405,4 +433,19 @@ func mustFloat(v string, d float64) float64 {
 	}
 
 	return f
+}
+
+func mustByte(v string, d byte) byte {
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return d
+	}
+	if n < 0 {
+		return 0
+	}
+	if n > 255 {
+		return 255
+	}
+
+	return byte(n)
 }

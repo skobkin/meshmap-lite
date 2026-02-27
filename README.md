@@ -56,6 +56,7 @@ Reference:
 | `storage.sql.driver`             | `MML_STORAGE__SQL__DRIVER`              | `"sqlite"`                                            | SQL backend driver. Only `sqlite` is supported.                                       |
 | `storage.sql.url`                | `MML_STORAGE__SQL__URL`                 | `"/data/db.sqlite"`                                   | SQL connection URL/path.                                                              |
 | `storage.sql.auto_migrate`       | `MML_STORAGE__SQL__AUTO_MIGRATE`        | `true`                                                | Run DB migrations on startup.                                                         |
+| `storage.sql.log_max_rows`       | `MML_STORAGE__SQL__LOG_MAX_ROWS`        | `50000`                                               | Max number of log rows to keep. `0` disables pruning.                                 |
 | `map_reports.enabled`            | `MML_MAP_REPORTS__ENABLED`              | `true`                                                | Enable map report ingest.                                                             |
 | `map_reports.topic_suffix`       | `MML_MAP_REPORTS__TOPIC_SUFFIX`         | `"2/map"`                                             | Topic suffix for map reports under root topic.                                        |
 | `channels[]`                     | `MML_CHANNELS__<CHANNEL_NAME>__...`     | `{}`                                                  | Channel map keyed by channel name. At least one channel is required.                  |
@@ -73,6 +74,8 @@ Reference:
 | `web.map.default_view.latitude`  | `MML_WEB__MAP__DEFAULT_VIEW__LATITUDE`  | `64.5`                                                | Initial map center latitude.                                                          |
 | `web.map.default_view.longitude` | `MML_WEB__MAP__DEFAULT_VIEW__LONGITUDE` | `40.6`                                                | Initial map center longitude.                                                         |
 | `web.map.default_view.zoom`      | `MML_WEB__MAP__DEFAULT_VIEW__ZOOM`      | `13`                                                  | Initial map zoom.                                                                     |
+| `web.log.live_updates`           | `MML_WEB__LOG__LIVE_UPDATES`            | `true`                                                | Enable live log updates over WebSocket.                                               |
+| `web.log.page_size_default`      | `MML_WEB__LOG__PAGE_SIZE_DEFAULT`       | `100`                                                 | Default log page size (normalized to `1..500`).                                       |
 | `logging.level`                  | `MML_LOGGING__LEVEL`                    | `"info"`                                              | Log level.                                                                            |
 
 Notes:

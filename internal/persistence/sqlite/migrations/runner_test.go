@@ -216,6 +216,43 @@ CREATE TABLE nodes (
 	}
 }
 
+func TestApply_AddsLogTables(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite", "file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	_, err = db.ExecContext(ctx, `
+CREATE TABLE nodes (
+  node_id TEXT PRIMARY KEY
+);`)
+	if err != nil {
+		t.Fatalf("seed schema: %v", err)
+	}
+
+	if err := Apply(ctx, db); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	hasLogChannels, err := tableExists(ctx, db, "log_channels")
+	if err != nil {
+		t.Fatalf("check log_channels table: %v", err)
+	}
+	if !hasLogChannels {
+		t.Fatalf("log_channels table should exist")
+	}
+
+	hasLogEvents, err := tableExists(ctx, db, "log_events")
+	if err != nil {
+		t.Fatalf("check log_events table: %v", err)
+	}
+	if !hasLogEvents {
+		t.Fatalf("log_events table should exist")
+	}
+}
+
 func tableHasColumn(ctx context.Context, db *sql.DB, table, column string) (bool, error) {
 	rows, err := db.QueryContext(ctx, "PRAGMA table_info("+table+")")
 	if err != nil {

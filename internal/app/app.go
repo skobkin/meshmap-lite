@@ -48,6 +48,7 @@ func Run(configPath string) error {
 	if err != nil {
 		return err
 	}
+	store.SetLogMaxRows(cfg.Storage.SQL.LogMaxRows)
 	defer func() { _ = store.Close() }()
 
 	hub := ws.NewHub(logMgr.Logger("internal/api/ws"))

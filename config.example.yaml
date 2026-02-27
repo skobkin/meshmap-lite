@@ -20,6 +20,8 @@ storage:
     driver: sqlite
     url: ./data/db.sqlite
     auto_migrate: true
+    # 0 disables row-cap pruning.
+    log_max_rows: 50000
 
 map_reports:
   enabled: true
@@ -50,6 +52,9 @@ web:
       latitude: 64.5
       longitude: 40.6
       zoom: 13
+  log:
+    live_updates: true
+    page_size_default: 100
 
 logging:
   level: info

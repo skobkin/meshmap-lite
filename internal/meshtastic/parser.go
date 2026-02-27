@@ -48,27 +48,37 @@ type ParsedKind string
 
 // Parsed Meshtastic payload families.
 const (
-	ParsedChat      ParsedKind = "chat"
-	ParsedNodeInfo  ParsedKind = "node_info"
-	ParsedPosition  ParsedKind = "position"
-	ParsedTelemetry ParsedKind = "telemetry"
-	ParsedMapReport ParsedKind = "map_report"
+	ParsedChat             ParsedKind = "chat"
+	ParsedNodeInfo         ParsedKind = "node_info"
+	ParsedPosition         ParsedKind = "position"
+	ParsedTelemetry        ParsedKind = "telemetry"
+	ParsedMapReport        ParsedKind = "map_report"
+	ParsedTraceroute       ParsedKind = "traceroute"
+	ParsedNeighborInfo     ParsedKind = "neighbor_info"
+	ParsedRouting          ParsedKind = "routing"
+	ParsedOtherPortnum     ParsedKind = "other_portnum"
+	ParsedUnknownEncrypted ParsedKind = "unknown_encrypted"
 )
 
 // ParsedEvent is a normalized decoded payload produced by parser.
 type ParsedEvent struct {
-	Kind      ParsedKind
-	NodeID    string
-	PacketID  uint32
-	Format    string
-	Encrypted bool
-	Decrypted bool
-	Timestamp *time.Time
-	Chat      *ChatPayload
-	NodeInfo  *NodeInfoPayload
-	Position  *PositionPayload
-	Telemetry *TelemetryPayload
-	MapReport *MapReportPayload
+	Kind       ParsedKind
+	NodeID     string
+	PacketID   uint32
+	Portnum    generated.PortNum
+	Format     string
+	Encrypted  bool
+	Decrypted  bool
+	Timestamp  *time.Time
+	Chat       *ChatPayload
+	NodeInfo   *NodeInfoPayload
+	Position   *PositionPayload
+	Telemetry  *TelemetryPayload
+	MapReport  *MapReportPayload
+	Traceroute *TraceroutePayload
+	Neighbor   *NeighborInfoPayload
+	Routing    *RoutingPayload
+	Other      *OtherPortnumPayload
 }
 
 // ChatPayload contains decoded text message fields.
@@ -138,6 +148,35 @@ type MapReportPayload struct {
 	PositionPrecision      *uint32  `json:"position_precision"`
 }
 
+// TraceroutePayload contains compact TRACEROUTE_APP details.
+type TraceroutePayload struct {
+	HopsTowards int `json:"hops_towards"`
+	HopsBack    int `json:"hops_back"`
+	SnrTowards  int `json:"snr_towards"`
+	SnrBack     int `json:"snr_back"`
+}
+
+// NeighborInfoPayload contains compact NEIGHBORINFO_APP details.
+type NeighborInfoPayload struct {
+	NodeID            string `json:"node_id,omitempty"`
+	NeighborsCount    int    `json:"neighbors_count"`
+	BroadcastInterval uint32 `json:"broadcast_interval_secs,omitempty"`
+}
+
+// RoutingPayload contains compact ROUTING_APP details.
+type RoutingPayload struct {
+	Variant     string `json:"variant"`
+	HopsTowards int    `json:"hops_towards,omitempty"`
+	HopsBack    int    `json:"hops_back,omitempty"`
+	ErrorReason string `json:"error_reason,omitempty"`
+}
+
+// OtherPortnumPayload carries fallback details for known-but-unhandled app packets.
+type OtherPortnumPayload struct {
+	PortnumValue int32  `json:"portnum_value"`
+	PortnumName  string `json:"portnum_name"`
+}
+
 // ParsePayload decodes real Meshtastic MQTT protobuf payloads.
 // JSON fallback remains for local synthetic tests.
 func ParsePayload(kind TopicKind, payload []byte, channelHint, mapNodeHint string) (ParsedEvent, error) {
@@ -171,9 +210,16 @@ func parseServiceEnvelope(payload []byte, channelHint string) (ParsedEvent, erro
 	encrypted := decoded == nil
 	wasDecrypted := false
 	if decoded == nil {
-		decryptedData, err := decryptPacket(packet, env.GetChannelId(), channelHint)
-		if err != nil {
-			return ParsedEvent{}, err
+		decryptedData, ok := decryptPacketIfPossible(packet, env.GetChannelId(), channelHint)
+		if !ok {
+			return ParsedEvent{
+				Kind:      ParsedUnknownEncrypted,
+				NodeID:    nodeIDFromNum(packet.GetFrom()),
+				PacketID:  packet.GetId(),
+				Format:    "protobuf",
+				Encrypted: true,
+				Decrypted: false,
+			}, nil
 		}
 		decoded = decryptedData
 		wasDecrypted = true
@@ -181,6 +227,7 @@ func parseServiceEnvelope(payload []byte, channelHint string) (ParsedEvent, erro
 	out := ParsedEvent{
 		NodeID:    nodeIDFromNum(packet.GetFrom()),
 		PacketID:  packet.GetId(),
+		Portnum:   decoded.GetPortnum(),
 		Format:    "protobuf",
 		Encrypted: encrypted,
 		Decrypted: wasDecrypted,
@@ -277,8 +324,61 @@ func parseServiceEnvelope(payload []byte, channelHint string) (ParsedEvent, erro
 			}
 		}
 		out.Telemetry = t
+	case generated.PortNum_TRACEROUTE_APP:
+		var route generated.RouteDiscovery
+		if err := proto.Unmarshal(decoded.GetPayload(), &route); err != nil {
+			return ParsedEvent{}, fmt.Errorf("decode traceroute: %w", err)
+		}
+		out.Kind = ParsedTraceroute
+		out.Traceroute = &TraceroutePayload{
+			HopsTowards: len(route.GetRoute()),
+			HopsBack:    len(route.GetRouteBack()),
+			SnrTowards:  len(route.GetSnrTowards()),
+			SnrBack:     len(route.GetSnrBack()),
+		}
+	case generated.PortNum_NEIGHBORINFO_APP:
+		var info generated.NeighborInfo
+		if err := proto.Unmarshal(decoded.GetPayload(), &info); err != nil {
+			return ParsedEvent{}, fmt.Errorf("decode neighbor info: %w", err)
+		}
+		out.Kind = ParsedNeighborInfo
+		out.Neighbor = &NeighborInfoPayload{
+			NodeID:            nodeIDFromNum(info.GetNodeId()),
+			NeighborsCount:    len(info.GetNeighbors()),
+			BroadcastInterval: info.GetNodeBroadcastIntervalSecs(),
+		}
+		if out.NodeID == "" {
+			out.NodeID = out.Neighbor.NodeID
+		}
+	case generated.PortNum_ROUTING_APP:
+		var routing generated.Routing
+		if err := proto.Unmarshal(decoded.GetPayload(), &routing); err != nil {
+			return ParsedEvent{}, fmt.Errorf("decode routing: %w", err)
+		}
+		out.Kind = ParsedRouting
+		rp := &RoutingPayload{}
+		if req := routing.GetRouteRequest(); req != nil {
+			rp.Variant = "route_request"
+			rp.HopsTowards = len(req.GetRoute())
+			rp.HopsBack = len(req.GetRouteBack())
+		} else if reply := routing.GetRouteReply(); reply != nil {
+			rp.Variant = "route_reply"
+			rp.HopsTowards = len(reply.GetRoute())
+			rp.HopsBack = len(reply.GetRouteBack())
+		} else {
+			rp.Variant = "error"
+			rp.ErrorReason = routing.GetErrorReason().String()
+		}
+		out.Routing = rp
 	default:
-		return ParsedEvent{}, fmt.Errorf("unsupported portnum: %s", decoded.GetPortnum().String())
+		if decoded.GetPortnum() == generated.PortNum_UNKNOWN_APP {
+			return ParsedEvent{}, fmt.Errorf("unsupported portnum: %s", decoded.GetPortnum().String())
+		}
+		out.Kind = ParsedOtherPortnum
+		out.Other = &OtherPortnumPayload{
+			PortnumValue: int32(decoded.GetPortnum()),
+			PortnumName:  decoded.GetPortnum().String(),
+		}
 	}
 
 	return out, nil
@@ -328,6 +428,15 @@ func decryptPacket(packet *generated.MeshPacket, envelopeChannelID, topicChannel
 	}
 
 	return nil, fmt.Errorf("failed to decrypt encrypted packet (bad psk?)")
+}
+
+func decryptPacketIfPossible(packet *generated.MeshPacket, envelopeChannelID, topicChannel string) (*generated.Data, bool) {
+	decoded, err := decryptPacket(packet, envelopeChannelID, topicChannel)
+	if err != nil {
+		return nil, false
+	}
+
+	return decoded, true
 }
 
 type channelCandidate struct {
@@ -492,7 +601,7 @@ func parseMapReportProtobuf(payload []byte, mapNodeHint string) (ParsedEvent, er
 	if err := proto.Unmarshal(payload, &report); err != nil {
 		return ParsedEvent{}, fmt.Errorf("decode map report: %w", err)
 	}
-	out := ParsedEvent{Kind: ParsedMapReport, NodeID: normalizeNodeID(mapNodeHint), Format: "protobuf"}
+	out := ParsedEvent{Kind: ParsedMapReport, NodeID: normalizeNodeID(mapNodeHint), Portnum: generated.PortNum_MAP_REPORT_APP, Format: "protobuf"}
 	m := &MapReportPayload{
 		NodeID:                 out.NodeID,
 		LongName:               strings.TrimSpace(report.GetLongName()),
@@ -537,9 +646,17 @@ func parseMapReportEnvelope(payload []byte, channelHint, mapNodeHint string) (Pa
 	encrypted := decoded == nil
 	wasDecrypted := false
 	if decoded == nil {
-		decryptedData, err := decryptPacket(packet, env.GetChannelId(), channelHint)
-		if err != nil {
-			return ParsedEvent{}, err
+		decryptedData, ok := decryptPacketIfPossible(packet, env.GetChannelId(), channelHint)
+		if !ok {
+			return ParsedEvent{
+				Kind:      ParsedUnknownEncrypted,
+				NodeID:    nodeIDFromNum(packet.GetFrom()),
+				PacketID:  packet.GetId(),
+				Portnum:   generated.PortNum_MAP_REPORT_APP,
+				Format:    "protobuf",
+				Encrypted: true,
+				Decrypted: false,
+			}, nil
 		}
 		decoded = decryptedData
 		wasDecrypted = true
@@ -556,6 +673,7 @@ func parseMapReportEnvelope(payload []byte, channelHint, mapNodeHint string) (Pa
 		return ParsedEvent{}, err
 	}
 	out.PacketID = packet.GetId()
+	out.Portnum = generated.PortNum_MAP_REPORT_APP
 	out.Encrypted = encrypted
 	out.Decrypted = wasDecrypted
 	if rx := packet.GetRxTime(); rx > 0 {
@@ -596,15 +714,20 @@ func normalizeNodeID(v string) string {
 
 func parseJSONFallback(kind TopicKind, payload []byte) (ParsedEvent, error) {
 	var raw struct {
-		Type      string           `json:"type"`
-		NodeID    string           `json:"node_id"`
-		PacketID  uint32           `json:"packet_id"`
-		Timestamp *time.Time       `json:"timestamp"`
-		Chat      ChatPayload      `json:"chat"`
-		NodeInfo  NodeInfoPayload  `json:"node_info"`
-		Position  PositionPayload  `json:"position"`
-		Telemetry TelemetryPayload `json:"telemetry"`
-		MapReport MapReportPayload `json:"map_report"`
+		Type       string              `json:"type"`
+		NodeID     string              `json:"node_id"`
+		PacketID   uint32              `json:"packet_id"`
+		Portnum    int32               `json:"portnum"`
+		Timestamp  *time.Time          `json:"timestamp"`
+		Chat       ChatPayload         `json:"chat"`
+		NodeInfo   NodeInfoPayload     `json:"node_info"`
+		Position   PositionPayload     `json:"position"`
+		Telemetry  TelemetryPayload    `json:"telemetry"`
+		MapReport  MapReportPayload    `json:"map_report"`
+		Traceroute TraceroutePayload   `json:"traceroute"`
+		Neighbor   NeighborInfoPayload `json:"neighbor_info"`
+		Routing    RoutingPayload      `json:"routing"`
+		Other      OtherPortnumPayload `json:"other"`
 	}
 	if err := json.Unmarshal(payload, &raw); err != nil {
 		return ParsedEvent{}, fmt.Errorf("decode payload: %w", err)
@@ -612,6 +735,7 @@ func parseJSONFallback(kind TopicKind, payload []byte) (ParsedEvent, error) {
 	out := ParsedEvent{
 		NodeID:    normalizeNodeID(raw.NodeID),
 		PacketID:  raw.PacketID,
+		Portnum:   generated.PortNum(raw.Portnum),
 		Timestamp: raw.Timestamp,
 		Format:    "json_fallback",
 	}
@@ -637,6 +761,21 @@ func parseJSONFallback(kind TopicKind, payload []byte) (ParsedEvent, error) {
 	case "telemetry":
 		out.Kind = ParsedTelemetry
 		out.Telemetry = &raw.Telemetry
+	case "traceroute":
+		out.Kind = ParsedTraceroute
+		out.Traceroute = &raw.Traceroute
+	case "neighbor_info":
+		out.Kind = ParsedNeighborInfo
+		out.Neighbor = &raw.Neighbor
+	case "routing":
+		out.Kind = ParsedRouting
+		out.Routing = &raw.Routing
+	case "other_portnum":
+		out.Kind = ParsedOtherPortnum
+		out.Other = &raw.Other
+	case "unknown_encrypted":
+		out.Kind = ParsedUnknownEncrypted
+		out.Encrypted = true
 	default:
 		return ParsedEvent{}, fmt.Errorf("unsupported event type %q", raw.Type)
 	}
