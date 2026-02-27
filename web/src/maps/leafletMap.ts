@@ -16,6 +16,11 @@ interface PopupRow {
   value: string
 }
 
+interface PopupSection {
+  title: string
+  rows: PopupRow[]
+}
+
 L.Icon.Default.mergeOptions({
   iconUrl: '/static/images/node-marker.svg',
   iconRetinaUrl: '/static/images/node-marker.svg',
@@ -74,20 +79,26 @@ export class LeafletMapAdapter {
       visibleNodeIDs.add(id)
       const mqtt = mqttStatus(n.node.last_seen_mqtt_gateway_at, disconnectedThreshold)
       const lora = compactValues([displayValue(n.node.lora_region), displayValue(n.node.lora_frequency_desc)]).join(' / ')
-      const html = popupHtml(n.node.long_name ?? id, compactRows([
-        row('Short', displayValue(n.node.short_name)),
-        row('ID', id),
-        row('MQTT', `${mqtt.status}${mqtt.age ? ` (${mqtt.age})` : ''}`),
-        row('Neighbors', displayValue(n.node.neighbor_nodes_count)),
-        row('Role', displayValue(n.node.role)),
-        row('LoRa', lora || null),
-        row('Modem', displayValue(n.node.modem_preset)),
-        row('Default channel', displayValue(n.node.has_default_channel)),
-        row('Location reports', displayValue(n.node.has_opted_report_location)),
-        row('Board', displayValue(n.node.board_model)),
-        row('FW', displayValue(n.node.firmware_version)),
-        row('Last update', displayRelativeTime(n.node.last_seen_any_event_at)),
-        row('Last position', displayRelativeTime(n.node.last_seen_position_at))
+      const html = popupHtml(n.node.long_name ?? id, compactSections([
+        section('Identity', compactRows([
+          row('Short', displayValue(n.node.short_name)),
+          row('ID', id),
+          row('Role', displayValue(n.node.role)),
+          row('Neighbors', displayValue(n.node.neighbor_nodes_count))
+        ])),
+        section('Connectivity', compactRows([
+          row('MQTT', `${mqtt.status}${mqtt.age ? ` (${mqtt.age})` : ''}`),
+          row('Last update', displayRelativeTime(n.node.last_seen_any_event_at)),
+          row('Last position', displayRelativeTime(n.node.last_seen_position_at))
+        ])),
+        section('Radio', compactRows([
+          row('LoRa', lora || null),
+          row('Modem', displayValue(n.node.modem_preset)),
+          row('Default channel', displayValue(n.node.has_default_channel)),
+          row('Location reports', displayValue(n.node.has_opted_report_location)),
+          row('Board', displayValue(n.node.board_model)),
+          row('FW', displayValue(n.node.firmware_version))
+        ]))
       ]))
       const latlng: [number, number] = [n.position.latitude, n.position.longitude]
       const m = this.markers[id]
@@ -201,6 +212,17 @@ function compactValues(values: Array<string | null>): string[] {
   return values.filter((value): value is string => value !== null)
 }
 
-function popupHtml(title: string, rows: PopupRow[]): string {
-  return [`<b>${title}</b>`, ...rows.map((item) => `${item.label}: ${item.value}`)].join('<br/>')
+function section(title: string, rows: PopupRow[]): PopupSection | null {
+  return rows.length > 0 ? { title, rows } : null
+}
+
+function compactSections(sections: Array<PopupSection | null>): PopupSection[] {
+  return sections.filter((item): item is PopupSection => item !== null)
+}
+
+function popupHtml(title: string, sections: PopupSection[]): string {
+  return [
+    `<b>${title}</b>`,
+    ...sections.map((item) => `<div><strong>${item.title}</strong></div>${item.rows.map((row) => `${row.label}: ${row.value}`).join('<br/>')}`)
+  ].join('<br/>')
 }
