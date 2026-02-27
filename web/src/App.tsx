@@ -12,10 +12,55 @@ import { useNodeStore } from './stores/nodes'
 import { useWSStore } from './stores/ws'
 
 const mapViewKey = 'meshmap-lite.map.view'
+const mapHashLatParam = 'lat'
+const mapHashLngParam = 'lng'
+const mapHashZoomParam = 'z'
 
 interface SavedMapView {
   center: [number, number]
   zoom: number
+}
+
+function parseURLNumber(raw: string | null): number | null {
+  if (raw === null) return null
+  const n = Number(raw)
+  if (!Number.isFinite(n)) return null
+  return n
+}
+
+function readHashMapView(): SavedMapView | null {
+  const rawHash = window.location.hash
+  if (!rawHash || rawHash.length < 2) return null
+  const hash = rawHash.startsWith('#') ? rawHash.slice(1) : rawHash
+  const params = new URLSearchParams(hash)
+  const lat = parseURLNumber(params.get(mapHashLatParam))
+  const lng = parseURLNumber(params.get(mapHashLngParam))
+  const zoom = parseURLNumber(params.get(mapHashZoomParam))
+  if (lat === null || lng === null || zoom === null) return null
+  if (lat < -90 || lat > 90) return null
+  if (lng < -180 || lng > 180) return null
+  if (zoom < 0 || zoom > 24) return null
+  return { center: [lat, lng], zoom }
+}
+
+function writeHashMapView(view: SavedMapView): void {
+  const url = new URL(window.location.href)
+  const hash = url.hash.startsWith('#') ? url.hash.slice(1) : url.hash
+  const params = new URLSearchParams(hash)
+  const lat = Number(view.center[0].toFixed(6)).toString()
+  const lng = Number(view.center[1].toFixed(6)).toString()
+  const zoom = Number(view.zoom.toFixed(2)).toString()
+  if (
+    params.get(mapHashLatParam) === lat &&
+    params.get(mapHashLngParam) === lng &&
+    params.get(mapHashZoomParam) === zoom
+  ) {
+    return
+  }
+  params.set(mapHashLatParam, lat)
+  params.set(mapHashLngParam, lng)
+  params.set(mapHashZoomParam, zoom)
+  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${params.toString() ? `#${params.toString()}` : ''}`)
 }
 
 function canonicalChannelName(channels: string[], value: string | undefined): string {
@@ -51,7 +96,7 @@ export function App() {
   const [nodesLoadError, setNodesLoadError] = useState<string>('')
   const [logsLoading, setLogsLoading] = useState(false)
   const [channels, setChannels] = useState<string[]>([])
-  const [mapView, setMapView] = useState<SavedMapView>(() => readSavedMapView() ?? { center: [64.5, 40.6], zoom: 12 })
+  const [mapView, setMapView] = useState<SavedMapView>(() => readHashMapView() ?? readSavedMapView() ?? { center: [64.5, 40.6], zoom: 12 })
   const ws = useWSStore((s) => s.state)
   const wsStats = useWSStore((s) => s.stats)
   const meta = useMetaStore((s) => s.meta)
@@ -226,6 +271,7 @@ export function App() {
 
   useEffect(() => {
     if (!meta) return
+    if (readHashMapView()) return
     if (readSavedMapView()) return
     setMapView({
       center: [meta.map.default_view.latitude, meta.map.default_view.longitude],
@@ -238,6 +284,10 @@ export function App() {
     setMapView(next)
     localStorage.setItem(mapViewKey, JSON.stringify(next))
   }, [])
+
+  useEffect(() => {
+    writeHashMapView(mapView)
+  }, [mapView.center[0], mapView.center[1], mapView.zoom])
 
   const loadMoreLogs = useCallback(() => {
     if (logsLoading) return
