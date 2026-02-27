@@ -11,6 +11,11 @@ interface LeafletMapOptions {
   onSelectNode?: (id?: string) => void
 }
 
+interface PopupRow {
+  label: string
+  value: string
+}
+
 L.Icon.Default.mergeOptions({
   iconUrl: '/static/images/node-marker.svg',
   iconRetinaUrl: '/static/images/node-marker.svg',
@@ -68,25 +73,22 @@ export class LeafletMapAdapter {
       const id = n.node.node_id
       visibleNodeIDs.add(id)
       const mqtt = mqttStatus(n.node.last_seen_mqtt_gateway_at, disconnectedThreshold)
-      const lora = n.node.lora_region || n.node.lora_frequency_desc
-        ? `${n.node.lora_region ?? '-'} / ${n.node.lora_frequency_desc ?? '-'}`
-        : '-'
-      const html = [
-        `<b>${n.node.long_name ?? id}</b>`,
-        `Short: ${n.node.short_name ?? '-'}`,
-        `ID: ${id}`,
-        `MQTT: ${mqtt.status}${mqtt.age ? ` (${mqtt.age})` : ''}`,
-        `Neighbors: ${n.node.neighbor_nodes_count ?? '-'}`,
-        `Role: ${n.node.role ?? '-'}`,
-        `LoRa: ${lora}`,
-        `Modem: ${n.node.modem_preset ?? '-'}`,
-        `Default channel: ${typeof n.node.has_default_channel === 'boolean' ? (n.node.has_default_channel ? 'yes' : 'no') : '-'}`,
-        `Location reports: ${typeof n.node.has_opted_report_location === 'boolean' ? (n.node.has_opted_report_location ? 'yes' : 'no') : '-'}`,
-        `Board: ${n.node.board_model ?? '-'}`,
-        `FW: ${n.node.firmware_version ?? '-'}`,
-        `Last update: ${relativeTime(n.node.last_seen_any_event_at)}`,
-        `Last position: ${relativeTime(n.node.last_seen_position_at)}`
-      ].join('<br/>')
+      const lora = compactValues([displayValue(n.node.lora_region), displayValue(n.node.lora_frequency_desc)]).join(' / ')
+      const html = popupHtml(n.node.long_name ?? id, compactRows([
+        row('Short', displayValue(n.node.short_name)),
+        row('ID', id),
+        row('MQTT', `${mqtt.status}${mqtt.age ? ` (${mqtt.age})` : ''}`),
+        row('Neighbors', displayValue(n.node.neighbor_nodes_count)),
+        row('Role', displayValue(n.node.role)),
+        row('LoRa', lora || null),
+        row('Modem', displayValue(n.node.modem_preset)),
+        row('Default channel', displayValue(n.node.has_default_channel)),
+        row('Location reports', displayValue(n.node.has_opted_report_location)),
+        row('Board', displayValue(n.node.board_model)),
+        row('FW', displayValue(n.node.firmware_version)),
+        row('Last update', displayRelativeTime(n.node.last_seen_any_event_at)),
+        row('Last position', displayRelativeTime(n.node.last_seen_position_at))
+      ]))
       const latlng: [number, number] = [n.position.latitude, n.position.longitude]
       const m = this.markers[id]
       if (m) {
@@ -175,4 +177,30 @@ function mqttStatus(lastSeen?: string, disconnectedThreshold?: string): { status
   const age = relativeTime(lastSeen)
   if (typeof thresholdMs !== 'number') return { status: 'Connected', age }
   return ageMs <= thresholdMs ? { status: 'Connected', age } : { status: 'Disconnected', age }
+}
+
+function displayValue(v: string | number | boolean | undefined): string | null {
+  if (typeof v === 'boolean') return v ? 'yes' : 'no'
+  if (typeof v === 'number') return String(v)
+  return v && v.length > 0 ? v : null
+}
+
+function displayRelativeTime(v?: string): string | null {
+  return v ? relativeTime(v) : null
+}
+
+function row(label: string, value: string | null): PopupRow | null {
+  return value === null ? null : { label, value }
+}
+
+function compactRows(rows: Array<PopupRow | null>): PopupRow[] {
+  return rows.filter((item): item is PopupRow => item !== null)
+}
+
+function compactValues(values: Array<string | null>): string[] {
+  return values.filter((value): value is string => value !== null)
+}
+
+function popupHtml(title: string, rows: PopupRow[]): string {
+  return [`<b>${title}</b>`, ...rows.map((item) => `${item.label}: ${item.value}`)].join('<br/>')
 }
