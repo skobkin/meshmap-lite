@@ -26,11 +26,14 @@ type Service struct {
 	dedup   *dedup.Store
 	emitter RealtimeEmitter
 	log     *slog.Logger
+	tracker *tracerouteTracker
+	now     func() time.Time
 }
 
 // Config contains the subset of app config required by the ingest service.
 type Config struct {
 	MQTT       config.MQTTConfig
+	Ingest     config.IngestConfig
 	MapReports config.MapReportsConfig
 	Channels   map[string]config.ChannelConfig
 	Log        config.LogConfig
@@ -44,12 +47,27 @@ func New(cfg Config, store repo.Store, dedupStore *dedup.Store, emitter Realtime
 	}
 	meshtastic.ConfigureChannelKeys(keys)
 
-	return &Service{cfg: cfg, store: store, dedup: dedupStore, emitter: emitter, log: log}
+	return &Service{
+		cfg:     cfg,
+		store:   store,
+		dedup:   dedupStore,
+		emitter: emitter,
+		log:     log,
+		tracker: newTracerouteTracker(log, tracerouteTrackerOptions{
+			timeout:        cfg.Ingest.Traceroute.Timeout,
+			maxEntries:     cfg.Ingest.Traceroute.MaxEntries,
+			finalRetention: cfg.Ingest.Traceroute.FinalRetention,
+		}),
+		now: func() time.Time {
+			return time.Now().UTC()
+		},
+	}
 }
 
 // HandleMessage processes one MQTT message through topic classification and ingest pipeline.
 func (s *Service) HandleMessage(ctx context.Context, topic string, payload []byte) {
-	now := time.Now().UTC()
+	now := s.currentTime()
+	s.flushExpiredTraceroutes(ctx, now)
 	s.log.Debug("ingest mqtt payload", "topic", topic, "bytes", len(payload))
 	topicInfo := meshtastic.ClassifyTopic(s.cfg.MQTT.RootTopic, s.cfg.MapReports.TopicSuffix, topic)
 	if topicInfo.Kind == meshtastic.TopicKindUnknown {
@@ -94,28 +112,17 @@ func (s *Service) HandleMessage(ctx context.Context, topic string, payload []byt
 		}
 	}
 	channel := strings.TrimSpace(topicInfo.Channel)
-	if logEvent, ok := s.logEventFromParsed(evt, channel, now); ok && s.allowLogEvent(topicInfo.Kind, channel, evt.Kind) {
-		id, err := s.store.InsertLogEvent(ctx, logEvent)
-		if err != nil {
-			s.log.Error("insert log event failed", "kind", evt.Kind, "node_id", evt.NodeID, "err", err)
-		} else {
-			view := domain.LogEventView{
-				ID:             id,
-				ObservedAt:     logEvent.ObservedAt,
-				NodeID:         logEvent.NodeID,
-				NodeDisplay:    logEvent.NodeID,
-				EventKindValue: logEvent.EventKind,
-				EventKindTitle: domain.LogEventKindTitle(logEvent.EventKind),
-				Encrypted:      logEvent.Encrypted,
-				Details:        logEvent.Details,
-			}
-			if logEvent.Channel != "" {
-				ch := logEvent.Channel
-				view.ChannelName = &ch
-			}
-			if s.cfg.Log.LiveUpdates {
-				s.emitter.Emit(domain.RealtimeEvent{Type: "log.event", TS: now, Payload: view})
-			}
+	logAllowed := s.allowLogEvent(topicInfo.Kind, channel, evt.Kind)
+	tracerouteDecision := tracerouteLogDecision{}
+	if logAllowed {
+		tracerouteDecision = s.tracerouteLogDecision(evt, channel, now)
+	}
+	if logEvent, ok := s.logEventFromParsed(evt, channel, now); ok && logAllowed && !tracerouteDecision.suppressPacketLog {
+		s.persistLogEvent(ctx, logEvent)
+	}
+	if logAllowed {
+		for _, lifecycleEvent := range tracerouteDecision.lifecycleEvents {
+			s.persistLogEvent(ctx, lifecycleEvent)
 		}
 	}
 	if !s.allowEvent(channel, evt.Kind) {
@@ -213,6 +220,111 @@ func (s *Service) HandleMessage(ctx context.Context, topic string, payload []byt
 			)
 		}
 	}
+}
+
+func (s *Service) currentTime() time.Time {
+	if s.now != nil {
+		return s.now().UTC()
+	}
+
+	return time.Now().UTC()
+}
+
+func (s *Service) persistLogEvent(ctx context.Context, logEvent domain.LogEvent) {
+	id, err := s.store.InsertLogEvent(ctx, logEvent)
+	if err != nil {
+		s.log.Error("insert log event failed", "event_kind", logEvent.EventKind, "node_id", logEvent.NodeID, "err", err)
+
+		return
+	}
+	view := domain.LogEventView{
+		ID:             id,
+		ObservedAt:     logEvent.ObservedAt,
+		NodeID:         logEvent.NodeID,
+		NodeDisplay:    logEvent.NodeID,
+		EventKindValue: logEvent.EventKind,
+		EventKindTitle: domain.LogEventKindTitle(logEvent.EventKind),
+		Encrypted:      logEvent.Encrypted,
+		Details:        logEvent.Details,
+	}
+	if logEvent.Channel != "" {
+		ch := logEvent.Channel
+		view.ChannelName = &ch
+	}
+	if s.cfg.Log.LiveUpdates {
+		s.emitter.Emit(domain.RealtimeEvent{Type: "log.event", TS: logEvent.ObservedAt, Payload: view})
+	}
+}
+
+func (s *Service) flushExpiredTraceroutes(ctx context.Context, now time.Time) {
+	if s.tracker == nil {
+		return
+	}
+	for _, lifecycle := range s.tracker.Sweep(now) {
+		s.persistLogEvent(ctx, tracerouteLifecycleLogEvent(lifecycle))
+	}
+}
+
+type tracerouteLogDecision struct {
+	suppressPacketLog bool
+	lifecycleEvents   []domain.LogEvent
+}
+
+func (s *Service) tracerouteLogDecision(evt meshtastic.ParsedEvent, channel string, now time.Time) tracerouteLogDecision {
+	if s.tracker == nil {
+		return tracerouteLogDecision{}
+	}
+
+	switch evt.Kind {
+	case meshtastic.ParsedTraceroute:
+		if evt.Traceroute == nil {
+			return tracerouteLogDecision{}
+		}
+		var result tracerouteTrackerResult
+		switch evt.Traceroute.Role {
+		case "request":
+			result = s.tracker.OnRequest(tracerouteObservation{
+				packetID:   evt.PacketID,
+				channel:    channel,
+				now:        now,
+				reportedAt: evt.Timestamp,
+				payload:    evt.Traceroute,
+			})
+		case "reply":
+			result = s.tracker.OnReply(tracerouteObservation{
+				packetID:   evt.PacketID,
+				channel:    channel,
+				now:        now,
+				reportedAt: evt.Timestamp,
+				payload:    evt.Traceroute,
+			})
+		}
+
+		return tracerouteDecisionFromTracker(result)
+	case meshtastic.ParsedRouting:
+		if evt.Routing == nil {
+			return tracerouteLogDecision{}
+		}
+
+		return tracerouteDecisionFromTracker(s.tracker.OnRouting(tracerouteRoutingObservation{
+			packetID:   evt.PacketID,
+			channel:    channel,
+			now:        now,
+			reportedAt: evt.Timestamp,
+			payload:    evt.Routing,
+		}))
+	default:
+		return tracerouteLogDecision{}
+	}
+}
+
+func tracerouteDecisionFromTracker(result tracerouteTrackerResult) tracerouteLogDecision {
+	decision := tracerouteLogDecision{suppressPacketLog: result.suppressPacketLog}
+	if result.lifecycle != nil {
+		decision.lifecycleEvents = append(decision.lifecycleEvents, tracerouteLifecycleLogEvent(*result.lifecycle))
+	}
+
+	return decision
 }
 
 func (s *Service) logEventFromParsed(evt meshtastic.ParsedEvent, channel string, now time.Time) (domain.LogEvent, bool) {

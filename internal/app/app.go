@@ -54,6 +54,7 @@ func Run(configPath string) error {
 	dedupStore := dedup.New(cfg.Storage.KV)
 	ing := ingest.New(ingest.Config{
 		MQTT:       cfg.MQTT,
+		Ingest:     cfg.Ingest,
 		MapReports: cfg.MapReports,
 		Channels:   cfg.Channels,
 		Log:        cfg.Web.Log,

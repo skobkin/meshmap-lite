@@ -17,6 +17,7 @@ import (
 // Config is the root application configuration loaded from YAML and environment.
 type Config struct {
 	MQTT       MQTTConfig               `koanf:"mqtt" json:"mqtt"`
+	Ingest     IngestConfig             `koanf:"ingest" json:"ingest"`
 	Storage    StorageConfig            `koanf:"storage" json:"storage"`
 	MapReports MapReportsConfig         `koanf:"map_reports" json:"map_reports"`
 	Channels   map[string]ChannelConfig `koanf:"channels" json:"channels"`
@@ -40,6 +41,18 @@ type MQTTConfig struct {
 	ReconnectTimeout time.Duration `koanf:"reconnect_timeout"`
 	ConnectTimeout   time.Duration `koanf:"connect_timeout"`
 	Keepalive        time.Duration `koanf:"keepalive"`
+}
+
+// IngestConfig controls ingest-side correlation and synthesis policies.
+type IngestConfig struct {
+	Traceroute TracerouteIngestConfig `koanf:"traceroute" json:"traceroute"`
+}
+
+// TracerouteIngestConfig bounds ingest-side traceroute lifecycle tracking.
+type TracerouteIngestConfig struct {
+	Timeout        time.Duration `koanf:"timeout" json:"timeout"`
+	MaxEntries     int           `koanf:"max_entries" json:"max_entries"`
+	FinalRetention time.Duration `koanf:"final_retention" json:"final_retention"`
 }
 
 // StorageConfig configures KV and SQL backends.
@@ -134,6 +147,13 @@ func defaultConfig() Config {
 			ReconnectTimeout: 10 * time.Second,
 			ConnectTimeout:   10 * time.Second,
 			Keepalive:        60 * time.Second,
+		},
+		Ingest: IngestConfig{
+			Traceroute: TracerouteIngestConfig{
+				Timeout:        60 * time.Second,
+				MaxEntries:     1000,
+				FinalRetention: 60 * time.Second,
+			},
 		},
 		Storage: StorageConfig{
 			KV: KVConfig{Driver: "memory", Size: 100000, TTL: 6 * time.Hour},
@@ -251,6 +271,12 @@ func setPath(cfg *Config, parts []string, value string) {
 		cfg.MQTT.Keepalive = mustDuration(value, cfg.MQTT.Keepalive)
 	case "storage.kv.driver":
 		cfg.Storage.KV.Driver = value
+	case "ingest.traceroute.timeout":
+		cfg.Ingest.Traceroute.Timeout = mustDuration(value, cfg.Ingest.Traceroute.Timeout)
+	case "ingest.traceroute.max_entries":
+		cfg.Ingest.Traceroute.MaxEntries = mustInt(value, cfg.Ingest.Traceroute.MaxEntries)
+	case "ingest.traceroute.final_retention":
+		cfg.Ingest.Traceroute.FinalRetention = mustDuration(value, cfg.Ingest.Traceroute.FinalRetention)
 	case "storage.kv.size":
 		cfg.Storage.KV.Size = mustInt(value, cfg.Storage.KV.Size)
 	case "storage.kv.ttl":
@@ -366,6 +392,15 @@ func normalize(cfg *Config) {
 	}
 	if cfg.Storage.SQL.LogPruneBatchRows < 0 {
 		cfg.Storage.SQL.LogPruneBatchRows = 0
+	}
+	if cfg.Ingest.Traceroute.Timeout <= 0 {
+		cfg.Ingest.Traceroute.Timeout = 60 * time.Second
+	}
+	if cfg.Ingest.Traceroute.MaxEntries < 1 {
+		cfg.Ingest.Traceroute.MaxEntries = 1000
+	}
+	if cfg.Ingest.Traceroute.FinalRetention <= 0 {
+		cfg.Ingest.Traceroute.FinalRetention = cfg.Ingest.Traceroute.Timeout
 	}
 }
 

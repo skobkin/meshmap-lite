@@ -11,6 +11,12 @@ mqtt:
   connect_timeout: 10s
   keepalive: 60s
 
+ingest:
+  traceroute:
+    timeout: 60s
+    max_entries: 1000
+    final_retention: 60s
+
 storage:
   kv:
     driver: memory

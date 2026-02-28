@@ -13,9 +13,10 @@ import (
 )
 
 type testStore struct {
-	lastNode     *domain.Node
-	lastPosition *domain.NodePosition
-	lastLogEvent *domain.LogEvent
+	lastNode      *domain.Node
+	lastPosition  *domain.NodePosition
+	lastLogEvent  *domain.LogEvent
+	logEventsSeen []domain.LogEvent
 }
 
 func (s *testStore) UpsertNode(_ context.Context, node domain.Node) (bool, error) {
@@ -43,8 +44,9 @@ func (*testStore) InsertChatEvent(context.Context, domain.ChatEvent) (int64, err
 func (s *testStore) InsertLogEvent(_ context.Context, e domain.LogEvent) (int64, error) {
 	ev := e
 	s.lastLogEvent = &ev
+	s.logEventsSeen = append(s.logEventsSeen, ev)
 
-	return 0, nil
+	return int64(len(s.logEventsSeen)), nil
 }
 
 func (*testStore) GetMapNodes(context.Context) ([]repo.MapNode, error) {
