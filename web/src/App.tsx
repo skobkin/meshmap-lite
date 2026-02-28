@@ -120,6 +120,8 @@ export function App() {
   const setLogFilters = useLogStore((s) => s.setFilters)
   const setLogLoadError = useLogStore((s) => s.setLoadError)
   const loadedMessagesFor = useRef('')
+  const lastLoadedLogKey = useRef('')
+  const activeLogRequest = useRef(0)
 
   useEffect(() => {
     let stopWS: (() => void) | undefined
@@ -224,29 +226,18 @@ export function App() {
 
   useEffect(() => {
     if (page !== 'log') return
+    if (logsLoading) return
     if (!bootstrapDone) return
-    if (logsLoading) return
-    if (logLoadedOnce) return
-    setLogsLoading(true)
-    void api.logEvents({
-      limit: meta?.log_page_size_default ?? 100,
-      eventKinds: logFilters.eventKinds,
-      channel: logFilters.channel
-    })
-      .then((items) => {
-        setLogInitial(items)
-        setLogLoadError('')
-      })
-      .catch(() => {
-        setLogLoadError('Failed to load log events.')
-      })
-      .finally(() => setLogsLoading(false))
-  }, [page, bootstrapDone, logsLoading, logLoadedOnce, meta?.log_page_size_default, logFilters.eventKinds, logFilters.channel])
 
-  useEffect(() => {
-    if (page !== 'log') return
-    if (!logLoadedOnce) return
-    if (logsLoading) return
+    const requestKey = JSON.stringify({
+      limit: meta?.log_page_size_default ?? 100,
+      eventKinds: logFilters.eventKinds,
+      channel: logFilters.channel
+    })
+    if (logLoadedOnce && lastLoadedLogKey.current === requestKey) return
+
+    const requestID = activeLogRequest.current + 1
+    activeLogRequest.current = requestID
     setLogsLoading(true)
     void api.logEvents({
       limit: meta?.log_page_size_default ?? 100,
@@ -254,14 +245,21 @@ export function App() {
       channel: logFilters.channel
     })
       .then((items) => {
+        if (activeLogRequest.current !== requestID) return
+        lastLoadedLogKey.current = requestKey
         setLogInitial(items)
         setLogLoadError('')
       })
       .catch(() => {
+        if (activeLogRequest.current !== requestID) return
         setLogLoadError('Failed to load log events.')
       })
-      .finally(() => setLogsLoading(false))
-  }, [page, logLoadedOnce, logFilters.eventKinds, logFilters.channel, logsLoading, meta?.log_page_size_default, setLogInitial, setLogLoadError])
+      .finally(() => {
+        if (activeLogRequest.current === requestID) {
+          setLogsLoading(false)
+        }
+      })
+  }, [page, bootstrapDone, logLoadedOnce, logFilters.eventKinds, logFilters.channel, logsLoading, meta?.log_page_size_default, setLogInitial, setLogLoadError])
 
   useEffect(() => {
     if (!channels.length || !channel) return
