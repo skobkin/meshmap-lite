@@ -21,42 +21,50 @@ steps:
 
   backend-prepare:
     image: golang:1.25
-    environment:
-      GOCACHE: ${CI_WORKSPACE}/.cache/go-build
-      GOMODCACHE: ${CI_WORKSPACE}/.cache/go-mod
     commands:
-      - go mod download
+      - |
+        export CACHE_ROOT="${CI_WORKSPACE}/.cache"
+        export GOMODCACHE="$CACHE_ROOT/go-mod"
+        export GOCACHE="$CACHE_ROOT/go-build"
+        mkdir -p "$GOMODCACHE" "$GOCACHE"
+        go mod download
 
   backend-lint:
     image: golangci/golangci-lint:v2.8-alpine
     depends_on:
       - backend-prepare
-    environment:
-      GOCACHE: ${CI_WORKSPACE}/.cache/go-build
-      GOMODCACHE: ${CI_WORKSPACE}/.cache/go-mod
-      XDG_CACHE_HOME: ${CI_WORKSPACE}/.cache/xdg
     commands:
-      - golangci-lint run
+      - |
+        export CACHE_ROOT="${CI_WORKSPACE}/.cache"
+        export GOMODCACHE="$CACHE_ROOT/go-mod"
+        export GOCACHE="$CACHE_ROOT/go-build"
+        export XDG_CACHE_HOME="$CACHE_ROOT/xdg"
+        mkdir -p "$GOMODCACHE" "$GOCACHE" "$XDG_CACHE_HOME"
+        golangci-lint run
 
   backend-vet:
     image: golang:1.25
     depends_on:
       - backend-prepare
-    environment:
-      GOCACHE: ${CI_WORKSPACE}/.cache/go-build
-      GOMODCACHE: ${CI_WORKSPACE}/.cache/go-mod
     commands:
-      - go vet ./...
+      - |
+        export CACHE_ROOT="${CI_WORKSPACE}/.cache"
+        export GOMODCACHE="$CACHE_ROOT/go-mod"
+        export GOCACHE="$CACHE_ROOT/go-build"
+        mkdir -p "$GOMODCACHE" "$GOCACHE"
+        go vet ./...
 
   backend-test:
     image: golang:1.25
     depends_on:
       - backend-prepare
-    environment:
-      GOCACHE: ${CI_WORKSPACE}/.cache/go-build
-      GOMODCACHE: ${CI_WORKSPACE}/.cache/go-mod
     commands:
-      - go test ./...
+      - |
+        export CACHE_ROOT="${CI_WORKSPACE}/.cache"
+        export GOMODCACHE="$CACHE_ROOT/go-mod"
+        export GOCACHE="$CACHE_ROOT/go-build"
+        mkdir -p "$GOMODCACHE" "$GOCACHE"
+        go test ./...
 
   frontend-lint:
     image: node:22-alpine
@@ -110,11 +118,13 @@ steps:
       - backend-lint
       - backend-vet
       - backend-test
-    environment:
-      GOCACHE: ${CI_WORKSPACE}/.cache/go-build
-      GOMODCACHE: ${CI_WORKSPACE}/.cache/go-mod
     commands:
-      - CGO_ENABLED=0 go build -trimpath -o server ./cmd/server
+      - |
+        export CACHE_ROOT="${CI_WORKSPACE}/.cache"
+        export GOMODCACHE="$CACHE_ROOT/go-mod"
+        export GOCACHE="$CACHE_ROOT/go-build"
+        mkdir -p "$GOMODCACHE" "$GOCACHE"
+        CGO_ENABLED=0 go build -trimpath -o server ./cmd/server
     when:
       - event: push
 
@@ -131,16 +141,19 @@ steps:
       - frontend-build
     image: goreleaser/goreleaser-cross:v1.25-v2.12.7
     environment:
-      GOCACHE: ${CI_WORKSPACE}/.cache/go-build
-      GOMODCACHE: ${CI_WORKSPACE}/.cache/go-mod
       FORGE_TOKEN:
         from_secret: FORGE_TOKEN
     commands:
-      - test -n "$CI_FORGE_URL" || (echo "CI_FORGE_URL is empty. Cannot derive Forge URLs for GoReleaser." && exit 1)
-      - export GITEA_TOKEN="${GITEA_TOKEN:-$FORGE_TOKEN}"
-      - test -n "$FORGE_API_URL" || export FORGE_API_URL="$CI_FORGE_URL/api/v1"
-      - test -n "$FORGE_DOWNLOAD_URL" || export FORGE_DOWNLOAD_URL="$CI_FORGE_URL"
-      - goreleaser release --clean
+      - |
+        export CACHE_ROOT="${CI_WORKSPACE}/.cache"
+        export GOMODCACHE="$CACHE_ROOT/go-mod"
+        export GOCACHE="$CACHE_ROOT/go-build"
+        mkdir -p "$GOMODCACHE" "$GOCACHE"
+        test -n "$CI_FORGE_URL" || (echo "CI_FORGE_URL is empty. Cannot derive Forge URLs for GoReleaser." && exit 1)
+        export GITEA_TOKEN="${GITEA_TOKEN:-$FORGE_TOKEN}"
+        test -n "$FORGE_API_URL" || export FORGE_API_URL="$CI_FORGE_URL/api/v1"
+        test -n "$FORGE_DOWNLOAD_URL" || export FORGE_DOWNLOAD_URL="$CI_FORGE_URL"
+        goreleaser release --clean
     when:
       - event: tag
 
