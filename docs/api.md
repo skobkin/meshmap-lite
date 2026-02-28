@@ -24,6 +24,9 @@ This document is the source of truth for the public HTTP and WebSocket contract 
 - `GET /api/v1/map/nodes`: returns map snapshot items as `{node, position?}`.
 - `GET /api/v1/chat/messages`: returns chat history ordered newest-first. `channel` defaults to `meta.default_chat_channel`; `limit` defaults to `meta.show_recent_messages`; `before` paginates by chat row ID.
 - `GET /api/v1/log/events`: returns non-chat activity log rows ordered newest-first. `limit` defaults to `meta.log_page_size_default`; `before` paginates by log row ID; `channel` filters by channel name; `event_kind` may be repeated or passed as a comma-separated list. `event_kinds` is also accepted as an alias for compatibility.
+  - `details` is event-specific JSON. New traceroute rows use semantic fields such as `role`, `status`, `request_id`, `from`, `to`, `forward_path`, `return_path`, `forward_snr`, `return_snr`, and `inferred_*` markers instead of only hop counts.
+  - Routing rows may include `request_id`, route arrays, and `traceroute_status="failed"` when a `ROUTING_APP` error packet refers to a traceroute request and `error_reason != "NONE"`.
+  - MQTT-derived traceroute paths can be partial compared to a directly connected radio client; missing reply-side data must be treated as absent rather than fabricated.
 - `GET /api/v1/nodes`: returns node list items for the Nodes view.
 - `GET /api/v1/nodes/{node_id}`: returns `{node, position?, telemetry?}` for one node, or `404 {"error":"not_found"}` if absent.
 - `GET /api/v1/ws`: single WebSocket stream for live events.
