@@ -73,7 +73,9 @@ steps:
   frontend-build:
     image: node:22-alpine
     depends_on:
-      - frontend-prepare
+      - frontend-lint
+      - frontend-typecheck
+      - frontend-test
     commands:
       - cd web
       - npm run build
