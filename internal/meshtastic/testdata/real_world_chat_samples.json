@@ -9,5 +9,16 @@
     "expected_packet_id": 1042588448,
     "expected_timestamp": "2026-02-28T16:08:55Z",
     "expected_text": "Test message for mesh.skobk.in protobuf ingest regression testing."
+  },
+  {
+    "name": "default_longfast_chat_cyrillic_local_community_via_arkh_0aca4340",
+    "topic": "msh/RU/ARKH/2/e/LongFast/!0aca4340",
+    "channel_psk": "AQ==",
+    "payload_hex": "0a540d4043ca0a15ffffffff18082a3361fd5fc1fd9ba84b4486dad1afca26c479c20af5fb3b1667dd3fbcd9af479727957a4451e3907a73fac0b9c911cc85cf7375cb35a9301b463d202aa36948075864780798014012084c6f6e67466173741a09213061636134333430",
+    "expected_node_id": "!0aca4340",
+    "expected_gateway_id": "!0aca4340",
+    "expected_packet_id": 1176187049,
+    "expected_timestamp": "2026-02-28T17:47:12Z",
+    "expected_text": "Tecтoвoe cooбщeниe нa киpиллицe"
   }
 ]
