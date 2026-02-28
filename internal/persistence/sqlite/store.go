@@ -478,24 +478,24 @@ WHERE n.node_id=?`, nodeID)
 }
 
 // ListChatEvents returns paginated chat timeline items for a channel.
-func (s *Store) ListChatEvents(ctx context.Context, channel string, limit int, before int64) ([]domain.ChatEvent, error) {
-	if limit <= 0 {
-		limit = 50
+func (s *Store) ListChatEvents(ctx context.Context, q repo.ChatEventQuery) ([]domain.ChatEvent, error) {
+	if q.Limit <= 0 {
+		q.Limit = 50
 	}
-	if limit > 500 {
-		limit = 500
+	if q.Limit > 500 {
+		q.Limit = 500
 	}
 	query := `
 SELECT id,event_type,channel_name,node_id,message_text,system_code,message_time,reported_at,observed_at,packet_id,created_at
 FROM chat_events
 WHERE (LOWER(channel_name)=LOWER(?) OR channel_name='')`
-	args := []interface{}{channel}
-	if before > 0 {
+	args := []interface{}{q.Channel}
+	if q.BeforeID > 0 {
 		query += ` AND id < ?`
-		args = append(args, before)
+		args = append(args, q.BeforeID)
 	}
 	query += ` ORDER BY id DESC LIMIT ?`
-	args = append(args, limit)
+	args = append(args, q.Limit)
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err

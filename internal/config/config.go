@@ -15,8 +15,10 @@ import (
 )
 
 const (
+	// DefaultWSHeartbeatInterval is the fallback websocket heartbeat interval.
 	DefaultWSHeartbeatInterval = 30 * time.Second
-	DefaultWSStatsInterval     = 60 * time.Second
+	// DefaultWSStatsInterval is the fallback websocket stats emission interval.
+	DefaultWSStatsInterval = 60 * time.Second
 )
 
 // Config is the root application configuration loaded from YAML and environment.

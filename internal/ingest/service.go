@@ -22,7 +22,7 @@ type RealtimeEmitter interface {
 // Service ingests decoded Meshtastic events into storage and realtime streams.
 type Service struct {
 	cfg     Config
-	store   repo.Store
+	store   repo.WriteStore
 	dedup   *dedup.Store
 	emitter RealtimeEmitter
 	log     *slog.Logger
@@ -40,7 +40,7 @@ type Config struct {
 }
 
 // New constructs ingest service and configures parser channel keys.
-func New(cfg Config, store repo.Store, dedupStore *dedup.Store, emitter RealtimeEmitter, log *slog.Logger) *Service {
+func New(cfg Config, store repo.WriteStore, dedupStore *dedup.Store, emitter RealtimeEmitter, log *slog.Logger) *Service {
 	keys := make(map[string]string, len(cfg.Channels))
 	for name, ch := range cfg.Channels {
 		keys[name] = ch.PSK
@@ -105,7 +105,7 @@ func (s *Service) HandleMessage(ctx context.Context, topic string, payload []byt
 		}
 	}
 	if evt.PacketID > 0 {
-		if s.dedup.Seen(fmt.Sprintf("%s:%d", evt.NodeID, evt.PacketID), now) {
+		if s.dedup.CheckAndMark(fmt.Sprintf("%s:%d", evt.NodeID, evt.PacketID), now) {
 			s.log.Debug("skip duplicated packet", "node_id", evt.NodeID, "packet_id", evt.PacketID)
 
 			return

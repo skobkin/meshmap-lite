@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -21,14 +22,19 @@ import (
 	"meshmap-lite/internal/persistence/sqlite"
 )
 
+const missingFrontendBuildHint = "frontend assets are not built; run `cd web && npm run build`"
+
 // Run initializes dependencies and starts HTTP, WS, and MQTT services.
 func Run(configPath string) error {
 	cfg, err := config.Load(configPath)
 	if err != nil {
 		return err
 	}
-	logMgr := logging.NewManager()
-	if err := logMgr.Configure(cfg.Logging); err != nil {
+	logMgr, err := logging.NewManager(logging.Options{
+		Level:      cfg.Logging.Level,
+		SetDefault: true,
+	})
+	if err != nil {
 		return err
 	}
 	log := logMgr.Logger("internal/app")
@@ -51,7 +57,10 @@ func Run(configPath string) error {
 	defer func() { _ = store.Close() }()
 
 	hub := ws.NewHub(logMgr.Logger("internal/api/ws"))
-	dedupStore := dedup.New(cfg.Storage.KV)
+	dedupStore := dedup.New(dedup.Options{
+		Size: cfg.Storage.KV.Size,
+		TTL:  cfg.Storage.KV.TTL,
+	})
 	ing := ingest.New(ingest.Config{
 		MQTT:       cfg.MQTT,
 		Ingest:     cfg.Ingest,
@@ -75,7 +84,10 @@ func Run(configPath string) error {
 	mux.Handle("/api/", apiMux)
 	mux.Handle("/healthz", apiMux)
 	mux.Handle("/readyz", apiMux)
-	mux.Handle("/", frontend.Handler())
+	mux.Handle("/", frontend.Handler(frontend.Options{
+		DistPath:         filepath.Join("web", "dist"),
+		MissingBuildHint: missingFrontendBuildHint,
+	}))
 
 	httpSrv := &http.Server{Addr: cfg.Web.ListenAddr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 

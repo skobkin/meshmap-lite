@@ -9,10 +9,11 @@ import (
 
 	"meshmap-lite/internal/domain"
 	"meshmap-lite/internal/meshtastic"
-	"meshmap-lite/internal/repo"
+	"meshmap-lite/internal/repo/testkit"
 )
 
 type testStore struct {
+	testkit.FakeStore
 	lastNode      *domain.Node
 	lastPosition  *domain.NodePosition
 	lastLogEvent  *domain.LogEvent
@@ -47,30 +48,6 @@ func (s *testStore) InsertLogEvent(_ context.Context, e domain.LogEvent) (int64,
 	s.logEventsSeen = append(s.logEventsSeen, ev)
 
 	return int64(len(s.logEventsSeen)), nil
-}
-
-func (*testStore) GetMapNodes(context.Context) ([]repo.MapNode, error) {
-	return nil, nil
-}
-
-func (*testStore) ListNodes(context.Context) ([]repo.NodeSummary, error) {
-	return nil, nil
-}
-
-func (*testStore) GetNodeDetails(context.Context, string) (repo.NodeDetails, error) {
-	return repo.NodeDetails{}, nil
-}
-
-func (*testStore) ListChatEvents(context.Context, string, int, int64) ([]domain.ChatEvent, error) {
-	return nil, nil
-}
-
-func (*testStore) ListLogEvents(context.Context, domain.LogEventQuery) ([]domain.LogEventView, error) {
-	return nil, nil
-}
-
-func (*testStore) Stats(context.Context, time.Duration) (domain.Stats, error) {
-	return domain.Stats{}, nil
 }
 
 type testEmitter struct{}

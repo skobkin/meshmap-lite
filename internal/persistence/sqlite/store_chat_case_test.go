@@ -7,6 +7,7 @@ import (
 
 	"meshmap-lite/internal/config"
 	"meshmap-lite/internal/domain"
+	"meshmap-lite/internal/repo"
 )
 
 func TestListChatEvents_ChannelCaseInsensitive(t *testing.T) {
@@ -30,7 +31,7 @@ func TestListChatEvents_ChannelCaseInsensitive(t *testing.T) {
 		t.Fatalf("insert chat event: %v", err)
 	}
 
-	items, err := s.ListChatEvents(ctx, "LongFast", 50, 0)
+	items, err := s.ListChatEvents(ctx, repo.ChatEventQuery{Channel: "LongFast", Limit: 50})
 	if err != nil {
 		t.Fatalf("list chat events: %v", err)
 	}

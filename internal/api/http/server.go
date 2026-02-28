@@ -24,7 +24,7 @@ import (
 // Server serves HTTP API routes and shared operational endpoints.
 type Server struct {
 	cfg      Config
-	store    repo.Store
+	store    repo.ReadStore
 	log      *slog.Logger
 	ready    func() bool
 	wsClient func() int
@@ -37,7 +37,7 @@ type Config struct {
 }
 
 // New creates an HTTP API server with configured dependencies.
-func New(cfg Config, store repo.Store, log *slog.Logger, ready func() bool, wsClient func() int) *Server {
+func New(cfg Config, store repo.ReadStore, log *slog.Logger, ready func() bool, wsClient func() int) *Server {
 	return &Server{cfg: cfg, store: store, log: log, ready: ready, wsClient: wsClient}
 }
 
@@ -171,7 +171,11 @@ func (s *Server) chatMessages(w http.ResponseWriter, r *http.Request) {
 		limit = parseInt(raw, limit)
 	}
 	before := int64(parseInt(q.Get("before"), 0))
-	items, err := s.store.ListChatEvents(r.Context(), channel, limit, before)
+	items, err := s.store.ListChatEvents(r.Context(), repo.ChatEventQuery{
+		Channel:  channel,
+		Limit:    limit,
+		BeforeID: before,
+	})
 	if err != nil {
 		s.log.Error("chat messages", "err", err)
 		writeError(w, http.StatusInternalServerError, "internal_error")
