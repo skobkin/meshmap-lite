@@ -214,11 +214,11 @@ func (s *Server) nodeByID(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, item)
 }
 
-// StartStatsTicker periodically emits realtime stats and heartbeat events.
+// StartStatsTicker periodically emits runtime stats events.
 func (s *Server) StartStatsTicker(ctx context.Context, emit func(domain.RealtimeEvent)) {
-	interval := s.cfg.Web.WS.HeartbeatInterval
+	interval := s.cfg.Web.WS.StatsInterval
 	if interval <= 0 {
-		interval = 30 * time.Second
+		interval = config.DefaultWSStatsInterval
 	}
 	s.log.Info("stats ticker started", "interval", interval.String())
 	ticker := time.NewTicker(interval)
@@ -243,6 +243,25 @@ func (s *Server) StartStatsTicker(ctx context.Context, emit func(domain.Realtime
 				"last_ingest_at", st.LastIngestAt,
 			)
 			emit(domain.RealtimeEvent{Type: "stats", TS: time.Now().UTC(), Payload: st})
+		}
+	}
+}
+
+// StartHeartbeatTicker periodically emits websocket heartbeat events.
+func (s *Server) StartHeartbeatTicker(ctx context.Context, emit func(domain.RealtimeEvent)) {
+	interval := s.cfg.Web.WS.HeartbeatInterval
+	if interval <= 0 {
+		interval = config.DefaultWSHeartbeatInterval
+	}
+	s.log.Info("heartbeat ticker started", "interval", interval.String())
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	defer s.log.Info("heartbeat ticker stopped")
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
 			emit(domain.RealtimeEvent{Type: "ws.heartbeat", TS: time.Now().UTC(), Payload: map[string]string{"status": "ok"}})
 		}
 	}

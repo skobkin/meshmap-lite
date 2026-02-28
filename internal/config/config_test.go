@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestLoadWithEnvOverrides(t *testing.T) {
@@ -24,6 +25,7 @@ channels:
 	t.Setenv("MML_CHANNELS__LONGFAST__PRIMARY", "true")
 	t.Setenv("MML_STORAGE__SQL__LOG_PRUNE_BATCH_ROWS", "1234")
 	t.Setenv("MML_INGEST__TRACEROUTE__MAX_ENTRIES", "2222")
+	t.Setenv("MML_WEB__WS__STATS_INTERVAL", "90s")
 	cfg, err := Load(path)
 	if err != nil {
 		t.Fatal(err)
@@ -45,6 +47,9 @@ channels:
 	}
 	if cfg.Ingest.Traceroute.MaxEntries != 2222 {
 		t.Fatalf("expected ingest traceroute max_entries env override")
+	}
+	if cfg.Web.WS.StatsInterval != 90*time.Second {
+		t.Fatalf("expected web.ws.stats_interval env override")
 	}
 }
 
@@ -125,5 +130,34 @@ channels:
 	}
 	if cfg.Ingest.Traceroute.FinalRetention != cfg.Ingest.Traceroute.Timeout {
 		t.Fatalf("expected final retention to normalize to timeout, got %v want %v", cfg.Ingest.Traceroute.FinalRetention, cfg.Ingest.Traceroute.Timeout)
+	}
+}
+
+func TestLoadNormalizesInvalidWSIntervals(t *testing.T) {
+	d := t.TempDir()
+	path := filepath.Join(d, "cfg.yaml")
+	if err := os.WriteFile(path, []byte(`
+mqtt:
+  root_topic: msh/test
+web:
+  ws:
+    heartbeat_interval: 0s
+    stats_interval: 0s
+channels:
+  LongFast:
+    psk: AQ==
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Web.WS.HeartbeatInterval != DefaultWSHeartbeatInterval {
+		t.Fatalf("expected default heartbeat interval, got %v", cfg.Web.WS.HeartbeatInterval)
+	}
+	if cfg.Web.WS.StatsInterval != DefaultWSStatsInterval {
+		t.Fatalf("expected default stats interval, got %v", cfg.Web.WS.StatsInterval)
 	}
 }

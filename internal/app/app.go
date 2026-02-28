@@ -85,8 +85,10 @@ func Run(configPath string) error {
 			log.Error("mqtt stopped", "err", err)
 		}
 	}()
-	log.Info("stats ticker starting", "interval", cfg.Web.WS.HeartbeatInterval.String())
+	log.Info("stats ticker starting", "interval", cfg.Web.WS.StatsInterval.String())
 	go api.StartStatsTicker(ctx, hub.Emit)
+	log.Info("heartbeat ticker starting", "interval", cfg.Web.WS.HeartbeatInterval.String())
+	go api.StartHeartbeatTicker(ctx, hub.Emit)
 	go func() {
 		log.Info("http server listening", "addr", cfg.Web.ListenAddr)
 		if err := httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {

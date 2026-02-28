@@ -53,6 +53,7 @@ web:
     show_recent_messages: 50
   ws:
     heartbeat_interval: 30s
+    stats_interval: 60s
   map:
     clustering: false
     disconnected_threshold: 60m

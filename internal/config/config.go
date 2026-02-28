@@ -14,6 +14,11 @@ import (
 	"github.com/knadh/koanf/v2"
 )
 
+const (
+	DefaultWSHeartbeatInterval = 30 * time.Second
+	DefaultWSStatsInterval     = 60 * time.Second
+)
+
 // Config is the root application configuration loaded from YAML and environment.
 type Config struct {
 	MQTT       MQTTConfig               `koanf:"mqtt" json:"mqtt"`
@@ -110,6 +115,7 @@ type ChatConfig struct {
 // WSConfig configures websocket behavior.
 type WSConfig struct {
 	HeartbeatInterval time.Duration `koanf:"heartbeat_interval"`
+	StatsInterval     time.Duration `koanf:"stats_interval"`
 }
 
 // MapConfig controls map rendering defaults and liveness thresholds.
@@ -171,7 +177,10 @@ func defaultConfig() Config {
 			ListenAddr: ":8080",
 			BasePath:   "/",
 			Chat:       ChatConfig{Enabled: true, ShowRecentMessages: 50},
-			WS:         WSConfig{HeartbeatInterval: 30 * time.Second},
+			WS: WSConfig{
+				HeartbeatInterval: DefaultWSHeartbeatInterval,
+				StatsInterval:     DefaultWSStatsInterval,
+			},
 			Map: MapConfig{
 				Clustering:            false,
 				DisconnectedThreshold: 60 * time.Minute,
@@ -307,6 +316,8 @@ func setPath(cfg *Config, parts []string, value string) {
 		cfg.Web.Chat.ShowRecentMessages = mustInt(value, cfg.Web.Chat.ShowRecentMessages)
 	case "web.ws.heartbeat_interval":
 		cfg.Web.WS.HeartbeatInterval = mustDuration(value, cfg.Web.WS.HeartbeatInterval)
+	case "web.ws.stats_interval":
+		cfg.Web.WS.StatsInterval = mustDuration(value, cfg.Web.WS.StatsInterval)
 	case "web.map.clustering":
 		cfg.Web.Map.Clustering = mustBool(value, cfg.Web.Map.Clustering)
 	case "web.map.disconnected_threshold":
@@ -401,6 +412,12 @@ func normalize(cfg *Config) {
 	}
 	if cfg.Ingest.Traceroute.FinalRetention <= 0 {
 		cfg.Ingest.Traceroute.FinalRetention = cfg.Ingest.Traceroute.Timeout
+	}
+	if cfg.Web.WS.HeartbeatInterval <= 0 {
+		cfg.Web.WS.HeartbeatInterval = DefaultWSHeartbeatInterval
+	}
+	if cfg.Web.WS.StatsInterval <= 0 {
+		cfg.Web.WS.StatsInterval = DefaultWSStatsInterval
 	}
 }
 
