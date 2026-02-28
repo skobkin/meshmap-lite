@@ -17,6 +17,7 @@ COPY --from=web-build /src/web/dist ./web/dist
 RUN go build -trimpath -ldflags='-s -w' -o /out/server ./cmd/server
 
 FROM alpine:3.23
+LABEL org.opencontainers.image.source="https://github.com/skobkin/meshmap-lite"
 WORKDIR /app
 RUN addgroup -S app && adduser -S app -G app
 COPY --from=go-build /out/server /usr/local/bin/server
