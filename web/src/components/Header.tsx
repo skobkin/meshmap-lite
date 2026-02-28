@@ -14,7 +14,10 @@ function formatTime(value?: string): string {
   return d.toLocaleString()
 }
 
-function wsStateMeta(state: WSState, wsStats: WSStats | null): { title: string; tone: 'connected' | 'connecting' | 'disconnected' } {
+function wsStateMeta(
+  state: WSState,
+  wsStats: WSStats | null
+): { title: string; tone: 'connected' | 'connecting' | 'disconnected'; label: string } {
   const lines = [] as string[]
   if (state === 'connected') {
     lines.push('WebSocket: connected')
@@ -32,17 +35,20 @@ function wsStateMeta(state: WSState, wsStats: WSStats | null): { title: string; 
   }
 
   if (state === 'connecting' || state === 'reconnecting') {
-    return { title: lines.join('\n'), tone: 'connecting' }
+    return {
+      title: lines.join('\n'),
+      tone: 'connecting',
+      label: state === 'reconnecting' ? 'Reconnecting...' : ''
+    }
   }
   if (state === 'connected') {
-    return { title: lines.join('\n'), tone: 'connected' }
+    return { title: lines.join('\n'), tone: 'connected', label: '' }
   }
-  return { title: lines.join('\n'), tone: 'disconnected' }
+  return { title: lines.join('\n'), tone: 'disconnected', label: 'Disconnected' }
 }
 
 export function Header({ page, ws, wsStats, onPage }: Props) {
   const status = wsStateMeta(ws, wsStats)
-  const wsIcon = `/static/icons/ws-dot-${status.tone}.svg`
 
   return (
     <header className="topbar container-fluid">
@@ -84,8 +90,9 @@ export function Header({ page, ws, wsStats, onPage }: Props) {
         </ul>
       </nav>
       <div className="header-icons">
-        <span className={`ws-dot ${status.tone}`} title={status.title} aria-label={status.title}>
-          <img src={wsIcon} alt="" aria-hidden="true" />
+        <span className={`ws-status ${status.tone}`} title={status.title} aria-label={status.title}>
+          <span id="ws-status-icon" className="ws-status-icon" aria-hidden="true" />
+          {status.label && <span className="ws-status-label">{status.label}</span>}
         </span>
         <a className="repo-link" href="https://git.skobk.in/skobkin/meshmap-lite" target="_blank" rel="noreferrer" title="Source repository" aria-label="Source repository">
           <img src="/static/icons/repo-graph.svg" alt="" aria-hidden="true" />

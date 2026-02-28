@@ -311,9 +311,9 @@ export function App() {
   const center = useMemo<[number, number]>(() => mapView.center, [mapView.center])
   const zoom = mapView.zoom
 
-  const bannerText = ws === 'reconnecting'
-    ? 'Restoring connection to the server...'
-    : (bootstrapErrors.length > 0 ? `Degraded mode: ${bootstrapErrors[bootstrapErrors.length - 1]}` : '')
+  const bannerText = bootstrapErrors.length > 0
+    ? `Degraded mode: ${bootstrapErrors[bootstrapErrors.length - 1]}`
+    : ''
 
   const mainClass = page === 'map'
     ? `app-shell map-page${bannerText ? ' has-banner' : ''}`
@@ -324,7 +324,7 @@ export function App() {
   return (
     <main className={mainClass}>
       <Header page={page} ws={ws} wsStats={wsStats} onPage={setPage} />
-      {bannerText && <p className={`banner${ws === 'reconnecting' ? '' : ' warning'}`} role="alert">{bannerText}</p>}
+      {bannerText && <p className="banner warning" role="alert">{bannerText}</p>}
       {page === 'map' && (
         <MapPage
           center={center}
