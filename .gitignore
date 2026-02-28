@@ -5,5 +5,11 @@ PLAN.md
 web/node_modules
 web/dist
 /data
+
+# Database
 *.db
+*.db-wal
+*.db-shm
 /db.sqlite
+/db.sqlite-wal
+/db.sqlite-shm

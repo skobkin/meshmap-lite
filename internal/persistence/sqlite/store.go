@@ -28,6 +28,11 @@ type Store struct {
 	logPruneBatchRows int
 }
 
+const (
+	sqliteBusyTimeoutMillis = 5000
+	sqliteJournalModeWAL    = "wal"
+)
+
 // Open creates a SQLite-backed store and optionally runs migrations.
 func Open(ctx context.Context, cfg config.SQLConfig, log *slog.Logger) (*Store, error) {
 	if log != nil {
@@ -36,6 +41,15 @@ func Open(ctx context.Context, cfg config.SQLConfig, log *slog.Logger) (*Store, 
 	db, err := sql.Open("sqlite", cfg.URL)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
+	}
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+
+	pragmas, err := configureSQLite(ctx, db)
+	if err != nil {
+		_ = db.Close()
+
+		return nil, err
 	}
 	if err := db.PingContext(ctx); err != nil {
 		_ = db.Close()
@@ -60,10 +74,52 @@ func Open(ctx context.Context, cfg config.SQLConfig, log *slog.Logger) (*Store, 
 		}
 	}
 	if s.log != nil {
-		s.log.Info("sqlite database ready")
+		s.log.Info(
+			"sqlite database ready",
+			"journal_mode", pragmas.JournalMode,
+			"busy_timeout_ms", pragmas.BusyTimeoutMillis,
+			"foreign_keys", pragmas.ForeignKeys,
+			"max_open_conns", db.Stats().MaxOpenConnections,
+		)
 	}
 
 	return s, nil
+}
+
+type sqlitePragmas struct {
+	JournalMode       string
+	BusyTimeoutMillis int
+	ForeignKeys       bool
+}
+
+func configureSQLite(ctx context.Context, db *sql.DB) (sqlitePragmas, error) {
+	if _, err := db.ExecContext(ctx, fmt.Sprintf(`PRAGMA busy_timeout = %d;`, sqliteBusyTimeoutMillis)); err != nil {
+		return sqlitePragmas{}, fmt.Errorf("set sqlite busy_timeout: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, `PRAGMA foreign_keys = ON;`); err != nil {
+		return sqlitePragmas{}, fmt.Errorf("set sqlite foreign_keys: %w", err)
+	}
+
+	var journalMode string
+	if err := db.QueryRowContext(ctx, `PRAGMA journal_mode = WAL;`).Scan(&journalMode); err != nil {
+		return sqlitePragmas{}, fmt.Errorf("set sqlite journal_mode: %w", err)
+	}
+
+	var busyTimeout int
+	if err := db.QueryRowContext(ctx, `PRAGMA busy_timeout;`).Scan(&busyTimeout); err != nil {
+		return sqlitePragmas{}, fmt.Errorf("read sqlite busy_timeout: %w", err)
+	}
+
+	var foreignKeys int
+	if err := db.QueryRowContext(ctx, `PRAGMA foreign_keys;`).Scan(&foreignKeys); err != nil {
+		return sqlitePragmas{}, fmt.Errorf("read sqlite foreign_keys: %w", err)
+	}
+
+	return sqlitePragmas{
+		JournalMode:       strings.ToLower(journalMode),
+		BusyTimeoutMillis: busyTimeout,
+		ForeignKeys:       foreignKeys == 1,
+	}, nil
 }
 
 func normalizedLimit(limit int) int {
