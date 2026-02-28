@@ -1,0 +1,13 @@
+[
+  {
+    "name": "default_longfast_chat_meshgo_test_via_arkh_07",
+    "topic": "msh/RU/ARKH/2/e/LongFast/!9028d008",
+    "channel_psk": "AQ==",
+    "payload_hex": "0a7b0df809856915ffffffff18082a48f4085d782fd8d3905dc9d1d42de273f150ab58030cd532b8e8c77201c5b8bed8f9732388fe5ee6d362133ae5b16e8d50815bee67b4dae7f853ad383b77e4a7f443f05c029ab6e6ac3520a3243e3d1713a369450000c040480760d4ffffffffffffffff0178079801f801a8010112084c6f6e67466173741a09213930323864303038",
+    "expected_node_id": "!698509f8",
+    "expected_gateway_id": "!9028d008",
+    "expected_packet_id": 1042588448,
+    "expected_timestamp": "2026-02-28T16:08:55Z",
+    "expected_text": "Test message for mesh.skobk.in protobuf ingest regression testing."
+  }
+]

@@ -1,0 +1,30 @@
+[
+  {
+    "name": "default_longfast_position_same_as_gateway",
+    "topic": "msh/RU/ARKH/2/e/LongFast/!acaa4ff4",
+    "channel_psk": "AQ==",
+    "payload_hex": "0a430df44faaac15ffffffff18082a212d5b89d6211d03005f6676d5ce25468cd182e677160aab88f2339c685199b8eb14352b4928d03d270ea3694807580a78079801f40112084c6f6e67466173741a09216163616134666634",
+    "expected_kind": "position",
+    "expected_node_id": "!acaa4ff4",
+    "expected_gateway_id": "!acaa4ff4",
+    "expected_packet_id": 3492301099,
+    "expected_timestamp": "2026-02-28T15:47:51Z",
+    "expected_latitude": 64.5332992,
+    "expected_longitude": 39.7737984,
+    "expected_altitude_m": 14
+  },
+  {
+    "name": "default_longfast_position_sender_differs_from_gateway",
+    "topic": "msh/RU/ARKH/2/e/LongFast/!9028d008",
+    "channel_psk": "AQ==",
+    "payload_hex": "0a530de3acc8da15ffffffff18082a21694307a380ff036c59d89ed2529e4b2ebfbd9dacbbb8a7d3b2648943e3103bbd1635516d32093d5a0ea369450000d040480560ccffffffffffffffff017807980156a8010112084c6f6e67466173741a09213930323864303038",
+    "expected_kind": "position",
+    "expected_node_id": "!dac8ace3",
+    "expected_gateway_id": "!9028d008",
+    "expected_packet_id": 154299729,
+    "expected_timestamp": "2026-02-28T15:48:42Z",
+    "expected_latitude": 64.56,
+    "expected_longitude": 40.54,
+    "expected_altitude_m": 5
+  }
+]

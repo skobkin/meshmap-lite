@@ -1,0 +1,14 @@
+[
+  {
+    "name": "default_longfast_telemetry_sevsk_im",
+    "topic": "msh/RU/ARKH/2/e/LongFast/!69852080",
+    "channel_psk": "AQ==",
+    "payload_hex": "0a440d8020856915ffffffff18082a221b751f579d3892e780bb28871c24e182aad411a1b03a7ccffdd3b2d7ce0d9bb9cef13569dfe4a73da410a3694807580a78079801800112084c6f6e67466173741a09213639383532303830",
+    "expected_node_id": "!69852080",
+    "expected_gateway_id": "!69852080",
+    "expected_packet_id": 2816794473,
+    "expected_timestamp": "2026-02-28T15:58:28Z",
+    "expected_voltage": 4.35699987411499,
+    "expected_battery_level": 101
+  }
+]

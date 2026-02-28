@@ -1,0 +1,22 @@
+[
+  {
+    "name": "map_report_sevsk_im",
+    "topic": "msh/RU/ARKH/2/map/",
+    "payload_hex": "0a440d8020856915ffffffff2238084912340a08536576736b2d494d1202494d206e2a0e322e372e31392e6262336436643530094d00007d26550000bd17580c600f6801700112084c6f6e67466173741a09213639383532303830",
+    "expected_node_id": "!69852080",
+    "expected_long_name": "Sevsk-IM",
+    "expected_short_name": "IM",
+    "expected_role": "CLIENT",
+    "expected_board_model": "HELTEC_V4",
+    "expected_firmware_version": "2.7.19.bb3d6d5",
+    "expected_lora_region": "RU",
+    "expected_modem_preset": "LONG_FAST",
+    "expected_has_default_channel": false,
+    "expected_has_opted_report_location": true,
+    "expected_neighbor_nodes_count": 1,
+    "expected_latitude": 64.5726208,
+    "expected_longitude": 39.8262272,
+    "expected_altitude_m": 12,
+    "expected_position_precision": 15
+  }
+]

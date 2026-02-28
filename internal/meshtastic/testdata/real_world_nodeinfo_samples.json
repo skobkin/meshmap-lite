@@ -1,0 +1,19 @@
+[
+  {
+    "name": "default_longfast_nodeinfo_moxhatka",
+    "topic": "msh/RU/ARKH/2/e/LongFast/!9e3b2afc",
+    "channel_psk": "AQ==",
+    "payload_hex": "0a80010d6582882015ffffffff18082a4e01467244769ba924c0a3679cee3bcbd09ff0b105f8f032238fd2d5374e80be3e0c4396a0d20a6e44f20dcd231709387617a0e78d278acd88677bb02a47a7c74100cb4437c3085df71e9c6c728c11352c5da4663d800ea369450000c040480760ddffffffffffffffff017807980165a8010112084c6f6e67466173741a09213965336232616663",
+    "expected_node_id": "!20888265",
+    "expected_gateway_id": "!9e3b2afc",
+    "expected_packet_id": 1722047788,
+    "expected_timestamp": "2026-02-28T15:49:20Z",
+    "expected_long_name": "MOXHATKA",
+    "expected_short_name": "MOX",
+    "expected_role": "CLIENT",
+    "expected_board_model": "HELTEC_MESH_NODE_T114",
+    "expected_firmware_version": "",
+    "expected_lora_region": "",
+    "expected_modem_preset": ""
+  }
+]

@@ -2,6 +2,7 @@ package meshtastic
 
 import (
 	"testing"
+	"time"
 
 	generated "meshmap-lite/internal/meshtasticpb"
 
@@ -155,5 +156,203 @@ func TestDecodeRoutingPayloadVariants(t *testing.T) {
 	}
 	if reply.Variant != "error" || reply.ErrorReason != generated.Routing_NO_ROUTE.String() {
 		t.Fatalf("unexpected route error payload: %#v", reply)
+	}
+}
+
+func TestParsePayloadRealWorldPositionSamples(t *testing.T) {
+	for _, sample := range loadRealWorldChannelSamples(t, "real_world_position_samples.json") {
+		t.Run(sample.Name, func(t *testing.T) {
+			ConfigureChannelKeys(map[string]string{"LongFast": sample.ChannelPSK})
+
+			info := ClassifyTopic("msh/RU/ARKH", "2/map", sample.Topic)
+			if info.Kind != TopicKindChannel {
+				t.Fatalf("expected channel topic kind, got %q", info.Kind)
+			}
+			if info.Channel != "LongFast" {
+				t.Fatalf("unexpected channel: %q", info.Channel)
+			}
+			if info.GatewayID != sample.ExpectedGatewayID {
+				t.Fatalf("unexpected gateway id: got %q want %q", info.GatewayID, sample.ExpectedGatewayID)
+			}
+
+			evt, err := ParsePayload(info.Kind, mustDecodeFixtureHex(t, sample.PayloadHex), info.Channel, info.MapNodeID)
+			if err != nil {
+				t.Fatalf("parse payload: %v", err)
+			}
+			if string(evt.Kind) != sample.ExpectedKind {
+				t.Fatalf("unexpected kind: got %q want %q", evt.Kind, sample.ExpectedKind)
+			}
+			if evt.NodeID != sample.ExpectedNodeID {
+				t.Fatalf("unexpected node id: got %q want %q", evt.NodeID, sample.ExpectedNodeID)
+			}
+			if evt.PacketID != sample.ExpectedPacketID {
+				t.Fatalf("unexpected packet id: got %d want %d", evt.PacketID, sample.ExpectedPacketID)
+			}
+			if !evt.Encrypted || !evt.Decrypted {
+				t.Fatalf("expected decrypted encrypted event, got encrypted=%v decrypted=%v", evt.Encrypted, evt.Decrypted)
+			}
+			if !evt.Timestamp.Equal(mustParseFixtureTimestamp(t, sample.ExpectedTimestamp)) {
+				t.Fatalf("unexpected timestamp: got %s want %s", evt.Timestamp.UTC().Format(time.RFC3339), sample.ExpectedTimestamp)
+			}
+			if evt.Position == nil {
+				t.Fatalf("missing position payload")
+			}
+			if evt.Position.Latitude != sample.ExpectedLatitude {
+				t.Fatalf("unexpected latitude: got %.7f want %.7f", evt.Position.Latitude, sample.ExpectedLatitude)
+			}
+			if evt.Position.Longitude != sample.ExpectedLongitude {
+				t.Fatalf("unexpected longitude: got %.7f want %.7f", evt.Position.Longitude, sample.ExpectedLongitude)
+			}
+			if evt.Position.AltitudeM == nil || *evt.Position.AltitudeM != sample.ExpectedAltitudeM {
+				t.Fatalf("unexpected altitude: got %#v want %.1f", evt.Position.AltitudeM, sample.ExpectedAltitudeM)
+			}
+		})
+	}
+}
+
+func TestParsePayloadRealWorldChatSamples(t *testing.T) {
+	for _, sample := range loadRealWorldChatSamples(t, "real_world_chat_samples.json") {
+		t.Run(sample.Name, func(t *testing.T) {
+			ConfigureChannelKeys(map[string]string{"LongFast": sample.ChannelPSK})
+
+			info := ClassifyTopic("msh/RU/ARKH", "2/map", sample.Topic)
+			if info.Kind != TopicKindChannel {
+				t.Fatalf("expected channel topic kind, got %q", info.Kind)
+			}
+			if info.GatewayID != sample.ExpectedGatewayID {
+				t.Fatalf("unexpected gateway id: got %q want %q", info.GatewayID, sample.ExpectedGatewayID)
+			}
+
+			evt, err := ParsePayload(info.Kind, mustDecodeFixtureHex(t, sample.PayloadHex), info.Channel, info.MapNodeID)
+			if err != nil {
+				t.Fatalf("parse payload: %v", err)
+			}
+			if evt.Kind != ParsedChat {
+				t.Fatalf("unexpected kind: got %q want %q", evt.Kind, ParsedChat)
+			}
+			if evt.NodeID != sample.ExpectedNodeID {
+				t.Fatalf("unexpected node id: got %q want %q", evt.NodeID, sample.ExpectedNodeID)
+			}
+			if evt.PacketID != sample.ExpectedPacketID {
+				t.Fatalf("unexpected packet id: got %d want %d", evt.PacketID, sample.ExpectedPacketID)
+			}
+			if !evt.Encrypted || !evt.Decrypted {
+				t.Fatalf("expected decrypted encrypted event, got encrypted=%v decrypted=%v", evt.Encrypted, evt.Decrypted)
+			}
+			if !evt.Timestamp.Equal(mustParseFixtureTimestamp(t, sample.ExpectedTimestamp)) {
+				t.Fatalf("unexpected timestamp: got %s want %s", evt.Timestamp.UTC().Format(time.RFC3339), sample.ExpectedTimestamp)
+			}
+			if evt.Chat == nil {
+				t.Fatalf("missing chat payload")
+			}
+			if evt.Chat.Text != sample.ExpectedText {
+				t.Fatalf("unexpected chat text: got %q want %q", evt.Chat.Text, sample.ExpectedText)
+			}
+		})
+	}
+}
+
+func TestParsePayloadRealWorldNodeInfoSamples(t *testing.T) {
+	for _, sample := range loadRealWorldNodeInfoSamples(t, "real_world_nodeinfo_samples.json") {
+		t.Run(sample.Name, func(t *testing.T) {
+			ConfigureChannelKeys(map[string]string{"LongFast": sample.ChannelPSK})
+
+			info := ClassifyTopic("msh/RU/ARKH", "2/map", sample.Topic)
+			if info.Kind != TopicKindChannel {
+				t.Fatalf("expected channel topic kind, got %q", info.Kind)
+			}
+			if info.GatewayID != sample.ExpectedGatewayID {
+				t.Fatalf("unexpected gateway id: got %q want %q", info.GatewayID, sample.ExpectedGatewayID)
+			}
+
+			evt, err := ParsePayload(info.Kind, mustDecodeFixtureHex(t, sample.PayloadHex), info.Channel, info.MapNodeID)
+			if err != nil {
+				t.Fatalf("parse payload: %v", err)
+			}
+			if evt.Kind != ParsedNodeInfo {
+				t.Fatalf("unexpected kind: got %q want %q", evt.Kind, ParsedNodeInfo)
+			}
+			if evt.NodeID != sample.ExpectedNodeID {
+				t.Fatalf("unexpected node id: got %q want %q", evt.NodeID, sample.ExpectedNodeID)
+			}
+			if evt.PacketID != sample.ExpectedPacketID {
+				t.Fatalf("unexpected packet id: got %d want %d", evt.PacketID, sample.ExpectedPacketID)
+			}
+			if !evt.Encrypted || !evt.Decrypted {
+				t.Fatalf("expected decrypted encrypted event, got encrypted=%v decrypted=%v", evt.Encrypted, evt.Decrypted)
+			}
+			if !evt.Timestamp.Equal(mustParseFixtureTimestamp(t, sample.ExpectedTimestamp)) {
+				t.Fatalf("unexpected timestamp: got %s want %s", evt.Timestamp.UTC().Format(time.RFC3339), sample.ExpectedTimestamp)
+			}
+			if evt.NodeInfo == nil {
+				t.Fatalf("missing node info payload")
+			}
+			if evt.NodeInfo.LongName != sample.ExpectedLongName {
+				t.Fatalf("unexpected long name: got %q want %q", evt.NodeInfo.LongName, sample.ExpectedLongName)
+			}
+			if evt.NodeInfo.ShortName != sample.ExpectedShortName {
+				t.Fatalf("unexpected short name: got %q want %q", evt.NodeInfo.ShortName, sample.ExpectedShortName)
+			}
+			if evt.NodeInfo.Role != sample.ExpectedRole {
+				t.Fatalf("unexpected role: got %q want %q", evt.NodeInfo.Role, sample.ExpectedRole)
+			}
+			if evt.NodeInfo.BoardModel != sample.ExpectedBoardModel {
+				t.Fatalf("unexpected board model: got %q want %q", evt.NodeInfo.BoardModel, sample.ExpectedBoardModel)
+			}
+			if evt.NodeInfo.FirmwareVersion != sample.ExpectedFirmware {
+				t.Fatalf("unexpected firmware version: got %q want %q", evt.NodeInfo.FirmwareVersion, sample.ExpectedFirmware)
+			}
+			if evt.NodeInfo.LoRaRegion != sample.ExpectedLoRaRegion {
+				t.Fatalf("unexpected LoRa region: got %q want %q", evt.NodeInfo.LoRaRegion, sample.ExpectedLoRaRegion)
+			}
+			if evt.NodeInfo.ModemPreset != sample.ExpectedModemPreset {
+				t.Fatalf("unexpected modem preset: got %q want %q", evt.NodeInfo.ModemPreset, sample.ExpectedModemPreset)
+			}
+		})
+	}
+}
+
+func TestParsePayloadRealWorldTelemetrySamples(t *testing.T) {
+	for _, sample := range loadRealWorldTelemetrySamples(t, "real_world_telemetry_samples.json") {
+		t.Run(sample.Name, func(t *testing.T) {
+			ConfigureChannelKeys(map[string]string{"LongFast": sample.ChannelPSK})
+
+			info := ClassifyTopic("msh/RU/ARKH", "2/map", sample.Topic)
+			if info.Kind != TopicKindChannel {
+				t.Fatalf("expected channel topic kind, got %q", info.Kind)
+			}
+			if info.GatewayID != sample.ExpectedGatewayID {
+				t.Fatalf("unexpected gateway id: got %q want %q", info.GatewayID, sample.ExpectedGatewayID)
+			}
+
+			evt, err := ParsePayload(info.Kind, mustDecodeFixtureHex(t, sample.PayloadHex), info.Channel, info.MapNodeID)
+			if err != nil {
+				t.Fatalf("parse payload: %v", err)
+			}
+			if evt.Kind != ParsedTelemetry {
+				t.Fatalf("unexpected kind: got %q want %q", evt.Kind, ParsedTelemetry)
+			}
+			if evt.NodeID != sample.ExpectedNodeID {
+				t.Fatalf("unexpected node id: got %q want %q", evt.NodeID, sample.ExpectedNodeID)
+			}
+			if evt.PacketID != sample.ExpectedPacketID {
+				t.Fatalf("unexpected packet id: got %d want %d", evt.PacketID, sample.ExpectedPacketID)
+			}
+			if !evt.Encrypted || !evt.Decrypted {
+				t.Fatalf("expected decrypted encrypted event, got encrypted=%v decrypted=%v", evt.Encrypted, evt.Decrypted)
+			}
+			if !evt.Timestamp.Equal(mustParseFixtureTimestamp(t, sample.ExpectedTimestamp)) {
+				t.Fatalf("unexpected timestamp: got %s want %s", evt.Timestamp.UTC().Format(time.RFC3339), sample.ExpectedTimestamp)
+			}
+			if evt.Telemetry == nil {
+				t.Fatalf("missing telemetry payload")
+			}
+			if evt.Telemetry.Power.Voltage == nil || *evt.Telemetry.Power.Voltage != sample.ExpectedVoltage {
+				t.Fatalf("unexpected voltage: got %#v want %v", evt.Telemetry.Power.Voltage, sample.ExpectedVoltage)
+			}
+			if evt.Telemetry.Power.BatteryLevel == nil || *evt.Telemetry.Power.BatteryLevel != sample.ExpectedBatteryPct {
+				t.Fatalf("unexpected battery level: got %#v want %v", evt.Telemetry.Power.BatteryLevel, sample.ExpectedBatteryPct)
+			}
+		})
 	}
 }
