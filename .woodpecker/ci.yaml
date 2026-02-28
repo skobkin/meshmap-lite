@@ -130,16 +130,20 @@ steps:
       - frontend-lint
       - frontend-typecheck
       - frontend-test
+      - frontend-build
     # 'woodpeckerci/plugin-docker-buildx:6' should be added to WOODPECKER_PLUGINS_PRIVILEGED for Woodpecker stack
     image: woodpeckerci/plugin-docker-buildx:6
     settings:
       repo:
         - skobkin/meshmap-lite
         - ghcr.io/skobkin/meshmap-lite
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.release
       tags:
         - ${CI_COMMIT_TAG}
         - latest
+      cache_images:
+        - skobkin/meshmap-lite:buildcache
+        - ghcr.io/skobkin/meshmap-lite:buildcache
       platforms:
         - linux/amd64
       logins:
