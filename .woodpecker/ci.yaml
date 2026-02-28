@@ -22,21 +22,25 @@ steps:
   backend-lint:
     image: golangci/golangci-lint:v2.8-alpine
     environment:
-      XDG_CACHE_HOME: /tmp/.cache
+      GOCACHE: ${CI_WORKSPACE}/.cache/go-build
+      GOMODCACHE: ${CI_WORKSPACE}/.cache/go-mod
+      XDG_CACHE_HOME: ${CI_WORKSPACE}/.cache/xdg
     commands:
       - golangci-lint run
 
   backend-vet:
     image: golang:1.25
     environment:
-      GOCACHE: /tmp/.gocache
+      GOCACHE: ${CI_WORKSPACE}/.cache/go-build
+      GOMODCACHE: ${CI_WORKSPACE}/.cache/go-mod
     commands:
       - go vet ./...
 
   backend-test:
     image: golang:1.25
     environment:
-      GOCACHE: /tmp/.gocache
+      GOCACHE: ${CI_WORKSPACE}/.cache/go-build
+      GOMODCACHE: ${CI_WORKSPACE}/.cache/go-mod
     commands:
       - go test ./...
 
@@ -92,7 +96,8 @@ steps:
       - backend-vet
       - backend-test
     environment:
-      GOCACHE: /tmp/.gocache
+      GOCACHE: ${CI_WORKSPACE}/.cache/go-build
+      GOMODCACHE: ${CI_WORKSPACE}/.cache/go-mod
     commands:
       - CGO_ENABLED=0 go build -trimpath -o server ./cmd/server
     when:
@@ -110,6 +115,8 @@ steps:
       - frontend-build
     image: goreleaser/goreleaser-cross:v1.25-v2.12.7
     environment:
+      GOCACHE: ${CI_WORKSPACE}/.cache/go-build
+      GOMODCACHE: ${CI_WORKSPACE}/.cache/go-mod
       FORGE_TOKEN:
         from_secret: FORGE_TOKEN
     commands:
