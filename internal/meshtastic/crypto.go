@@ -223,6 +223,16 @@ func configuredChannelKeys() map[string]string {
 	return out
 }
 
+// CurrentChannelKeys exposes a copy of configured channel keys for debug tooling.
+func CurrentChannelKeys() map[string]string {
+	return configuredChannelKeys()
+}
+
+// DecodeAndExpandPSKForDebug exposes PSK normalization for debug-only inspection tools.
+func DecodeAndExpandPSKForDebug(encoded string) ([32]byte, int, bool) {
+	return decodeAndExpandPSK(encoded)
+}
+
 func tryDecryptData(packet *generated.MeshPacket, ciphertext, key []byte) (*generated.Data, bool) {
 	block, err := cryptoaes.NewCipher(key)
 	if err != nil {
