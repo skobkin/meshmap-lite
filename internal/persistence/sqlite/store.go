@@ -4,11 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"math"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	// Register SQLite driver.
@@ -26,6 +27,9 @@ type Store struct {
 	log               *slog.Logger
 	logMaxRows        int
 	logPruneBatchRows int
+	logChannelMu      sync.RWMutex
+	logChannelIDs     map[string]int64
+	nextLogPruneAtID  atomic.Int64
 }
 
 const (
@@ -61,6 +65,7 @@ func Open(ctx context.Context, cfg config.SQLConfig, log *slog.Logger) (*Store, 
 		log:               log,
 		logMaxRows:        normalizedLimit(cfg.LogMaxRows),
 		logPruneBatchRows: normalizedLimit(cfg.LogPruneBatchRows),
+		logChannelIDs:     make(map[string]int64),
 	}
 	if cfg.AutoMigrate {
 		if s.log != nil {
@@ -150,13 +155,10 @@ func (s *Store) Migrate(ctx context.Context) error {
 
 // UpsertNode inserts or updates node identity and liveness fields.
 func (s *Store) UpsertNode(ctx context.Context, n domain.Node) (bool, error) {
-	var exists int
-	err := s.db.QueryRowContext(ctx, `SELECT 1 FROM nodes WHERE node_id = ?`, n.NodeID).Scan(&exists)
-	created := errors.Is(err, sql.ErrNoRows)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return false, err
-	}
-	_, err = s.db.ExecContext(ctx, `
+	firstSeenAt := n.FirstSeenAt.UTC().Format(time.RFC3339Nano)
+
+	var created int
+	err := s.db.QueryRowContext(ctx, `
 INSERT INTO nodes (
  node_id,node_num,long_name,short_name,role,board_model,firmware_version,lora_region,lora_frequency_desc,modem_preset,
  has_default_channel,has_opted_report_location,neighbor_nodes_count,mqtt_gateway_capable,first_seen_at,last_seen_any_event_at,last_seen_mqtt_gateway_at,last_seen_position_at,updated_at
@@ -179,20 +181,27 @@ ON CONFLICT(node_id) DO UPDATE SET
  last_seen_mqtt_gateway_at=COALESCE(excluded.last_seen_mqtt_gateway_at,nodes.last_seen_mqtt_gateway_at),
  last_seen_position_at=COALESCE(excluded.last_seen_position_at,nodes.last_seen_position_at),
  updated_at=excluded.updated_at
+RETURNING CASE WHEN first_seen_at = ? THEN 1 ELSE 0 END
 `, n.NodeID, ptrUint32(n.NodeNum), n.LongName, n.ShortName, n.Role, n.BoardModel, n.FirmwareVersion,
 		n.LoRaRegion, n.LoRaFrequencyDesc, n.ModemPreset, ptrBool(n.HasDefaultChannel), ptrBool(n.HasOptedReportLocation), ptrInt(n.NeighborNodesCount), ptrBool(n.MQTTGatewayCapable),
-		n.FirstSeenAt.UTC().Format(time.RFC3339Nano), n.LastSeenAnyEventAt.UTC().Format(time.RFC3339Nano),
-		ptrTime(n.LastSeenMQTTGatewayAt), ptrTime(n.LastSeenPositionAt), n.UpdatedAt.UTC().Format(time.RFC3339Nano))
+		firstSeenAt, n.LastSeenAnyEventAt.UTC().Format(time.RFC3339Nano),
+		ptrTime(n.LastSeenMQTTGatewayAt), ptrTime(n.LastSeenPositionAt), n.UpdatedAt.UTC().Format(time.RFC3339Nano), firstSeenAt).Scan(&created)
 	if err != nil {
 		return false, err
 	}
 
-	return created, nil
+	return created == 1, nil
 }
 
 // UpsertPosition inserts or updates a node's latest position.
 func (s *Store) UpsertPosition(ctx context.Context, p domain.NodePosition) error {
-	_, err := s.db.ExecContext(ctx, `
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	_, err = tx.ExecContext(ctx, `
 INSERT INTO node_positions(node_id,latitude,longitude,altitude_m,position_precision,source_kind,source_channel,reported_at,observed_at,updated_at)
 VALUES(?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(node_id) DO UPDATE SET
@@ -210,9 +219,12 @@ ON CONFLICT(node_id) DO UPDATE SET
 	if err != nil {
 		return err
 	}
-	_, err = s.db.ExecContext(ctx, `UPDATE nodes SET last_seen_position_at=?, updated_at=? WHERE node_id=?`, p.ObservedAt.UTC().Format(time.RFC3339Nano), p.UpdatedAt.UTC().Format(time.RFC3339Nano), p.NodeID)
+	_, err = tx.ExecContext(ctx, `UPDATE nodes SET last_seen_position_at=?, updated_at=? WHERE node_id=?`, p.ObservedAt.UTC().Format(time.RFC3339Nano), p.UpdatedAt.UTC().Format(time.RFC3339Nano), p.NodeID)
+	if err != nil {
+		return err
+	}
 
-	return err
+	return tx.Commit()
 }
 
 // MergeTelemetry merges incoming telemetry with existing snapshot and persists it.
@@ -299,9 +311,73 @@ VALUES(?,?,?,?,?,?)
 	if err != nil {
 		return 0, err
 	}
-	if err := s.pruneLogEvents(ctx); err != nil {
+	if s.shouldPruneLogEvents(id) {
+		if err := s.pruneLogEvents(ctx); err != nil {
+			return id, err
+		}
+	}
+
+	return id, nil
+}
+
+func (s *Store) shouldPruneLogEvents(insertedID int64) bool {
+	if s.logMaxRows <= 0 {
+		return false
+	}
+
+	next := s.nextLogPruneAtID.Load()
+	if next == 0 {
+		next = int64(s.logMaxRows+s.logPruneBatchRows) + 1
+		if !s.nextLogPruneAtID.CompareAndSwap(0, next) {
+			next = s.nextLogPruneAtID.Load()
+		}
+	}
+	if insertedID < next {
+		return false
+	}
+
+	interval := int64(max(1, s.logPruneBatchRows))
+	s.nextLogPruneAtID.Store(insertedID + interval)
+
+	return true
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+
+	return b
+}
+
+func (s *Store) cachedLogChannelID(name string) (int64, bool) {
+	s.logChannelMu.RLock()
+	id, ok := s.logChannelIDs[name]
+	s.logChannelMu.RUnlock()
+
+	return id, ok
+}
+
+func (s *Store) storeLogChannelID(name string, id int64) {
+	s.logChannelMu.Lock()
+	s.logChannelIDs[name] = id
+	s.logChannelMu.Unlock()
+}
+
+func (s *Store) ensureLogChannel(ctx context.Context, name string) (int64, error) {
+	if id, ok := s.cachedLogChannelID(name); ok {
+		return id, nil
+	}
+
+	_, err := s.db.ExecContext(ctx, `INSERT INTO log_channels(name) VALUES(?) ON CONFLICT(name) DO NOTHING`, name)
+	if err != nil {
+		return 0, err
+	}
+	var id int64
+	if err := s.db.QueryRowContext(ctx, `SELECT id FROM log_channels WHERE name=?`, name).Scan(&id); err != nil {
 		return id, err
 	}
+	s.storeLogChannelID(name, id)
 
 	return id, nil
 }
@@ -777,19 +853,6 @@ func boolAsInt(v bool) int {
 	}
 
 	return 0
-}
-
-func (s *Store) ensureLogChannel(ctx context.Context, name string) (int64, error) {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO log_channels(name) VALUES(?) ON CONFLICT(name) DO NOTHING`, name)
-	if err != nil {
-		return 0, err
-	}
-	var id int64
-	if err := s.db.QueryRowContext(ctx, `SELECT id FROM log_channels WHERE name=?`, name).Scan(&id); err != nil {
-		return 0, err
-	}
-
-	return id, nil
 }
 
 func (s *Store) pruneLogEvents(ctx context.Context) error {
