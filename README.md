@@ -102,6 +102,7 @@ Notes:
 - ENV overrides are parsed as: `bool` (`true/false`), `int`, `float`, `time.Duration` (`10s`, `60m`, `6h`), or string.
 - Unknown ENV keys are ignored.
 - `mqtt.root_topic` must be set and at least one channel must be configured.
+- PSK shorthand behavior is documented in [`docs/keys.md`](docs/keys.md).
 
 ## API
 
