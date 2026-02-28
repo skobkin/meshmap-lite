@@ -27,7 +27,10 @@ Lightweight read-only Meshtastic regional map and chat viewer.
 
 ## Run in Docker
 
-[`skobkin/meshmap-lite`](https://hub.docker.com/r/skobkin/meshmap-lite) Docker image is available for deploy.
+Docker images are available for deploy from these registries:
+
+- [`skobkin/meshmap-lite`](https://hub.docker.com/r/skobkin/meshmap-lite) (Docker Hub)
+- [`ghcr.io/skobkin/meshmap-lite:latest`](https://github.com/skobkin/meshmap-lite/pkgs/container/meshmap-lite/versions) (Github Container Registry)
 
 Docker Compose [example](https://git.skobk.in/skobkin/docker-stacks/src/branch/master/meshmap-lite).
 
