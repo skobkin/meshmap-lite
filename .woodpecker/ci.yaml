@@ -40,46 +40,49 @@ steps:
     commands:
       - go test ./...
 
-  frontend-prepare:
-    image: node:22-alpine
-    commands:
-      - cd web
-      - npm ci
-
   frontend-lint:
     image: node:22-alpine
-    depends_on:
-      - frontend-prepare
     commands:
-      - cd web
-      - npm run lint
+      - |
+        tmpdir="$(mktemp -d)"
+        cp -a web/. "$tmpdir/"
+        cd "$tmpdir"
+        npm ci
+        npm run lint
 
   frontend-typecheck:
     image: node:22-alpine
-    depends_on:
-      - frontend-prepare
     commands:
-      - cd web
-      - npm run typecheck
+      - |
+        tmpdir="$(mktemp -d)"
+        cp -a web/. "$tmpdir/"
+        cd "$tmpdir"
+        npm ci
+        npm run typecheck
 
   frontend-test:
     image: node:22-alpine
-    depends_on:
-      - frontend-prepare
     commands:
-      - cd web
-      - npm run test
+      - |
+        tmpdir="$(mktemp -d)"
+        cp -a web/. "$tmpdir/"
+        cd "$tmpdir"
+        npm ci
+        npm run test
 
   frontend-build:
     image: node:22-alpine
-    depends_on:
-      - frontend-lint
-      - frontend-typecheck
-      - frontend-test
     commands:
-      - cd web
-      - npm run build
-      - test -f dist/index.html
+      - |
+        tmpdir="$(mktemp -d)"
+        cp -a web/. "$tmpdir/"
+        cd "$tmpdir"
+        npm ci
+        npm run build
+        test -f dist/index.html
+        rm -rf "$CI_WORKSPACE/web/dist"
+        mkdir -p "$CI_WORKSPACE/web/dist"
+        cp -a dist/. "$CI_WORKSPACE/web/dist/"
 
   backend-build:
     image: golang:1.25
