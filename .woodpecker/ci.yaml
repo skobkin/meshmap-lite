@@ -19,18 +19,8 @@ steps:
           exit 1
         fi
 
-  backend-prepare:
-    image: golang:1.25
-    environment:
-      GOCACHE: ${CI_WORKSPACE}/.cache/go-build
-      GOMODCACHE: ${CI_WORKSPACE}/.cache/go-mod
-    commands:
-      - go mod download
-
   backend-lint:
     image: golangci/golangci-lint:v2.8-alpine
-    depends_on:
-      - backend-prepare
     environment:
       GOCACHE: ${CI_WORKSPACE}/.cache/go-build
       GOMODCACHE: ${CI_WORKSPACE}/.cache/go-mod
@@ -40,8 +30,6 @@ steps:
 
   backend-vet:
     image: golang:1.25
-    depends_on:
-      - backend-prepare
     environment:
       GOCACHE: ${CI_WORKSPACE}/.cache/go-build
       GOMODCACHE: ${CI_WORKSPACE}/.cache/go-mod
@@ -50,8 +38,6 @@ steps:
 
   backend-test:
     image: golang:1.25
-    depends_on:
-      - backend-prepare
     environment:
       GOCACHE: ${CI_WORKSPACE}/.cache/go-build
       GOMODCACHE: ${CI_WORKSPACE}/.cache/go-mod
@@ -105,7 +91,6 @@ steps:
   backend-build:
     image: golang:1.25
     depends_on:
-      - backend-prepare
       - backend-fmt
       - backend-lint
       - backend-vet
@@ -120,7 +105,6 @@ steps:
 
   release-forgejo:
     depends_on:
-      - backend-prepare
       - backend-fmt
       - backend-lint
       - backend-vet
@@ -146,7 +130,6 @@ steps:
 
   release-docker:
     depends_on:
-      - backend-prepare
       - backend-fmt
       - backend-lint
       - backend-vet
