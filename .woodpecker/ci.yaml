@@ -8,7 +8,7 @@ clone:
       depth: 0
 
 steps:
-  fmt:
+  backend-fmt:
     image: golang:1.25
     commands:
       - |
@@ -19,28 +19,57 @@ steps:
           exit 1
         fi
 
-  lint:
+  backend-lint:
     image: golangci/golangci-lint:v2.8-alpine
     environment:
       XDG_CACHE_HOME: /tmp/.cache
     commands:
       - golangci-lint run
 
-  vet:
+  backend-vet:
     image: golang:1.25
     environment:
       GOCACHE: /tmp/.gocache
     commands:
       - go vet ./...
 
-  test:
+  backend-test:
     image: golang:1.25
     environment:
       GOCACHE: /tmp/.gocache
     commands:
       - go test ./...
 
-  build:
+  frontend-lint:
+    image: node:22-alpine
+    commands:
+      - cd web
+      - npm ci
+      - npm run lint
+
+  frontend-typecheck:
+    image: node:22-alpine
+    commands:
+      - cd web
+      - npm ci
+      - npm run typecheck
+
+  frontend-test:
+    image: node:22-alpine
+    commands:
+      - cd web
+      - npm ci
+      - npm run test
+
+  frontend-build:
+    image: node:22-alpine
+    commands:
+      - cd web
+      - npm ci
+      - npm run build
+      - test -f dist/index.html
+
+  backend-build:
     image: golang:1.25
     environment:
       GOCACHE: /tmp/.gocache
@@ -51,26 +80,19 @@ steps:
 
   release-forgejo:
     depends_on:
-      - fmt
-      - lint
-      - vet
-      - test
+      - backend-fmt
+      - backend-lint
+      - backend-vet
+      - backend-test
+      - frontend-lint
+      - frontend-typecheck
+      - frontend-test
+      - frontend-build
     image: goreleaser/goreleaser-cross:v1.25-v2.12.7
     environment:
       FORGE_TOKEN:
         from_secret: FORGE_TOKEN
     commands:
-      - |
-        if command -v apk >/dev/null 2>&1; then
-          apk add --no-cache nodejs npm
-        elif command -v apt-get >/dev/null 2>&1; then
-          apt-get update
-          apt-get install -y --no-install-recommends nodejs npm
-          rm -rf /var/lib/apt/lists/*
-        else
-          echo "No supported package manager found to install nodejs/npm"
-          exit 1
-        fi
       - test -n "$CI_FORGE_URL" || (echo "CI_FORGE_URL is empty. Cannot derive Forge URLs for GoReleaser." && exit 1)
       - export GITEA_TOKEN="${GITEA_TOKEN:-$FORGE_TOKEN}"
       - test -n "$FORGE_API_URL" || export FORGE_API_URL="$CI_FORGE_URL/api/v1"
@@ -81,10 +103,13 @@ steps:
 
   release-docker:
     depends_on:
-      - fmt
-      - lint
-      - vet
-      - test
+      - backend-fmt
+      - backend-lint
+      - backend-vet
+      - backend-test
+      - frontend-lint
+      - frontend-typecheck
+      - frontend-test
     # 'woodpeckerci/plugin-docker-buildx:6' should be added to WOODPECKER_PLUGINS_PRIVILEGED for Woodpecker stack
     image: woodpeckerci/plugin-docker-buildx:6
     settings:
