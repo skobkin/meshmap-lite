@@ -40,37 +40,52 @@ steps:
     commands:
       - go test ./...
 
-  frontend-lint:
+  frontend-prepare:
     image: node:22-alpine
     commands:
       - cd web
       - npm ci
+
+  frontend-lint:
+    image: node:22-alpine
+    depends_on:
+      - frontend-prepare
+    commands:
+      - cd web
       - npm run lint
 
   frontend-typecheck:
     image: node:22-alpine
+    depends_on:
+      - frontend-prepare
     commands:
       - cd web
-      - npm ci
       - npm run typecheck
 
   frontend-test:
     image: node:22-alpine
+    depends_on:
+      - frontend-prepare
     commands:
       - cd web
-      - npm ci
       - npm run test
 
   frontend-build:
     image: node:22-alpine
+    depends_on:
+      - frontend-prepare
     commands:
       - cd web
-      - npm ci
       - npm run build
       - test -f dist/index.html
 
   backend-build:
     image: golang:1.25
+    depends_on:
+      - backend-fmt
+      - backend-lint
+      - backend-vet
+      - backend-test
     environment:
       GOCACHE: /tmp/.gocache
     commands:
