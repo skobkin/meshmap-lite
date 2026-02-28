@@ -40,6 +40,7 @@
 - Treat `0` telemetry values as valid data.
 - Track both `observed_at` and `reported_at` when available.
 - Do not mark a node as MQTT-connected just because another gateway relayed its packet.
+- For ad-hoc real-world packet decoding, prefer `go run -tags debugtools ./cmd/meshtastic-debug` over scratch files. It accepts either `-topic`/`-payload-hex` or `mosquitto_sub -F '%I\t%t\t%x'` lines on stdin.
 
 ## Frontend Conventions
 
