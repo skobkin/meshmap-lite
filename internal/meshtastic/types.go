@@ -115,10 +115,25 @@ type MapReportPayload struct {
 
 // TraceroutePayload contains compact TRACEROUTE_APP details.
 type TraceroutePayload struct {
-	HopsTowards int `json:"hops_towards"`
-	HopsBack    int `json:"hops_back"`
-	SnrTowards  int `json:"snr_towards"`
-	SnrBack     int `json:"snr_back"`
+	Role                string   `json:"role"`
+	Status              string   `json:"status,omitempty"`
+	RequestID           uint32   `json:"request_id,omitempty"`
+	ReplyID             uint32   `json:"reply_id,omitempty"`
+	FromNodeID          string   `json:"from,omitempty"`
+	ToNodeID            string   `json:"to,omitempty"`
+	Route               []string `json:"route,omitempty"`
+	SnrTowards          []int32  `json:"snr_towards,omitempty"`
+	RouteBack           []string `json:"route_back,omitempty"`
+	SnrBack             []int32  `json:"snr_back,omitempty"`
+	ForwardPath         []string `json:"forward_path,omitempty"`
+	ReturnPath          []string `json:"return_path,omitempty"`
+	InferredForwardPath bool     `json:"inferred_forward_path,omitempty"`
+	InferredReturnPath  bool     `json:"inferred_return_path,omitempty"`
+	InferredDirect      bool     `json:"inferred_direct,omitempty"`
+	WantResponse        bool     `json:"want_response,omitempty"`
+	HopStart            uint32   `json:"hop_start,omitempty"`
+	HopLimit            uint32   `json:"hop_limit,omitempty"`
+	Bitfield            uint32   `json:"bitfield,omitempty"`
 }
 
 // NeighborInfoPayload contains compact NEIGHBORINFO_APP details.
@@ -130,10 +145,14 @@ type NeighborInfoPayload struct {
 
 // RoutingPayload contains compact ROUTING_APP details.
 type RoutingPayload struct {
-	Variant     string `json:"variant"`
-	HopsTowards int    `json:"hops_towards,omitempty"`
-	HopsBack    int    `json:"hops_back,omitempty"`
-	ErrorReason string `json:"error_reason,omitempty"`
+	Variant       string   `json:"variant"`
+	RequestID     uint32   `json:"request_id,omitempty"`
+	FromNodeID    string   `json:"from,omitempty"`
+	ToNodeID      string   `json:"to,omitempty"`
+	Route         []string `json:"route,omitempty"`
+	RouteBack     []string `json:"route_back,omitempty"`
+	ErrorReason   string   `json:"error_reason,omitempty"`
+	TracerouteRef bool     `json:"traceroute_ref,omitempty"`
 }
 
 // OtherPortnumPayload carries fallback details for known-but-unhandled app packets.

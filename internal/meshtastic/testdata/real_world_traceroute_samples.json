@@ -8,10 +8,12 @@
     "expected_gateway_id": "!9028d008",
     "expected_packet_id": 4261201953,
     "expected_timestamp": "2026-02-28T16:33:35Z",
-    "expected_hops_towards": 0,
-    "expected_hops_back": 0,
-    "expected_snr_towards": 0,
-    "expected_snr_back": 0
+    "expected_role": "request",
+    "expected_status": "requested",
+    "expected_request_id": 4261201953,
+    "expected_forward_path": [],
+    "expected_return_path": [],
+    "expected_inferred_direct": false
   },
   {
     "name": "default_longfast_traceroute_direct_link_request",
@@ -22,9 +24,11 @@
     "expected_gateway_id": "!9028d008",
     "expected_packet_id": 4261201955,
     "expected_timestamp": "2026-02-28T16:36:28Z",
-    "expected_hops_towards": 0,
-    "expected_hops_back": 0,
-    "expected_snr_towards": 0,
-    "expected_snr_back": 0
+    "expected_role": "request",
+    "expected_status": "requested",
+    "expected_request_id": 4261201955,
+    "expected_forward_path": [],
+    "expected_return_path": [],
+    "expected_inferred_direct": false
   }
 ]

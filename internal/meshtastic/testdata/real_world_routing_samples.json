@@ -10,7 +10,7 @@
     "expected_timestamp": "2026-02-28T16:36:29Z",
     "expected_variant": "error",
     "expected_error_reason": "NONE",
-    "expected_hops_towards": 0,
-    "expected_hops_back": 0
+    "expected_request_id": 966535927,
+    "expected_traceroute_ref": true
   }
 ]

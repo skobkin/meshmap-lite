@@ -15,6 +15,7 @@ import (
 type testStore struct {
 	lastNode     *domain.Node
 	lastPosition *domain.NodePosition
+	lastLogEvent *domain.LogEvent
 }
 
 func (s *testStore) UpsertNode(_ context.Context, node domain.Node) (bool, error) {
@@ -39,7 +40,10 @@ func (*testStore) InsertChatEvent(context.Context, domain.ChatEvent) (int64, err
 	return 0, nil
 }
 
-func (*testStore) InsertLogEvent(context.Context, domain.LogEvent) (int64, error) {
+func (s *testStore) InsertLogEvent(_ context.Context, e domain.LogEvent) (int64, error) {
+	ev := e
+	s.lastLogEvent = &ev
+
 	return 0, nil
 }
 
@@ -135,5 +139,103 @@ func TestHandleMapReportMergesNodeAndPositionFields(t *testing.T) {
 	}
 	if store.lastPosition.PositionPrecision == nil || *store.lastPosition.PositionPrecision != 12 {
 		t.Fatalf("unexpected position precision: %v", store.lastPosition.PositionPrecision)
+	}
+}
+
+func TestLogEventFromParsedTracerouteUsesSemanticDetails(t *testing.T) {
+	svc := &Service{}
+	now := time.Unix(1772296589, 0).UTC()
+
+	event, ok := svc.logEventFromParsed(meshtastic.ParsedEvent{
+		Kind:   meshtastic.ParsedTraceroute,
+		NodeID: "!9028d008",
+		Traceroute: &meshtastic.TraceroutePayload{
+			Role:                "reply",
+			Status:              "completed",
+			RequestID:           321,
+			ReplyID:             654,
+			FromNodeID:          "!9028d008",
+			ToNodeID:            "!a55e5e56",
+			Route:               []string{"!01020304"},
+			SnrTowards:          []int32{22},
+			RouteBack:           []string{"!0a0b0c0d"},
+			SnrBack:             []int32{12},
+			ForwardPath:         []string{"!a55e5e56", "!01020304", "!9028d008"},
+			ReturnPath:          []string{"!9028d008", "!0a0b0c0d", "!a55e5e56"},
+			InferredForwardPath: true,
+			InferredDirect:      false,
+			WantResponse:        false,
+			HopStart:            7,
+			HopLimit:            7,
+			Bitfield:            3,
+		},
+	}, "LongFast", now)
+	if !ok {
+		t.Fatalf("expected traceroute log event")
+	}
+	if event.EventKind != domain.LogEventKindTracerouteValue {
+		t.Fatalf("unexpected event kind: %v", event.EventKind)
+	}
+	if event.Details["role"] != "reply" || event.Details["status"] != "completed" {
+		t.Fatalf("unexpected traceroute summary details: %#v", event.Details)
+	}
+	if event.Details["request_id"] != uint32(321) || event.Details["reply_id"] != uint32(654) {
+		t.Fatalf("unexpected traceroute correlation details: %#v", event.Details)
+	}
+	if _, ok := event.Details["forward_path"]; !ok {
+		t.Fatalf("expected forward_path in details: %#v", event.Details)
+	}
+	if _, ok := event.Details["return_path"]; !ok {
+		t.Fatalf("expected return_path in details: %#v", event.Details)
+	}
+	if event.Details["inferred_forward_path"] != true {
+		t.Fatalf("expected inferred forward path marker: %#v", event.Details)
+	}
+}
+
+func TestLogEventFromParsedRoutingKeepsTracerouteFailureSignal(t *testing.T) {
+	svc := &Service{}
+	now := time.Unix(1772296589, 0).UTC()
+
+	event, ok := svc.logEventFromParsed(meshtastic.ParsedEvent{
+		Kind:   meshtastic.ParsedRouting,
+		NodeID: "!9028d008",
+		Routing: &meshtastic.RoutingPayload{
+			Variant:       "error",
+			RequestID:     321,
+			FromNodeID:    "!9028d008",
+			ToNodeID:      "!a55e5e56",
+			ErrorReason:   "NO_ROUTE",
+			TracerouteRef: true,
+		},
+	}, "LongFast", now)
+	if !ok {
+		t.Fatalf("expected routing log event")
+	}
+	if event.EventKind != domain.LogEventKindRoutingValue {
+		t.Fatalf("unexpected event kind: %v", event.EventKind)
+	}
+	if event.Details["error_reason"] != "NO_ROUTE" {
+		t.Fatalf("unexpected routing error details: %#v", event.Details)
+	}
+	if event.Details["traceroute_status"] != "failed" {
+		t.Fatalf("expected traceroute failure signal in routing details: %#v", event.Details)
+	}
+
+	event, ok = svc.logEventFromParsed(meshtastic.ParsedEvent{
+		Kind:   meshtastic.ParsedRouting,
+		NodeID: "!9028d008",
+		Routing: &meshtastic.RoutingPayload{
+			Variant:       "error",
+			RequestID:     321,
+			ErrorReason:   "NONE",
+			TracerouteRef: true,
+		},
+	}, "LongFast", now)
+	if !ok {
+		t.Fatalf("expected routing log event")
+	}
+	if _, exists := event.Details["traceroute_status"]; exists {
+		t.Fatalf("NONE routing error must not mark traceroute failed: %#v", event.Details)
 	}
 }

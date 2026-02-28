@@ -133,11 +133,15 @@ func TestDecodeRoutingPayloadVariants(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	request, err := decodeRoutingPayload(requestPayload)
+	request, err := decodeRoutingPayload(&generated.MeshPacket{From: 0x11111111, To: 0x22222222}, &generated.Data{
+		Portnum:   generated.PortNum_ROUTING_APP,
+		Payload:   requestPayload,
+		RequestId: 123,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if request.Variant != "route_request" || request.HopsTowards != 2 || request.HopsBack != 2 {
+	if request.Variant != "route_request" || request.RequestID != 123 || len(request.Route) != 2 || len(request.RouteBack) != 2 {
 		t.Fatalf("unexpected route request payload: %#v", request)
 	}
 
@@ -150,12 +154,133 @@ func TestDecodeRoutingPayloadVariants(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	reply, err := decodeRoutingPayload(errorPayload)
+	reply, err := decodeRoutingPayload(&generated.MeshPacket{From: 0x11111111, To: 0x22222222}, &generated.Data{
+		Portnum:   generated.PortNum_ROUTING_APP,
+		Payload:   errorPayload,
+		RequestId: 456,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reply.Variant != "error" || reply.ErrorReason != generated.Routing_NO_ROUTE.String() {
+	if reply.Variant != "error" || reply.ErrorReason != generated.Routing_NO_ROUTE.String() || reply.RequestID != 456 || !reply.TracerouteRef {
 		t.Fatalf("unexpected route error payload: %#v", reply)
+	}
+}
+
+func TestDecodeTraceroutePayloadClassifiesRequest(t *testing.T) {
+	payload, err := proto.Marshal(&generated.RouteDiscovery{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	traceroute, err := decodeTraceroutePayload(&generated.MeshPacket{
+		From:     0x9028d008,
+		To:       0xa55e5e56,
+		Id:       321,
+		HopStart: 7,
+		HopLimit: 7,
+	}, &generated.Data{
+		Portnum:      generated.PortNum_TRACEROUTE_APP,
+		Payload:      payload,
+		WantResponse: true,
+		Bitfield:     proto.Uint32(3),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if traceroute.Role != "request" || traceroute.Status != "requested" {
+		t.Fatalf("unexpected traceroute request semantics: %#v", traceroute)
+	}
+	if traceroute.RequestID != 321 {
+		t.Fatalf("unexpected request id: got %d want 321", traceroute.RequestID)
+	}
+	if len(traceroute.ForwardPath) != 0 || len(traceroute.ReturnPath) != 0 {
+		t.Fatalf("request packet must not produce result paths: %#v", traceroute)
+	}
+}
+
+func TestDecodeTraceroutePayloadReconstructsDirectReply(t *testing.T) {
+	payload, err := proto.Marshal(&generated.RouteDiscovery{
+		SnrTowards: []int32{22},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	traceroute, err := decodeTraceroutePayload(&generated.MeshPacket{
+		From:     0x9028d008,
+		To:       0xa55e5e56,
+		Id:       654,
+		HopStart: 7,
+		HopLimit: 7,
+	}, &generated.Data{
+		Portnum:      generated.PortNum_TRACEROUTE_APP,
+		Payload:      payload,
+		RequestId:    321,
+		WantResponse: false,
+		Bitfield:     proto.Uint32(3),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if traceroute.Role != "reply" || traceroute.Status != "completed" {
+		t.Fatalf("unexpected traceroute reply semantics: %#v", traceroute)
+	}
+	if want := []string{"!a55e5e56", "!9028d008"}; len(traceroute.ForwardPath) != len(want) || traceroute.ForwardPath[0] != want[0] || traceroute.ForwardPath[1] != want[1] {
+		t.Fatalf("unexpected forward path: got %#v want %#v", traceroute.ForwardPath, want)
+	}
+	if !traceroute.InferredForwardPath || !traceroute.InferredDirect {
+		t.Fatalf("expected inferred direct path markers, got %#v", traceroute)
+	}
+	if len(traceroute.ReturnPath) != 0 {
+		t.Fatalf("did not expect return path without evidence, got %#v", traceroute.ReturnPath)
+	}
+}
+
+func TestDecodeTraceroutePayloadKeepsReturnPathConditional(t *testing.T) {
+	payload, err := proto.Marshal(&generated.RouteDiscovery{
+		RouteBack: []uint32{0x01020304},
+		SnrBack:   []int32{12},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	withoutEvidence, err := decodeTraceroutePayload(&generated.MeshPacket{
+		From: 0x9028d008,
+		To:   0xa55e5e56,
+	}, &generated.Data{
+		Portnum:   generated.PortNum_TRACEROUTE_APP,
+		Payload:   payload,
+		RequestId: 321,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"!01020304"}; len(withoutEvidence.ReturnPath) != len(want) || withoutEvidence.ReturnPath[0] != want[0] {
+		t.Fatalf("unexpected raw return path: got %#v want %#v", withoutEvidence.ReturnPath, want)
+	}
+	if withoutEvidence.InferredReturnPath {
+		t.Fatalf("did not expect inferred return path without packet evidence")
+	}
+
+	withEvidence, err := decodeTraceroutePayload(&generated.MeshPacket{
+		From:     0x9028d008,
+		To:       0xa55e5e56,
+		HopStart: 1,
+	}, &generated.Data{
+		Portnum:   generated.PortNum_TRACEROUTE_APP,
+		Payload:   payload,
+		RequestId: 321,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"!9028d008", "!01020304", "!a55e5e56"}; len(withEvidence.ReturnPath) != len(want) || withEvidence.ReturnPath[0] != want[0] || withEvidence.ReturnPath[2] != want[2] {
+		t.Fatalf("unexpected reconstructed return path: got %#v want %#v", withEvidence.ReturnPath, want)
+	}
+	if !withEvidence.InferredReturnPath {
+		t.Fatalf("expected inferred return path marker")
 	}
 }
 
@@ -392,17 +517,33 @@ func TestParsePayloadRealWorldTracerouteSamples(t *testing.T) {
 			if evt.Traceroute == nil {
 				t.Fatalf("missing traceroute payload")
 			}
-			if evt.Traceroute.HopsTowards != sample.ExpectedHopsTowards {
-				t.Fatalf("unexpected hops towards: got %d want %d", evt.Traceroute.HopsTowards, sample.ExpectedHopsTowards)
+			if evt.Traceroute.Role != sample.ExpectedRole {
+				t.Fatalf("unexpected traceroute role: got %q want %q", evt.Traceroute.Role, sample.ExpectedRole)
 			}
-			if evt.Traceroute.HopsBack != sample.ExpectedHopsBack {
-				t.Fatalf("unexpected hops back: got %d want %d", evt.Traceroute.HopsBack, sample.ExpectedHopsBack)
+			if evt.Traceroute.Status != sample.ExpectedStatus {
+				t.Fatalf("unexpected traceroute status: got %q want %q", evt.Traceroute.Status, sample.ExpectedStatus)
 			}
-			if evt.Traceroute.SnrTowards != sample.ExpectedSnrTowards {
-				t.Fatalf("unexpected snr towards count: got %d want %d", evt.Traceroute.SnrTowards, sample.ExpectedSnrTowards)
+			if evt.Traceroute.RequestID != sample.ExpectedRequestID {
+				t.Fatalf("unexpected traceroute request id: got %d want %d", evt.Traceroute.RequestID, sample.ExpectedRequestID)
 			}
-			if evt.Traceroute.SnrBack != sample.ExpectedSnrBack {
-				t.Fatalf("unexpected snr back count: got %d want %d", evt.Traceroute.SnrBack, sample.ExpectedSnrBack)
+			if len(evt.Traceroute.ForwardPath) != len(sample.ExpectedForwardPath) {
+				t.Fatalf("unexpected forward path length: got %#v want %#v", evt.Traceroute.ForwardPath, sample.ExpectedForwardPath)
+			}
+			for i := range sample.ExpectedForwardPath {
+				if evt.Traceroute.ForwardPath[i] != sample.ExpectedForwardPath[i] {
+					t.Fatalf("unexpected forward path: got %#v want %#v", evt.Traceroute.ForwardPath, sample.ExpectedForwardPath)
+				}
+			}
+			if len(evt.Traceroute.ReturnPath) != len(sample.ExpectedReturnPath) {
+				t.Fatalf("unexpected return path length: got %#v want %#v", evt.Traceroute.ReturnPath, sample.ExpectedReturnPath)
+			}
+			for i := range sample.ExpectedReturnPath {
+				if evt.Traceroute.ReturnPath[i] != sample.ExpectedReturnPath[i] {
+					t.Fatalf("unexpected return path: got %#v want %#v", evt.Traceroute.ReturnPath, sample.ExpectedReturnPath)
+				}
+			}
+			if evt.Traceroute.InferredDirect != sample.ExpectedInferredDirect {
+				t.Fatalf("unexpected inferred direct flag: got %v want %v", evt.Traceroute.InferredDirect, sample.ExpectedInferredDirect)
 			}
 		})
 	}
@@ -449,11 +590,11 @@ func TestParsePayloadRealWorldRoutingSamples(t *testing.T) {
 			if evt.Routing.ErrorReason != sample.ExpectedErrorReason {
 				t.Fatalf("unexpected routing error reason: got %q want %q", evt.Routing.ErrorReason, sample.ExpectedErrorReason)
 			}
-			if evt.Routing.HopsTowards != sample.ExpectedHopsTowards {
-				t.Fatalf("unexpected hops towards: got %d want %d", evt.Routing.HopsTowards, sample.ExpectedHopsTowards)
+			if evt.Routing.RequestID != sample.ExpectedRequestID {
+				t.Fatalf("unexpected routing request id: got %d want %d", evt.Routing.RequestID, sample.ExpectedRequestID)
 			}
-			if evt.Routing.HopsBack != sample.ExpectedHopsBack {
-				t.Fatalf("unexpected hops back: got %d want %d", evt.Routing.HopsBack, sample.ExpectedHopsBack)
+			if evt.Routing.TracerouteRef != sample.ExpectedTracerouteRef {
+				t.Fatalf("unexpected routing traceroute ref flag: got %v want %v", evt.Routing.TracerouteRef, sample.ExpectedTracerouteRef)
 			}
 		})
 	}

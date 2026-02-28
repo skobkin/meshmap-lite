@@ -9,7 +9,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func parseDecodedPacketPayload(base ParsedEvent, data *generated.Data) (ParsedEvent, error) {
+func parseDecodedPacketPayload(base ParsedEvent, packet *generated.MeshPacket, data *generated.Data) (ParsedEvent, error) {
 	switch data.GetPortnum() {
 	// Text payloads.
 	case generated.PortNum_TEXT_MESSAGE_APP, generated.PortNum_TEXT_MESSAGE_COMPRESSED_APP:
@@ -46,7 +46,7 @@ func parseDecodedPacketPayload(base ParsedEvent, data *generated.Data) (ParsedEv
 
 	// Topology and routing payloads.
 	case generated.PortNum_TRACEROUTE_APP:
-		traceroute, err := decodeTraceroutePayload(data.GetPayload())
+		traceroute, err := decodeTraceroutePayload(packet, data)
 		if err != nil {
 			return ParsedEvent{}, err
 		}
@@ -63,7 +63,7 @@ func parseDecodedPacketPayload(base ParsedEvent, data *generated.Data) (ParsedEv
 			base.NodeID = neighbor.NodeID
 		}
 	case generated.PortNum_ROUTING_APP:
-		routing, err := decodeRoutingPayload(data.GetPayload())
+		routing, err := decodeRoutingPayload(packet, data)
 		if err != nil {
 			return ParsedEvent{}, err
 		}
@@ -96,7 +96,7 @@ func parseDecodedPacket(envelope decodedEnvelope) (ParsedEvent, error) {
 		Timestamp: packetTimestamp(envelope.packet),
 	}
 
-	return parseDecodedPacketPayload(base, envelope.decoded)
+	return parseDecodedPacketPayload(base, envelope.packet, envelope.decoded)
 }
 
 func decodeNodeInfoPayload(payload []byte) (*NodeInfoPayload, string, error) {
@@ -193,17 +193,70 @@ func decodeTelemetryPayload(payload []byte) (*TelemetryPayload, error) {
 	return telemetry, nil
 }
 
-func decodeTraceroutePayload(payload []byte) (*TraceroutePayload, error) {
+func decodeTraceroutePayload(packet *generated.MeshPacket, data *generated.Data) (*TraceroutePayload, error) {
 	var route generated.RouteDiscovery
-	if err := proto.Unmarshal(payload, &route); err != nil {
+	if err := proto.Unmarshal(data.GetPayload(), &route); err != nil {
 		return nil, fmt.Errorf("decode traceroute: %w", err)
 	}
 
+	fromNodeNum := packet.GetFrom()
+	if source := data.GetSource(); source != 0 {
+		fromNodeNum = source
+	}
+	toNodeNum := packet.GetTo()
+	if dest := data.GetDest(); dest != 0 {
+		toNodeNum = dest
+	}
+
+	rawForward := nodeIDsFromNums(route.GetRoute())
+	rawReturn := nodeIDsFromNums(route.GetRouteBack())
+	requestID := data.GetRequestId()
+	role := "reply"
+	status := "partial"
+	if data.GetWantResponse() {
+		role = "request"
+		status = "requested"
+		requestID = packet.GetId()
+	}
+	if requestID == 0 {
+		requestID = data.GetReplyId()
+	}
+
+	var (
+		forwardPath     []string
+		inferredForward bool
+		inferredDirect  bool
+		returnPath      []string
+		inferredReturn  bool
+	)
+	if role == "reply" {
+		forwardPath, inferredForward, inferredDirect = tracerouteForwardPath(packet, data, &route)
+		returnPath, inferredReturn = tracerouteReturnPath(packet, data, &route)
+		if len(forwardPath) > 0 {
+			status = "completed"
+		}
+	}
+
 	return &TraceroutePayload{
-		HopsTowards: len(route.GetRoute()),
-		HopsBack:    len(route.GetRouteBack()),
-		SnrTowards:  len(route.GetSnrTowards()),
-		SnrBack:     len(route.GetSnrBack()),
+		Role:                role,
+		Status:              status,
+		RequestID:           requestID,
+		ReplyID:             data.GetReplyId(),
+		FromNodeID:          nodeIDFromNum(fromNodeNum),
+		ToNodeID:            nodeIDFromNum(toNodeNum),
+		Route:               rawForward,
+		SnrTowards:          append([]int32(nil), route.GetSnrTowards()...),
+		RouteBack:           rawReturn,
+		SnrBack:             append([]int32(nil), route.GetSnrBack()...),
+		ForwardPath:         forwardPath,
+		ReturnPath:          returnPath,
+		InferredForwardPath: inferredForward,
+		InferredReturnPath:  inferredReturn,
+		InferredDirect:      inferredDirect,
+		WantResponse:        data.GetWantResponse(),
+		HopStart:            packet.GetHopStart(),
+		HopLimit:            packet.GetHopLimit(),
+		Bitfield:            data.GetBitfield(),
 	}, nil
 }
 
@@ -220,24 +273,29 @@ func decodeNeighborInfoPayload(payload []byte) (*NeighborInfoPayload, error) {
 	}, nil
 }
 
-func decodeRoutingPayload(payload []byte) (*RoutingPayload, error) {
+func decodeRoutingPayload(packet *generated.MeshPacket, data *generated.Data) (*RoutingPayload, error) {
 	var routing generated.Routing
-	if err := proto.Unmarshal(payload, &routing); err != nil {
+	if err := proto.Unmarshal(data.GetPayload(), &routing); err != nil {
 		return nil, fmt.Errorf("decode routing: %w", err)
 	}
 
-	out := &RoutingPayload{}
+	out := &RoutingPayload{
+		RequestID:     data.GetRequestId(),
+		FromNodeID:    nodeIDFromNum(packet.GetFrom()),
+		ToNodeID:      nodeIDFromNum(packet.GetTo()),
+		TracerouteRef: data.GetRequestId() > 0,
+	}
 	if req := routing.GetRouteRequest(); req != nil {
 		out.Variant = "route_request"
-		out.HopsTowards = len(req.GetRoute())
-		out.HopsBack = len(req.GetRouteBack())
+		out.Route = nodeIDsFromNums(req.GetRoute())
+		out.RouteBack = nodeIDsFromNums(req.GetRouteBack())
 
 		return out, nil
 	}
 	if reply := routing.GetRouteReply(); reply != nil {
 		out.Variant = "route_reply"
-		out.HopsTowards = len(reply.GetRoute())
-		out.HopsBack = len(reply.GetRouteBack())
+		out.Route = nodeIDsFromNums(reply.GetRoute())
+		out.RouteBack = nodeIDsFromNums(reply.GetRouteBack())
 
 		return out, nil
 	}
@@ -246,4 +304,76 @@ func decodeRoutingPayload(payload []byte) (*RoutingPayload, error) {
 	out.ErrorReason = routing.GetErrorReason().String()
 
 	return out, nil
+}
+
+func tracerouteForwardPath(packet *generated.MeshPacket, data *generated.Data, route *generated.RouteDiscovery) ([]string, bool, bool) {
+	destinationID := data.GetDest()
+	if destinationID == 0 {
+		destinationID = packet.GetTo()
+	}
+	sourceID := data.GetSource()
+	if sourceID == 0 {
+		sourceID = packet.GetFrom()
+	}
+
+	if destinationID == 0 && sourceID == 0 && len(route.GetRoute()) == 0 {
+		return nil, false, false
+	}
+
+	path := make([]string, 0, len(route.GetRoute())+2)
+	if destinationID != 0 {
+		path = append(path, nodeIDFromNum(destinationID))
+	}
+	path = append(path, nodeIDsFromNums(route.GetRoute())...)
+	if sourceID != 0 {
+		path = append(path, nodeIDFromNum(sourceID))
+	}
+
+	inferred := destinationID != 0 || sourceID != 0
+	inferredDirect := len(route.GetRoute()) == 0 && len(path) == 2
+
+	return path, inferred, inferredDirect
+}
+
+func tracerouteReturnPath(packet *generated.MeshPacket, data *generated.Data, route *generated.RouteDiscovery) ([]string, bool) {
+	destinationID := data.GetDest()
+	if destinationID == 0 {
+		destinationID = packet.GetTo()
+	}
+	sourceID := data.GetSource()
+	if sourceID == 0 {
+		sourceID = packet.GetFrom()
+	}
+
+	raw := nodeIDsFromNums(route.GetRouteBack())
+	if (packet.GetHopStart() > 0 || data.GetBitfield() != 0) && len(route.GetSnrBack()) > 0 {
+		path := make([]string, 0, len(raw)+2)
+		if sourceID != 0 {
+			path = append(path, nodeIDFromNum(sourceID))
+		}
+		path = append(path, raw...)
+		if destinationID != 0 {
+			path = append(path, nodeIDFromNum(destinationID))
+		}
+
+		return path, sourceID != 0 || destinationID != 0
+	}
+	if len(raw) == 0 {
+		return nil, false
+	}
+
+	return raw, false
+}
+
+func nodeIDsFromNums(nums []uint32) []string {
+	if len(nums) == 0 {
+		return nil
+	}
+
+	out := make([]string, 0, len(nums))
+	for _, num := range nums {
+		out = append(out, nodeIDFromNum(num))
+	}
+
+	return out
 }

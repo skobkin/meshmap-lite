@@ -67,33 +67,35 @@ type realWorldTelemetrySample struct {
 }
 
 type realWorldTracerouteSample struct {
-	Name                string `json:"name"`
-	Topic               string `json:"topic"`
-	ChannelPSK          string `json:"channel_psk"`
-	PayloadHex          string `json:"payload_hex"`
-	ExpectedNodeID      string `json:"expected_node_id"`
-	ExpectedGatewayID   string `json:"expected_gateway_id"`
-	ExpectedPacketID    uint32 `json:"expected_packet_id"`
-	ExpectedTimestamp   string `json:"expected_timestamp"`
-	ExpectedHopsTowards int    `json:"expected_hops_towards"`
-	ExpectedHopsBack    int    `json:"expected_hops_back"`
-	ExpectedSnrTowards  int    `json:"expected_snr_towards"`
-	ExpectedSnrBack     int    `json:"expected_snr_back"`
+	Name                   string   `json:"name"`
+	Topic                  string   `json:"topic"`
+	ChannelPSK             string   `json:"channel_psk"`
+	PayloadHex             string   `json:"payload_hex"`
+	ExpectedNodeID         string   `json:"expected_node_id"`
+	ExpectedGatewayID      string   `json:"expected_gateway_id"`
+	ExpectedPacketID       uint32   `json:"expected_packet_id"`
+	ExpectedTimestamp      string   `json:"expected_timestamp"`
+	ExpectedRole           string   `json:"expected_role"`
+	ExpectedStatus         string   `json:"expected_status"`
+	ExpectedRequestID      uint32   `json:"expected_request_id"`
+	ExpectedForwardPath    []string `json:"expected_forward_path"`
+	ExpectedReturnPath     []string `json:"expected_return_path"`
+	ExpectedInferredDirect bool     `json:"expected_inferred_direct"`
 }
 
 type realWorldRoutingSample struct {
-	Name                string `json:"name"`
-	Topic               string `json:"topic"`
-	ChannelPSK          string `json:"channel_psk"`
-	PayloadHex          string `json:"payload_hex"`
-	ExpectedNodeID      string `json:"expected_node_id"`
-	ExpectedGatewayID   string `json:"expected_gateway_id"`
-	ExpectedPacketID    uint32 `json:"expected_packet_id"`
-	ExpectedTimestamp   string `json:"expected_timestamp"`
-	ExpectedVariant     string `json:"expected_variant"`
-	ExpectedErrorReason string `json:"expected_error_reason"`
-	ExpectedHopsTowards int    `json:"expected_hops_towards"`
-	ExpectedHopsBack    int    `json:"expected_hops_back"`
+	Name                  string `json:"name"`
+	Topic                 string `json:"topic"`
+	ChannelPSK            string `json:"channel_psk"`
+	PayloadHex            string `json:"payload_hex"`
+	ExpectedNodeID        string `json:"expected_node_id"`
+	ExpectedGatewayID     string `json:"expected_gateway_id"`
+	ExpectedPacketID      uint32 `json:"expected_packet_id"`
+	ExpectedTimestamp     string `json:"expected_timestamp"`
+	ExpectedVariant       string `json:"expected_variant"`
+	ExpectedErrorReason   string `json:"expected_error_reason"`
+	ExpectedRequestID     uint32 `json:"expected_request_id"`
+	ExpectedTracerouteRef bool   `json:"expected_traceroute_ref"`
 }
 
 type realWorldMapReportSample struct {

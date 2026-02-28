@@ -44,21 +44,26 @@ func TestParseServiceEnvelopeTraceroute(t *testing.T) {
 	ConfigureChannelKeys(nil)
 
 	routePayload, err := proto.Marshal(&generated.RouteDiscovery{
-		Route:      []uint32{0x11111111, 0x22222222},
+		Route:      []uint32{0x11111111},
 		SnrTowards: []int32{1, 2},
-		RouteBack:  []uint32{0x22222222, 0x11111111},
-		SnrBack:    []int32{3, 4},
+		RouteBack:  []uint32{0x22222222},
+		SnrBack:    []int32{3},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	packet := &generated.MeshPacket{
-		From: 0x9028d008,
-		Id:   900,
+		From:     0x9028d008,
+		To:       0xa55e5e56,
+		Id:       900,
+		HopStart: 1,
 		PayloadVariant: &generated.MeshPacket_Decoded{Decoded: &generated.Data{
-			Portnum: generated.PortNum_TRACEROUTE_APP,
-			Payload: routePayload,
+			Portnum:      generated.PortNum_TRACEROUTE_APP,
+			Payload:      routePayload,
+			RequestId:    777,
+			WantResponse: false,
+			Bitfield:     proto.Uint32(1),
 		}},
 	}
 	env := &generated.ServiceEnvelope{Packet: packet, ChannelId: "LongFast", GatewayId: "gw"}
@@ -74,8 +79,17 @@ func TestParseServiceEnvelopeTraceroute(t *testing.T) {
 	if evt.Kind != ParsedTraceroute {
 		t.Fatalf("expected traceroute, got %s", evt.Kind)
 	}
-	if evt.Traceroute == nil || evt.Traceroute.HopsTowards != 2 || evt.Traceroute.HopsBack != 2 {
+	if evt.Traceroute == nil {
 		t.Fatalf("unexpected traceroute payload: %#v", evt.Traceroute)
+	}
+	if evt.Traceroute.Role != "reply" || evt.Traceroute.RequestID != 777 {
+		t.Fatalf("unexpected traceroute semantics: %#v", evt.Traceroute)
+	}
+	if len(evt.Traceroute.ForwardPath) != 3 || evt.Traceroute.ForwardPath[0] != "!a55e5e56" || evt.Traceroute.ForwardPath[2] != "!9028d008" {
+		t.Fatalf("unexpected forward path: %#v", evt.Traceroute.ForwardPath)
+	}
+	if len(evt.Traceroute.ReturnPath) != 3 || evt.Traceroute.ReturnPath[0] != "!9028d008" || evt.Traceroute.ReturnPath[2] != "!a55e5e56" {
+		t.Fatalf("unexpected return path: %#v", evt.Traceroute.ReturnPath)
 	}
 }
 

@@ -243,12 +243,7 @@ func (s *Service) logEventFromParsed(evt meshtastic.ParsedEvent, channel string,
 	case meshtastic.ParsedTraceroute:
 		e.EventKind = domain.LogEventKindTracerouteValue
 		if evt.Traceroute != nil {
-			e.Details = map[string]any{
-				"hops_towards": evt.Traceroute.HopsTowards,
-				"hops_back":    evt.Traceroute.HopsBack,
-				"snr_towards":  evt.Traceroute.SnrTowards,
-				"snr_back":     evt.Traceroute.SnrBack,
-			}
+			e.Details = tracerouteLogDetails(evt.Traceroute)
 		}
 
 		return e, true
@@ -271,14 +266,29 @@ func (s *Service) logEventFromParsed(evt meshtastic.ParsedEvent, channel string,
 			e.Details = map[string]any{
 				"variant": evt.Routing.Variant,
 			}
-			if evt.Routing.HopsTowards > 0 {
-				e.Details["hops_towards"] = evt.Routing.HopsTowards
+			if evt.Routing.RequestID > 0 {
+				e.Details["request_id"] = evt.Routing.RequestID
 			}
-			if evt.Routing.HopsBack > 0 {
-				e.Details["hops_back"] = evt.Routing.HopsBack
+			if evt.Routing.FromNodeID != "" {
+				e.Details["from"] = evt.Routing.FromNodeID
+			}
+			if evt.Routing.ToNodeID != "" {
+				e.Details["to"] = evt.Routing.ToNodeID
+			}
+			if len(evt.Routing.Route) > 0 {
+				e.Details["route"] = evt.Routing.Route
+			}
+			if len(evt.Routing.RouteBack) > 0 {
+				e.Details["route_back"] = evt.Routing.RouteBack
 			}
 			if evt.Routing.ErrorReason != "" {
 				e.Details["error_reason"] = evt.Routing.ErrorReason
+				if evt.Routing.RequestID > 0 && evt.Routing.ErrorReason != "NONE" {
+					e.Details["traceroute_status"] = "failed"
+				}
+			}
+			if evt.Routing.TracerouteRef {
+				e.Details["traceroute_ref"] = true
 			}
 		}
 
@@ -301,6 +311,60 @@ func (s *Service) logEventFromParsed(evt meshtastic.ParsedEvent, channel string,
 	default:
 		return domain.LogEvent{}, false
 	}
+}
+
+func tracerouteLogDetails(in *meshtastic.TraceroutePayload) map[string]any {
+	details := map[string]any{
+		"role":          in.Role,
+		"status":        in.Status,
+		"want_response": in.WantResponse,
+		"hop_start":     in.HopStart,
+		"hop_limit":     in.HopLimit,
+	}
+	if in.RequestID > 0 {
+		details["request_id"] = in.RequestID
+	}
+	if in.ReplyID > 0 {
+		details["reply_id"] = in.ReplyID
+	}
+	if in.FromNodeID != "" {
+		details["from"] = in.FromNodeID
+	}
+	if in.ToNodeID != "" {
+		details["to"] = in.ToNodeID
+	}
+	if len(in.Route) > 0 {
+		details["route"] = in.Route
+	}
+	if len(in.SnrTowards) > 0 {
+		details["forward_snr"] = in.SnrTowards
+	}
+	if len(in.RouteBack) > 0 {
+		details["route_back"] = in.RouteBack
+	}
+	if len(in.SnrBack) > 0 {
+		details["return_snr"] = in.SnrBack
+	}
+	if len(in.ForwardPath) > 0 {
+		details["forward_path"] = in.ForwardPath
+	}
+	if len(in.ReturnPath) > 0 {
+		details["return_path"] = in.ReturnPath
+	}
+	if in.Bitfield > 0 {
+		details["bitfield"] = in.Bitfield
+	}
+	if in.InferredForwardPath {
+		details["inferred_forward_path"] = true
+	}
+	if in.InferredReturnPath {
+		details["inferred_return_path"] = true
+	}
+	if in.InferredDirect {
+		details["inferred_direct"] = true
+	}
+
+	return details
 }
 
 func (s *Service) allowLogEvent(topicKind meshtastic.TopicKind, channel string, kind meshtastic.ParsedKind) bool {
