@@ -299,6 +299,8 @@ ORDER BY n.last_seen_any_event_at DESC`)
 		items = append(items, repo.NodeSummary{
 			NodeID:             id,
 			DisplayName:        displayName(longName, shortName, id),
+			LongName:           longName,
+			ShortName:          shortName,
 			LastSeenAnyEventAt: la,
 			LastSeenPositionAt: parseNullableTime(lastPos),
 			LastSeenMQTTAt:     parseNullableTime(lastMQTT),

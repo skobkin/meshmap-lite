@@ -1,9 +1,10 @@
 import type { ComponentChildren } from 'preact'
-import type { NodeDetails } from '../api/types'
+import { useState } from 'preact/hooks'
+import type { NodeDetails, NodeSummary } from '../api/types'
 import { relativeTime } from '../utils/time'
 
 interface Props {
-  items: Array<{ node_id: string; display_name: string; role?: string }>
+  items: NodeSummary[]
   selected?: string
   details?: NodeDetails
   loadError?: string
@@ -112,18 +113,43 @@ function detailSections(details: NodeDetails): DetailSection[] {
   ].filter((section) => section.rows.length > 0)
 }
 
+function matchesFilter(item: NodeSummary, rawFilter: string): boolean {
+  const filter = rawFilter.trim().toLowerCase()
+  if (!filter) return true
+
+  return [
+    item.node_id,
+    item.short_name,
+    item.long_name
+  ].some((value) => value?.toLowerCase().includes(filter))
+}
+
 export function NodesPage({ items, selected, details, loadError, onSelect }: Props) {
+  const [filter, setFilter] = useState('')
   const sections = details ? detailSections(details) : []
+  const filteredItems = items.filter((item) => matchesFilter(item, filter))
 
   return (
     <section className="nodes-layout container-fluid">
-      <article className="node-list">
-        {loadError && <p className="load-error">{loadError}</p>}
-        {items.map((n) => (
-          <a key={n.node_id} href="#" className={selected === n.node_id ? 'active' : ''} onClick={(e) => { e.preventDefault(); onSelect(n.node_id) }}>
-            <strong>{n.display_name}</strong>
-          </a>
-        ))}
+      <article className="node-list-panel">
+        <input
+          id="nodes-filter"
+          type="search"
+          className="node-list-filter"
+          aria-label="Filter nodes"
+          placeholder="Name or ID"
+          value={filter}
+          onInput={(e) => setFilter((e.currentTarget as HTMLInputElement).value)}
+        />
+        <div className="node-list" role="list">
+          {loadError && <p className="load-error">{loadError}</p>}
+          {filteredItems.map((n) => (
+            <a key={n.node_id} href="#" className={selected === n.node_id ? 'active' : ''} onClick={(e) => { e.preventDefault(); onSelect(n.node_id) }}>
+              <strong>{n.display_name}</strong>
+            </a>
+          ))}
+          {!loadError && filteredItems.length === 0 && <p className="node-list-empty">No matching nodes.</p>}
+        </div>
       </article>
       <article className="node-details">
         {details ? (

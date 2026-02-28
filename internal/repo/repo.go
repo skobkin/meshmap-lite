@@ -33,6 +33,8 @@ type MapNode struct {
 type NodeSummary struct {
 	NodeID             string     `json:"node_id"`
 	DisplayName        string     `json:"display_name"`
+	LongName           string     `json:"long_name,omitempty"`
+	ShortName          string     `json:"short_name,omitempty"`
 	LastSeenAnyEventAt time.Time  `json:"last_seen_any_event_at"`
 	LastSeenPositionAt *time.Time `json:"last_seen_position_at,omitempty"`
 	LastSeenMQTTAt     *time.Time `json:"last_seen_mqtt_gateway_at,omitempty"`

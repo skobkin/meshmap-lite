@@ -66,6 +66,8 @@ export interface ChatEvent {
 export interface NodeSummary {
   node_id: string
   display_name: string
+  long_name?: string
+  short_name?: string
   last_seen_any_event_at: string
   last_seen_mqtt_gateway_at?: string
   has_position: boolean
