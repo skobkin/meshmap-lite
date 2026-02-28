@@ -66,6 +66,36 @@ type realWorldTelemetrySample struct {
 	ExpectedBatteryPct float64 `json:"expected_battery_level"`
 }
 
+type realWorldTracerouteSample struct {
+	Name                string `json:"name"`
+	Topic               string `json:"topic"`
+	ChannelPSK          string `json:"channel_psk"`
+	PayloadHex          string `json:"payload_hex"`
+	ExpectedNodeID      string `json:"expected_node_id"`
+	ExpectedGatewayID   string `json:"expected_gateway_id"`
+	ExpectedPacketID    uint32 `json:"expected_packet_id"`
+	ExpectedTimestamp   string `json:"expected_timestamp"`
+	ExpectedHopsTowards int    `json:"expected_hops_towards"`
+	ExpectedHopsBack    int    `json:"expected_hops_back"`
+	ExpectedSnrTowards  int    `json:"expected_snr_towards"`
+	ExpectedSnrBack     int    `json:"expected_snr_back"`
+}
+
+type realWorldRoutingSample struct {
+	Name                string `json:"name"`
+	Topic               string `json:"topic"`
+	ChannelPSK          string `json:"channel_psk"`
+	PayloadHex          string `json:"payload_hex"`
+	ExpectedNodeID      string `json:"expected_node_id"`
+	ExpectedGatewayID   string `json:"expected_gateway_id"`
+	ExpectedPacketID    uint32 `json:"expected_packet_id"`
+	ExpectedTimestamp   string `json:"expected_timestamp"`
+	ExpectedVariant     string `json:"expected_variant"`
+	ExpectedErrorReason string `json:"expected_error_reason"`
+	ExpectedHopsTowards int    `json:"expected_hops_towards"`
+	ExpectedHopsBack    int    `json:"expected_hops_back"`
+}
+
 type realWorldMapReportSample struct {
 	Name                       string  `json:"name"`
 	Topic                      string  `json:"topic"`
@@ -114,6 +144,20 @@ func readFixtureFile(t *testing.T, name string) []byte {
 		return data
 	case "real_world_telemetry_samples.json":
 		data, err := os.ReadFile("testdata/real_world_telemetry_samples.json")
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+
+		return data
+	case "real_world_traceroute_samples.json":
+		data, err := os.ReadFile("testdata/real_world_traceroute_samples.json")
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+
+		return data
+	case "real_world_routing_samples.json":
+		data, err := os.ReadFile("testdata/real_world_routing_samples.json")
 		if err != nil {
 			t.Fatalf("read %s: %v", name, err)
 		}
@@ -178,6 +222,32 @@ func loadRealWorldTelemetrySamples(t *testing.T, name string) []realWorldTelemet
 	data := readFixtureFile(t, name)
 
 	var samples []realWorldTelemetrySample
+	if err := json.Unmarshal(data, &samples); err != nil {
+		t.Fatalf("decode %s: %v", name, err)
+	}
+
+	return samples
+}
+
+func loadRealWorldTracerouteSamples(t *testing.T, name string) []realWorldTracerouteSample {
+	t.Helper()
+
+	data := readFixtureFile(t, name)
+
+	var samples []realWorldTracerouteSample
+	if err := json.Unmarshal(data, &samples); err != nil {
+		t.Fatalf("decode %s: %v", name, err)
+	}
+
+	return samples
+}
+
+func loadRealWorldRoutingSamples(t *testing.T, name string) []realWorldRoutingSample {
+	t.Helper()
+
+	data := readFixtureFile(t, name)
+
+	var samples []realWorldRoutingSample
 	if err := json.Unmarshal(data, &samples); err != nil {
 		t.Fatalf("decode %s: %v", name, err)
 	}

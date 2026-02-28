@@ -356,3 +356,105 @@ func TestParsePayloadRealWorldTelemetrySamples(t *testing.T) {
 		})
 	}
 }
+
+func TestParsePayloadRealWorldTracerouteSamples(t *testing.T) {
+	for _, sample := range loadRealWorldTracerouteSamples(t, "real_world_traceroute_samples.json") {
+		t.Run(sample.Name, func(t *testing.T) {
+			ConfigureChannelKeys(map[string]string{"LongFast": sample.ChannelPSK})
+
+			info := ClassifyTopic("msh/RU/ARKH", "2/map", sample.Topic)
+			if info.Kind != TopicKindChannel {
+				t.Fatalf("expected channel topic kind, got %q", info.Kind)
+			}
+			if info.GatewayID != sample.ExpectedGatewayID {
+				t.Fatalf("unexpected gateway id: got %q want %q", info.GatewayID, sample.ExpectedGatewayID)
+			}
+
+			evt, err := ParsePayload(info.Kind, mustDecodeFixtureHex(t, sample.PayloadHex), info.Channel, info.MapNodeID)
+			if err != nil {
+				t.Fatalf("parse payload: %v", err)
+			}
+			if evt.Kind != ParsedTraceroute {
+				t.Fatalf("unexpected kind: got %q want %q", evt.Kind, ParsedTraceroute)
+			}
+			if evt.NodeID != sample.ExpectedNodeID {
+				t.Fatalf("unexpected node id: got %q want %q", evt.NodeID, sample.ExpectedNodeID)
+			}
+			if evt.PacketID != sample.ExpectedPacketID {
+				t.Fatalf("unexpected packet id: got %d want %d", evt.PacketID, sample.ExpectedPacketID)
+			}
+			if !evt.Encrypted || !evt.Decrypted {
+				t.Fatalf("expected decrypted encrypted event, got encrypted=%v decrypted=%v", evt.Encrypted, evt.Decrypted)
+			}
+			if !evt.Timestamp.Equal(mustParseFixtureTimestamp(t, sample.ExpectedTimestamp)) {
+				t.Fatalf("unexpected timestamp: got %s want %s", evt.Timestamp.UTC().Format(time.RFC3339), sample.ExpectedTimestamp)
+			}
+			if evt.Traceroute == nil {
+				t.Fatalf("missing traceroute payload")
+			}
+			if evt.Traceroute.HopsTowards != sample.ExpectedHopsTowards {
+				t.Fatalf("unexpected hops towards: got %d want %d", evt.Traceroute.HopsTowards, sample.ExpectedHopsTowards)
+			}
+			if evt.Traceroute.HopsBack != sample.ExpectedHopsBack {
+				t.Fatalf("unexpected hops back: got %d want %d", evt.Traceroute.HopsBack, sample.ExpectedHopsBack)
+			}
+			if evt.Traceroute.SnrTowards != sample.ExpectedSnrTowards {
+				t.Fatalf("unexpected snr towards count: got %d want %d", evt.Traceroute.SnrTowards, sample.ExpectedSnrTowards)
+			}
+			if evt.Traceroute.SnrBack != sample.ExpectedSnrBack {
+				t.Fatalf("unexpected snr back count: got %d want %d", evt.Traceroute.SnrBack, sample.ExpectedSnrBack)
+			}
+		})
+	}
+}
+
+func TestParsePayloadRealWorldRoutingSamples(t *testing.T) {
+	for _, sample := range loadRealWorldRoutingSamples(t, "real_world_routing_samples.json") {
+		t.Run(sample.Name, func(t *testing.T) {
+			ConfigureChannelKeys(map[string]string{"LongFast": sample.ChannelPSK})
+
+			info := ClassifyTopic("msh/RU/ARKH", "2/map", sample.Topic)
+			if info.Kind != TopicKindChannel {
+				t.Fatalf("expected channel topic kind, got %q", info.Kind)
+			}
+			if info.GatewayID != sample.ExpectedGatewayID {
+				t.Fatalf("unexpected gateway id: got %q want %q", info.GatewayID, sample.ExpectedGatewayID)
+			}
+
+			evt, err := ParsePayload(info.Kind, mustDecodeFixtureHex(t, sample.PayloadHex), info.Channel, info.MapNodeID)
+			if err != nil {
+				t.Fatalf("parse payload: %v", err)
+			}
+			if evt.Kind != ParsedRouting {
+				t.Fatalf("unexpected kind: got %q want %q", evt.Kind, ParsedRouting)
+			}
+			if evt.NodeID != sample.ExpectedNodeID {
+				t.Fatalf("unexpected node id: got %q want %q", evt.NodeID, sample.ExpectedNodeID)
+			}
+			if evt.PacketID != sample.ExpectedPacketID {
+				t.Fatalf("unexpected packet id: got %d want %d", evt.PacketID, sample.ExpectedPacketID)
+			}
+			if !evt.Encrypted || !evt.Decrypted {
+				t.Fatalf("expected decrypted encrypted event, got encrypted=%v decrypted=%v", evt.Encrypted, evt.Decrypted)
+			}
+			if !evt.Timestamp.Equal(mustParseFixtureTimestamp(t, sample.ExpectedTimestamp)) {
+				t.Fatalf("unexpected timestamp: got %s want %s", evt.Timestamp.UTC().Format(time.RFC3339), sample.ExpectedTimestamp)
+			}
+			if evt.Routing == nil {
+				t.Fatalf("missing routing payload")
+			}
+			if evt.Routing.Variant != sample.ExpectedVariant {
+				t.Fatalf("unexpected routing variant: got %q want %q", evt.Routing.Variant, sample.ExpectedVariant)
+			}
+			if evt.Routing.ErrorReason != sample.ExpectedErrorReason {
+				t.Fatalf("unexpected routing error reason: got %q want %q", evt.Routing.ErrorReason, sample.ExpectedErrorReason)
+			}
+			if evt.Routing.HopsTowards != sample.ExpectedHopsTowards {
+				t.Fatalf("unexpected hops towards: got %d want %d", evt.Routing.HopsTowards, sample.ExpectedHopsTowards)
+			}
+			if evt.Routing.HopsBack != sample.ExpectedHopsBack {
+				t.Fatalf("unexpected hops back: got %d want %d", evt.Routing.HopsBack, sample.ExpectedHopsBack)
+			}
+		})
+	}
+}

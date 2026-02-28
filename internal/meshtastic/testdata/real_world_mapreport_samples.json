@@ -18,5 +18,25 @@
     "expected_longitude": 39.8262272,
     "expected_altitude_m": 12,
     "expected_position_precision": 15
+  },
+  {
+    "name": "map_report_arkh_07",
+    "topic": "msh/RU/ARKH/2/map/",
+    "payload_hex": "0a490d08d0289015ffffffff223d084912390a0761726b682d30371204616d3037180c20432a0e322e372e31382e66623362663738300940014d00007b265500002718580a600f680d700112064d79546573741a09213930323864303038",
+    "expected_node_id": "!9028d008",
+    "expected_long_name": "arkh-07",
+    "expected_short_name": "am07",
+    "expected_role": "CLIENT_BASE",
+    "expected_board_model": "HELTEC_VISION_MASTER_E213",
+    "expected_firmware_version": "2.7.18.fb3bf78",
+    "expected_lora_region": "RU",
+    "expected_modem_preset": "LONG_FAST",
+    "expected_has_default_channel": true,
+    "expected_has_opted_report_location": true,
+    "expected_neighbor_nodes_count": 13,
+    "expected_latitude": 64.5595136,
+    "expected_longitude": 40.5209088,
+    "expected_altitude_m": 10,
+    "expected_position_precision": 15
   }
 ]

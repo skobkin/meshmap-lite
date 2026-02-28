@@ -1,0 +1,30 @@
+[
+  {
+    "name": "default_longfast_traceroute_unsuccessful_no_route_details",
+    "topic": "msh/RU/ARKH/2/e/LongFast/!9028d008",
+    "channel_psk": "AQ==",
+    "payload_hex": "0a3e0d565e5ea515b4e3789e18082a06f9c6dc4b75103521c8fcfd3ddf18a369450000d8404807500160caffffffffffffffff0178079001b401980156a8010112084c6f6e67466173741a09213930323864303038",
+    "expected_node_id": "!a55e5e56",
+    "expected_gateway_id": "!9028d008",
+    "expected_packet_id": 4261201953,
+    "expected_timestamp": "2026-02-28T16:33:35Z",
+    "expected_hops_towards": 0,
+    "expected_hops_back": 0,
+    "expected_snr_towards": 0,
+    "expected_snr_back": 0
+  },
+  {
+    "name": "default_longfast_traceroute_direct_link_request",
+    "topic": "msh/RU/ARKH/2/e/LongFast/!9028d008",
+    "channel_psk": "AQ==",
+    "payload_hex": "0a3e0d565e5ea515f809856918082a067544a32285e03523c8fcfd3d8c19a369450000c0404807500160caffffffffffffffff0178079001f801980156a8010112084c6f6e67466173741a09213930323864303038",
+    "expected_node_id": "!a55e5e56",
+    "expected_gateway_id": "!9028d008",
+    "expected_packet_id": 4261201955,
+    "expected_timestamp": "2026-02-28T16:36:28Z",
+    "expected_hops_towards": 0,
+    "expected_hops_back": 0,
+    "expected_snr_towards": 0,
+    "expected_snr_back": 0
+  }
+]
