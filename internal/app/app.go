@@ -56,7 +56,7 @@ func Run(configPath string) error {
 	}
 	defer func() { _ = store.Close() }()
 
-	hub := ws.NewHub(logMgr.Logger("internal/api/ws"))
+	hub := ws.NewHub(logMgr.Logger("internal/api/ws"), ws.Options{})
 	dedupStore := dedup.New(dedup.Options{
 		Size: cfg.Storage.KV.Size,
 		TTL:  cfg.Storage.KV.TTL,
@@ -70,7 +70,20 @@ func Run(configPath string) error {
 	}, store, dedupStore, hub, logMgr.Logger("internal/ingest"))
 
 	var mqttReady atomic.Bool
-	mqtt := mqttclient.New(cfg.MQTT, logMgr.Logger("internal/mqttclient"), func(topic string, payload []byte) {
+	mqtt := mqttclient.New(mqttclient.Options{
+		Host:             cfg.MQTT.Host,
+		Port:             cfg.MQTT.Port,
+		TLS:              cfg.MQTT.TLS,
+		ClientID:         cfg.MQTT.ClientID,
+		Username:         cfg.MQTT.Username,
+		Password:         cfg.MQTT.Password,
+		RootTopic:        cfg.MQTT.RootTopic,
+		SubscribeQoS:     cfg.MQTT.SubscribeQoS,
+		CleanSession:     cfg.MQTT.CleanSession,
+		ReconnectTimeout: cfg.MQTT.ReconnectTimeout,
+		ConnectTimeout:   cfg.MQTT.ConnectTimeout,
+		Keepalive:        cfg.MQTT.Keepalive,
+	}, logMgr.Logger("internal/mqttclient"), func(topic string, payload []byte) {
 		mqttReady.Store(true)
 		ing.HandleMessage(ctx, topic, payload)
 	})
