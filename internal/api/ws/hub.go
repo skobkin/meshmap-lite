@@ -54,6 +54,11 @@ func (h *Hub) register(conn *websocket.Conn, r *http.Request) *client {
 
 func (h *Hub) unregister(client *client) {
 	h.mu.Lock()
+	if _, ok := h.clients[client]; !ok {
+		h.mu.Unlock()
+
+		return
+	}
 	delete(h.clients, client)
 	count := len(h.clients)
 	h.mu.Unlock()

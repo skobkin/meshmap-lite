@@ -21,10 +21,18 @@ func (h *Hub) Emit(event domain.RealtimeEvent) {
 	clients := h.snapshotClients()
 	h.log.Debug("ws broadcast", "event_type", event.Type, "clients", len(clients))
 	for _, client := range clients {
-		_ = client.conn.SetWriteDeadline(time.Now().Add(h.opts.WriteTimeout))
-		if err := client.conn.WriteMessage(websocket.TextMessage, body); err != nil {
+		if err := client.write(body, h.opts.WriteTimeout); err != nil {
 			h.log.Warn("ws write failed; dropping client", "remote_addr", client.remoteAddr, "err", err)
 			h.unregister(client)
 		}
 	}
+}
+
+func (c *client) write(body []byte, timeout time.Duration) error {
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+
+	_ = c.conn.SetWriteDeadline(time.Now().Add(timeout))
+
+	return c.conn.WriteMessage(websocket.TextMessage, body)
 }

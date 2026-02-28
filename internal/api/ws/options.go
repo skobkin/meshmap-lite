@@ -2,6 +2,7 @@ package ws
 
 import (
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -22,10 +23,17 @@ type client struct {
 	conn       *websocket.Conn
 	remoteAddr string
 	userAgent  string
+	writeMu    sync.Mutex
+	closeOnce  sync.Once
 }
 
 func (c *client) close() error {
-	return c.conn.Close()
+	var err error
+	c.closeOnce.Do(func() {
+		err = c.conn.Close()
+	})
+
+	return err
 }
 
 func (o Options) withDefaults() Options {
