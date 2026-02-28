@@ -102,15 +102,7 @@ Notes:
 
 ## API
 
-- `GET /healthz`
-- `GET /readyz`
-- `GET /api/v1/meta`
-- `GET /api/v1/channels`
-- `GET /api/v1/map/nodes`
-- `GET /api/v1/chat/messages?channel=<name>&limit=<n>&before=<cursor>`
-- `GET /api/v1/nodes`
-- `GET /api/v1/nodes/{node_id}`
-- `GET /api/v1/ws`
+Detailed HTTP and WebSocket contract documentation lives in [`docs/api.md`](docs/api.md).
 
 ## Notes
 

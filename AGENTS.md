@@ -124,6 +124,7 @@
 
 - Keep REST and WebSocket payloads explicit and versioned under `/api/v1`.
 - Do not introduce ad-hoc payload shape changes without updating the typed client DTOs.
+- Keep `docs/api.md` in sync with the implemented handlers, query parameters, payload shapes, and event types in the same change.
 - Use one WebSocket stream for all live events (`chat.*`, `node.*`, `stats`, heartbeat).
 - Preserve backwards compatibility within the same PR unless the change is intentional and documented.
 
@@ -181,6 +182,7 @@ Before finishing work and saying it is done, run the same baseline checks as CI 
     - and/or update `Current Status` with a short progress summary
 - Do not claim work is done if required checks fail.
 - If API/WS payloads changed, ensure frontend and backend are updated together.
+- If API routes, query parameters, WebSocket events, or payload shapes changed, update `docs/api.md` in the same change.
 
 ---
 
