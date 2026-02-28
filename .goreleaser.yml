@@ -38,6 +38,18 @@ checksum:
 
 changelog:
   sort: asc
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]-]+\))?!?:.+$'
+      order: 0
+    - title: Fixes
+      regexp: '^.*?fix(\([[:word:]-]+\))?!?:.+$'
+      order: 1
+    - title: Reverts
+      regexp: '^.*?[Rr]evert\b.*$'
+      order: 999
+    - title: Other Changes
+      order: 1000
   filters:
     exclude:
       - '^build(\([^)]*\))?!?:'
