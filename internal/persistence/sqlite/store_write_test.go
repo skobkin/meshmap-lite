@@ -131,3 +131,54 @@ func TestInsertLogEvent_CachesChannelIDs(t *testing.T) {
 		t.Fatalf("expected one cached log channel id, got %d", len(s.logChannelIDs))
 	}
 }
+
+func TestGetNodeDetails_WithTelemetryOnSingleConnection(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, config.SQLConfig{URL: "file::memory:?cache=shared", AutoMigrate: true}, nil)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	if _, err := s.UpsertNode(ctx, domain.Node{
+		NodeID:             "!dddd4444",
+		LongName:           "Delta",
+		FirstSeenAt:        now,
+		LastSeenAnyEventAt: now,
+		UpdatedAt:          now,
+	}); err != nil {
+		t.Fatalf("upsert node: %v", err)
+	}
+	if err := s.MergeTelemetry(ctx, domain.NodeTelemetrySnapshot{
+		NodeID:     "!dddd4444",
+		ObservedAt: now,
+		UpdatedAt:  now,
+		Power: domain.TelemetrySectionPower{
+			Voltage: ptrFloat64(4.1),
+		},
+	}); err != nil {
+		t.Fatalf("merge telemetry: %v", err)
+	}
+
+	detailsCtx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
+	defer cancel()
+
+	details, err := s.GetNodeDetails(detailsCtx, "!dddd4444")
+	if err != nil {
+		t.Fatalf("get node details: %v", err)
+	}
+	if details.Node.NodeID != "!dddd4444" {
+		t.Fatalf("expected node id !dddd4444, got %q", details.Node.NodeID)
+	}
+	if details.Telemetry == nil {
+		t.Fatalf("expected telemetry to be loaded")
+	}
+	if details.Telemetry.Power.Voltage == nil || *details.Telemetry.Power.Voltage != 4.1 {
+		t.Fatalf("expected voltage 4.1, got %#v", details.Telemetry.Power.Voltage)
+	}
+}
+
+func ptrFloat64(v float64) *float64 {
+	return &v
+}

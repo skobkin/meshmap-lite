@@ -469,6 +469,12 @@ WHERE n.node_id=?`, nodeID)
 	} else {
 		return d, sql.ErrNoRows
 	}
+	if err := rows.Close(); err != nil {
+		return d, err
+	}
+	if err := rows.Err(); err != nil {
+		return d, err
+	}
 	t, _ := s.getTelemetry(ctx, nodeID)
 	if t.NodeID != "" {
 		d.Telemetry = &t

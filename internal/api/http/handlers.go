@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"net/http"
@@ -51,6 +52,11 @@ func (s *Server) channels(w http.ResponseWriter, _ *http.Request) {
 func (s *Server) mapNodes(w http.ResponseWriter, r *http.Request) {
 	items, err := s.store.GetMapNodes(r.Context())
 	if err != nil {
+		if isRequestCanceled(err) {
+			s.log.Debug("map nodes canceled", "err", err)
+
+			return
+		}
 		s.log.Error("map nodes", "err", err)
 		writeError(w, http.StatusInternalServerError, "internal_error")
 
@@ -63,6 +69,11 @@ func (s *Server) chatMessages(w http.ResponseWriter, r *http.Request) {
 	query := parseChatQuery(r.URL.Query(), s.cfg.Web.Chat)
 	items, err := s.store.ListChatEvents(r.Context(), query)
 	if err != nil {
+		if isRequestCanceled(err) {
+			s.log.Debug("chat messages canceled", "channel", query.Channel, "err", err)
+
+			return
+		}
 		s.log.Error("chat messages", "err", err)
 		writeError(w, http.StatusInternalServerError, "internal_error")
 
@@ -75,6 +86,11 @@ func (s *Server) logEvents(w http.ResponseWriter, r *http.Request) {
 	query := parseLogQuery(r.URL.Query(), s.cfg.Web.Log)
 	items, err := s.store.ListLogEvents(r.Context(), query)
 	if err != nil {
+		if isRequestCanceled(err) {
+			s.log.Debug("log events canceled", "err", err)
+
+			return
+		}
 		s.log.Error("log events", "err", err)
 		writeError(w, http.StatusInternalServerError, "internal_error")
 
@@ -86,6 +102,11 @@ func (s *Server) logEvents(w http.ResponseWriter, r *http.Request) {
 func (s *Server) nodes(w http.ResponseWriter, r *http.Request) {
 	items, err := s.store.ListNodes(r.Context())
 	if err != nil {
+		if isRequestCanceled(err) {
+			s.log.Debug("list nodes canceled", "err", err)
+
+			return
+		}
 		s.log.Error("list nodes", "err", err)
 		writeError(w, http.StatusInternalServerError, "internal_error")
 
@@ -109,10 +130,19 @@ func (s *Server) nodeByID(w http.ResponseWriter, r *http.Request) {
 
 			return
 		}
+		if isRequestCanceled(err) {
+			s.log.Debug("get node canceled", "node_id", nodeID, "err", err)
+
+			return
+		}
 		s.log.Error("get node", "node_id", nodeID, "err", err)
 		writeError(w, http.StatusInternalServerError, "internal_error")
 
 		return
 	}
 	writeJSON(w, http.StatusOK, item)
+}
+
+func isRequestCanceled(err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
 }
