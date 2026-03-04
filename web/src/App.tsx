@@ -250,7 +250,6 @@ export function App() {
 
   useEffect(() => {
     if (page !== 'log') return
-    if (logsLoading) return
     if (!bootstrapDone) return
 
     const requestKey = JSON.stringify({
@@ -287,7 +286,7 @@ export function App() {
       })
 
     return () => controller.abort()
-  }, [page, bootstrapDone, logLoadedOnce, logFilters.eventKinds, logFilters.channel, logsLoading, meta?.log_page_size_default, setLogInitial, setLogLoadError])
+  }, [page, bootstrapDone, logLoadedOnce, logFilters.eventKinds, logFilters.channel, meta?.log_page_size_default, setLogInitial, setLogLoadError])
 
   useEffect(() => {
     if (!channels.length || !channel) return
