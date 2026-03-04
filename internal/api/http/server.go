@@ -21,6 +21,8 @@ type Server struct {
 
 // Config contains the subset of app config required by the HTTP API.
 type Config struct {
+	AppName  string
+	Version  string
 	Web      config.WebConfig
 	Channels map[string]config.ChannelConfig
 }

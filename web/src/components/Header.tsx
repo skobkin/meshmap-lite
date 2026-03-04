@@ -2,17 +2,21 @@ import type { WSState, WSStats } from '../api/types'
 import { ConnectionStatus } from './ConnectionStatus'
 
 interface Props {
+  appName: string
   page: 'map' | 'nodes' | 'log'
+  version: string
   ws: WSState
   wsStats: WSStats | null
   onPage: (p: 'map' | 'nodes' | 'log') => void
 }
 
-export function Header({ page, ws, wsStats, onPage }: Props) {
+export function Header({ appName, page, version, ws, wsStats, onPage }: Props) {
+  const brandTitle = `${appName} ${version}`
+
   return (
     <header className="topbar container-fluid">
-      <a className="brand-logo" href="/" aria-label="MeshMap Lite">
-        <img src="/static/icons/favicon.svg" alt="MeshMap Lite" />
+      <a className="brand-logo" href="/" aria-label={appName} title={brandTitle}>
+        <img src="/static/icons/favicon.svg" alt={appName} />
       </a>
       <nav className="view-switch" aria-label="View">
         <ul>

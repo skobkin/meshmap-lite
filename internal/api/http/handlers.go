@@ -22,7 +22,8 @@ func (s *Server) readyz(w http.ResponseWriter, _ *http.Request) {
 
 func (s *Server) meta(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, metaPayload{
-		Version:               "dev",
+		AppName:               s.cfg.AppName,
+		Version:               s.cfg.Version,
 		WebsocketPath:         "/api/v1/ws",
 		ChatEnabled:           s.cfg.Web.Chat.Enabled,
 		DefaultChatChannel:    s.cfg.Web.Chat.DefaultChannel,

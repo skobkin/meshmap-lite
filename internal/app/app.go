@@ -13,6 +13,7 @@ import (
 
 	httpapi "meshmap-lite/internal/api/http"
 	"meshmap-lite/internal/api/ws"
+	"meshmap-lite/internal/buildinfo"
 	"meshmap-lite/internal/config"
 	"meshmap-lite/internal/dedup"
 	"meshmap-lite/internal/frontend"
@@ -39,6 +40,8 @@ func Run(configPath string) error {
 	}
 	log := logMgr.Logger("internal/app")
 	log.Info("app starting",
+		"app_name", buildinfo.AppName,
+		"version", buildinfo.Version,
 		"http_listen_addr", cfg.Web.ListenAddr,
 		"mqtt_host", cfg.MQTT.Host,
 		"mqtt_port", cfg.MQTT.Port,
@@ -89,6 +92,8 @@ func Run(configPath string) error {
 	})
 
 	api := httpapi.New(httpapi.Config{
+		AppName:  buildinfo.AppName,
+		Version:  buildinfo.Version,
 		Web:      cfg.Web,
 		Channels: cfg.Channels,
 	}, store, logMgr.Logger("internal/api/http"), mqttReady.Load, hub.ClientCount)

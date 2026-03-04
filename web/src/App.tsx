@@ -15,6 +15,8 @@ const mapViewKey = 'meshmap-lite.map.view'
 const mapHashLatParam = 'lat'
 const mapHashLngParam = 'lng'
 const mapHashZoomParam = 'z'
+const defaultAppName = 'MeshMap Lite'
+const defaultAppVersion = 'dev'
 
 interface SavedMapView {
   center: [number, number]
@@ -351,7 +353,14 @@ export function App() {
 
   return (
     <main className={mainClass}>
-      <Header page={page} ws={ws} wsStats={wsStats} onPage={setPage} />
+      <Header
+        appName={meta?.app_name ?? defaultAppName}
+        page={page}
+        version={meta?.version ?? defaultAppVersion}
+        ws={ws}
+        wsStats={wsStats}
+        onPage={setPage}
+      />
       {bannerText && <p className="banner warning" role="alert">{bannerText}</p>}
       {page === 'map' && (
         <MapPage

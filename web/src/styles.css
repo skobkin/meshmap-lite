@@ -82,6 +82,8 @@ body {
 .brand-logo {
   display: inline-flex;
   align-items: center;
+  justify-self: start;
+  width: auto;
   height: 100%;
 }
 

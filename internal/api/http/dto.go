@@ -9,6 +9,7 @@ type errorPayload struct {
 }
 
 type metaPayload struct {
+	AppName               string         `json:"app_name"`
 	Version               string         `json:"version"`
 	WebsocketPath         string         `json:"websocket_path"`
 	ChatEnabled           bool           `json:"chat_enabled"`

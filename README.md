@@ -25,6 +25,12 @@ Lightweight read-only Meshtastic regional map and chat viewer.
 1. `go run ./cmd/server --config ./config.example.yaml`
 2. Open `http://localhost:8080`
 
+Local builds report version `dev` by default. Tagged release builds can embed the exact Git tag into the binary via:
+
+```bash
+go build -ldflags "-X meshmap-lite/internal/buildinfo.Version=$(git describe --exact-match --tags 2>/dev/null || echo dev)" ./cmd/server
+```
+
 ## Run in Docker
 
 Docker images are available for deploy from these registries:

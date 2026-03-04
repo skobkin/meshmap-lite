@@ -105,6 +105,8 @@ export interface NodeTelemetry {
 }
 
 export interface Meta {
+  app_name: string
+  version: string
   websocket_path: string
   default_chat_channel: string
   show_recent_messages: number

@@ -9,12 +9,13 @@ RUN npm run build
 
 FROM golang:1.25-alpine AS go-build
 WORKDIR /src
+ARG VERSION=dev
 COPY go.mod go.sum ./
 RUN go mod download
 COPY cmd ./cmd
 COPY internal ./internal
 COPY --from=web-build /src/web/dist ./web/dist
-RUN go build -trimpath -ldflags='-s -w' -o /out/server ./cmd/server
+RUN go build -trimpath -ldflags="-s -w -X meshmap-lite/internal/buildinfo.Version=${VERSION}" -o /out/server ./cmd/server
 
 FROM alpine:3.23
 LABEL org.opencontainers.image.source="https://github.com/skobkin/meshmap-lite"
