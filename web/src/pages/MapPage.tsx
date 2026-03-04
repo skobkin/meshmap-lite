@@ -104,7 +104,10 @@ export function MapPage({ center, zoom, clustering, channels, disconnectedThresh
   }, [selectedId])
 
   const focusNodeFromChat = (id: string) => {
-    if (adapterRef.current?.focusNode(id)) {
+    const mapNode = nodes.find((item) => item.node.node_id === id)
+    if (mapNode?.position) {
+      setSelectedId(id)
+      adapterRef.current?.focusNode(id)
       return
     }
     onOpenNodeDetails(id)
