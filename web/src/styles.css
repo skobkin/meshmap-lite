@@ -320,6 +320,20 @@ body {
   font-size: 0.9rem;
 }
 
+.chat-node-link {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.chat-node-link:hover mark,
+.chat-node-link:focus-visible mark {
+  filter: brightness(0.95);
+}
+
 .chat-day-separator {
   display: flex;
   align-items: center;

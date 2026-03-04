@@ -21,13 +21,22 @@ function readSidebarState(): boolean {
   return localStorage.getItem(sidebarStateKey) === '1'
 }
 
-function renderChatTimeline(messages: ChatEvent[], nodeNameByID: Map<string, string>, systemText: (code?: string) => string) {
+interface ChatTimelineOptions {
+  clickableNodeIDs: Set<string>
+  nodeNameByID: Map<string, string>
+  onSelectNode: (id: string) => void
+  systemText: (code?: string) => string
+}
+
+function renderChatTimeline(messages: ChatEvent[], { clickableNodeIDs, nodeNameByID, onSelectNode, systemText }: ChatTimelineOptions) {
   let previousDay = ''
 
   return messages.map((m) => {
     const currentDay = dayKey(m.observed_at)
     const needsSeparator = currentDay !== previousDay
     previousDay = currentDay
+    const isNodeClickable = typeof m.node_id === 'string' && clickableNodeIDs.has(m.node_id)
+    const nodeLabel = m.node_id ? (nodeNameByID.get(m.node_id) ?? m.node_id) : 'system'
 
     return (
       <Fragment key={m.id}>
@@ -37,7 +46,15 @@ function renderChatTimeline(messages: ChatEvent[], nodeNameByID: Map<string, str
           </div>
         )}
         <p className={m.event_type === 'system' ? 'system' : ''}>
-          <code>{hhmm(m.observed_at)}</code> <mark>{m.node_id ? (nodeNameByID.get(m.node_id) ?? m.node_id) : 'system'}</mark> {m.event_type === 'system' ? systemText(m.system_code) : (m.message_text ?? '')}
+          <code>{hhmm(m.observed_at)}</code>{' '}
+          {isNodeClickable && m.node_id ? (
+            <button type="button" className="chat-node-link" onClick={() => onSelectNode(m.node_id!)}>
+              <mark>{nodeLabel}</mark>
+            </button>
+          ) : (
+            <mark>{nodeLabel}</mark>
+          )}{' '}
+          {m.event_type === 'system' ? systemText(m.system_code) : (m.message_text ?? '')}
         </p>
       </Fragment>
     )
@@ -86,10 +103,19 @@ export function MapPage({ center, zoom, clustering, channels, disconnectedThresh
     adapterRef.current?.setSelectedNode(selectedId)
   }, [selectedId])
 
+  const focusNodeFromChat = (id: string) => {
+    setSelectedId(id)
+    adapterRef.current?.focusNode(id)
+  }
+
   const nodeNameByID = new Map<string, string>()
+  const clickableNodeIDs = new Set<string>()
   for (const item of nodes) {
     const node = item.node
     nodeNameByID.set(node.node_id, node.long_name || node.short_name || node.node_id)
+    if (item.position) {
+      clickableNodeIDs.add(node.node_id)
+    }
   }
 
   const systemText = (code?: string): string => {
@@ -134,7 +160,12 @@ export function MapPage({ center, zoom, clustering, channels, disconnectedThresh
             </button>
           </div>
           <div className="chat-list">
-            {renderChatTimeline(chat, nodeNameByID, systemText)}
+            {renderChatTimeline(chat, {
+              clickableNodeIDs,
+              nodeNameByID,
+              onSelectNode: focusNodeFromChat,
+              systemText
+            })}
           </div>
         </aside>
       )}

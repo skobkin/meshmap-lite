@@ -35,7 +35,7 @@ L.Icon.Default.mergeOptions({
 
 export class LeafletMapAdapter {
   private map: Map
-  private readonly markerLayer: L.FeatureGroup
+  private readonly markerLayer: L.FeatureGroup | L.MarkerClusterGroup
   private markers: MarkerMap = {}
   private selectedID?: string
   private readonly onSelectNode?: (id?: string) => void
@@ -151,6 +151,26 @@ export class LeafletMapAdapter {
       return
     }
     marker.openPopup()
+  }
+
+  focusNode(id: string): boolean {
+    const marker = this.markers[id]
+    if (!marker) {
+      return false
+    }
+
+    const openMarker = () => {
+      this.map.panTo(marker.getLatLng())
+      marker.openPopup()
+    }
+
+    if (this.markerLayer instanceof L.MarkerClusterGroup) {
+      this.markerLayer.zoomToShowLayer(marker, openMarker)
+      return true
+    }
+
+    openMarker()
+    return true
   }
 
   destroy(): void {
