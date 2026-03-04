@@ -35,7 +35,7 @@ func TestHubBroadcastsEvents(t *testing.T) {
 	defer server.Close()
 
 	conn := mustDialWS(t, server.URL)
-	defer conn.Close()
+	closeConn(t, conn)
 	waitForClientCount(t, hub, 1)
 
 	hub.Emit(domain.RealtimeEvent{Type: "stats", TS: time.Unix(10, 0).UTC(), Payload: map[string]string{"status": "ok"}})
@@ -58,7 +58,7 @@ func TestHubConcurrentBroadcastsDoNotRaceWriters(t *testing.T) {
 	defer server.Close()
 
 	conn := mustDialWS(t, server.URL)
-	defer conn.Close()
+	closeConn(t, conn)
 	waitForClientCount(t, hub, 1)
 
 	const emits = 64
@@ -111,7 +111,7 @@ func TestHubHonorsOriginPolicy(t *testing.T) {
 
 	conn, resp, err := websocket.DefaultDialer.Dial(wsURL(server.URL), http.Header{"Origin": []string{"https://blocked.example"}})
 	if resp != nil && resp.Body != nil {
-		defer resp.Body.Close()
+		closeReadCloser(t, resp.Body)
 	}
 	if err == nil {
 		_ = conn.Close()
@@ -124,7 +124,7 @@ func mustDialWS(t *testing.T, serverURL string) *websocket.Conn {
 
 	conn, resp, err := websocket.DefaultDialer.Dial(wsURL(serverURL), nil)
 	if resp != nil && resp.Body != nil {
-		defer resp.Body.Close()
+		closeReadCloser(t, resp.Body)
 	}
 	if err != nil {
 		t.Fatal(err)
@@ -138,6 +138,24 @@ func wsURL(serverURL string) string {
 	u.Scheme = "ws"
 
 	return u.String()
+}
+
+func closeConn(t *testing.T, conn *websocket.Conn) {
+	t.Helper()
+	t.Cleanup(func() {
+		if err := conn.Close(); err != nil {
+			t.Errorf("close websocket connection: %v", err)
+		}
+	})
+}
+
+func closeReadCloser(t *testing.T, closer io.Closer) {
+	t.Helper()
+	t.Cleanup(func() {
+		if err := closer.Close(); err != nil {
+			t.Errorf("close body: %v", err)
+		}
+	})
 }
 
 func waitFor(t *testing.T, fn func() bool) {
