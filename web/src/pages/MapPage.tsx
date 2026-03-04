@@ -82,6 +82,7 @@ export function MapPage({ center, zoom, clustering, channels, disconnectedThresh
     if (!ref.current) return
     adapterRef.current = new LeafletMapAdapter(ref.current, center, zoom, {
       clustering,
+      onOpenNodeDetails,
       onViewChange,
       onSelectNode: setSelectedId
     })
@@ -89,7 +90,7 @@ export function MapPage({ center, zoom, clustering, channels, disconnectedThresh
       adapterRef.current?.destroy()
       adapterRef.current = null
     }
-  }, [clustering, onViewChange, setSelectedId])
+  }, [clustering, onOpenNodeDetails, onViewChange, setSelectedId])
 
   useEffect(() => {
     adapterRef.current?.setView(center, zoom)

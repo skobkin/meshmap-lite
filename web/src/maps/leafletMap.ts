@@ -7,6 +7,7 @@ type MarkerMap = Record<string, L.Marker>
 
 interface LeafletMapOptions {
   clustering?: boolean
+  onOpenNodeDetails?: (id: string) => void
   onViewChange?: (center: [number, number], zoom: number) => void
   onSelectNode?: (id?: string) => void
 }
@@ -43,9 +44,11 @@ export class LeafletMapAdapter {
   private readonly markerLayer: L.FeatureGroup | L.MarkerClusterGroup
   private markers: MarkerMap = {}
   private selectedID?: string
+  private readonly onOpenNodeDetails?: (id: string) => void
   private readonly onSelectNode?: (id?: string) => void
 
   constructor(el: HTMLElement, center: [number, number], zoom: number, opts: LeafletMapOptions = {}) {
+    this.onOpenNodeDetails = opts.onOpenNodeDetails
     this.onSelectNode = opts.onSelectNode
     this.map = L.map(el).setView(center, zoom)
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -84,7 +87,7 @@ export class LeafletMapAdapter {
       visibleNodeIDs.add(id)
       const mqtt = mqttStatus(n.node.last_seen_mqtt_gateway_at, disconnectedThreshold)
       const lora = compactValues([displayValue(n.node.lora_region), displayValue(n.node.lora_frequency_desc)]).join(' / ')
-      const html = popupHtml(n.node.long_name ?? id, compactSections([
+      const html = popupHtml(id, n.node.long_name ?? id, compactSections([
         section('Identity', compactRows([
           row('Short', displayValue(n.node.short_name)),
           row('ID', id),
@@ -120,11 +123,17 @@ export class LeafletMapAdapter {
           closeButton: false
         })
         marker.on('popupopen', () => {
+          const popupEl = marker.getPopup()?.getElement()
+          const detailsLink = popupEl?.querySelector<HTMLElement>('[data-node-details-link]')
+          detailsLink?.addEventListener('click', this.handleDetailsLinkClick)
           marker.setIcon(SELECTED_MARKER_ICON)
           this.selectedID = id
           this.onSelectNode?.(id)
         })
         marker.on('popupclose', () => {
+          const popupEl = marker.getPopup()?.getElement()
+          const detailsLink = popupEl?.querySelector<HTMLElement>('[data-node-details-link]')
+          detailsLink?.removeEventListener('click', this.handleDetailsLinkClick)
           if (this.selectedID !== id) return
           marker.setIcon(DEFAULT_MARKER_ICON)
           this.selectedID = undefined
@@ -182,10 +191,26 @@ export class LeafletMapAdapter {
 
   destroy(): void {
     for (const marker of Object.values(this.markers)) {
+      const popupEl = marker.getPopup()?.getElement()
+      const detailsLink = popupEl?.querySelector<HTMLElement>('[data-node-details-link]')
+      detailsLink?.removeEventListener('click', this.handleDetailsLinkClick)
       marker.off('popupopen')
       marker.off('popupclose')
     }
     this.map.remove()
+  }
+
+  private readonly handleDetailsLinkClick = (event: Event): void => {
+    event.preventDefault()
+    const target = event.currentTarget
+    if (!(target instanceof HTMLElement)) {
+      return
+    }
+    const id = target.dataset.nodeDetailsLink
+    if (!id) {
+      return
+    }
+    this.onOpenNodeDetails?.(id)
   }
 }
 
@@ -268,9 +293,10 @@ function compactSections(sections: Array<PopupSection | null>): PopupSection[] {
   return sections.filter((item): item is PopupSection => item !== null)
 }
 
-function popupHtml(title: string, sections: PopupSection[]): string {
+function popupHtml(id: string, title: string, sections: PopupSection[]): string {
   return [
     `<b>${title}</b>`,
-    ...sections.map((item) => `<div><strong>${item.title}</strong></div>${item.rows.map((row) => `${row.label}: ${row.value}`).join('<br/>')}`)
+    ...sections.map((item) => `<div><strong>${item.title}</strong></div>${item.rows.map((row) => `${row.label}: ${row.value}`).join('<br/>')}`),
+    `<div class="map-popup-actions"><a href="#" data-node-details-link="${id}">Details</a></div>`
   ].join('<br/>')
 }
