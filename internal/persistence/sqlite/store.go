@@ -336,13 +336,13 @@ func (s *Store) shouldPruneLogEvents(insertedID int64) bool {
 		return false
 	}
 
-	interval := int64(max(1, s.logPruneBatchRows))
+	interval := int64(maxInt(1, s.logPruneBatchRows))
 	s.nextLogPruneAtID.Store(insertedID + interval)
 
 	return true
 }
 
-func max(a, b int) int {
+func maxInt(a, b int) int {
 	if a > b {
 		return a
 	}
