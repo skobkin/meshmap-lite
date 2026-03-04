@@ -21,14 +21,12 @@ func TestHubConnectDisconnectAccounting(t *testing.T) {
 	defer server.Close()
 
 	conn := mustDialWS(t, server.URL)
-	if got := hub.ClientCount(); got != 1 {
-		t.Fatalf("expected 1 client, got %d", got)
-	}
+	waitForClientCount(t, hub, 1)
 
 	if err := conn.Close(); err != nil {
 		t.Fatal(err)
 	}
-	waitFor(t, func() bool { return hub.ClientCount() == 0 })
+	waitForClientCount(t, hub, 0)
 }
 
 func TestHubBroadcastsEvents(t *testing.T) {
@@ -38,6 +36,7 @@ func TestHubBroadcastsEvents(t *testing.T) {
 
 	conn := mustDialWS(t, server.URL)
 	defer conn.Close()
+	waitForClientCount(t, hub, 1)
 
 	hub.Emit(domain.RealtimeEvent{Type: "stats", TS: time.Unix(10, 0).UTC(), Payload: map[string]string{"status": "ok"}})
 
@@ -60,6 +59,7 @@ func TestHubConcurrentBroadcastsDoNotRaceWriters(t *testing.T) {
 
 	conn := mustDialWS(t, server.URL)
 	defer conn.Close()
+	waitForClientCount(t, hub, 1)
 
 	const emits = 64
 
@@ -151,6 +151,12 @@ func waitFor(t *testing.T, fn func() bool) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("condition not met before timeout")
+}
+
+func waitForClientCount(t *testing.T, hub *Hub, want int) {
+	t.Helper()
+
+	waitFor(t, func() bool { return hub.ClientCount() == want })
 }
 
 func testLogger() *slog.Logger {
