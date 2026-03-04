@@ -39,6 +39,7 @@ export class LeafletMapAdapter {
   private markers: MarkerMap = {}
   private selectedID?: string
   private readonly onSelectNode?: (id?: string) => void
+  private suppressSelectionEvents = false
 
   constructor(el: HTMLElement, center: [number, number], zoom: number, opts: LeafletMapOptions = {}) {
     this.onSelectNode = opts.onSelectNode
@@ -114,10 +115,12 @@ export class LeafletMapAdapter {
           closeButton: false
         })
         marker.on('popupopen', () => {
+          if (this.suppressSelectionEvents) return
           this.selectedID = id
           this.onSelectNode?.(id)
         })
         marker.on('popupclose', () => {
+          if (this.suppressSelectionEvents) return
           if (this.selectedID !== id) return
           this.selectedID = undefined
           this.onSelectNode?.(undefined)
@@ -174,6 +177,7 @@ export class LeafletMapAdapter {
   }
 
   destroy(): void {
+    this.suppressSelectionEvents = true
     this.map.remove()
   }
 }

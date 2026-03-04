@@ -12,6 +12,7 @@ interface Props {
   clustering: boolean
   channels: string[]
   disconnectedThreshold?: string
+  onOpenNodeDetails: (id: string) => void
   onViewChange: (center: [number, number], zoom: number) => void
 }
 
@@ -22,20 +23,19 @@ function readSidebarState(): boolean {
 }
 
 interface ChatTimelineOptions {
-  clickableNodeIDs: Set<string>
   nodeNameByID: Map<string, string>
   onSelectNode: (id: string) => void
   systemText: (code?: string) => string
 }
 
-function renderChatTimeline(messages: ChatEvent[], { clickableNodeIDs, nodeNameByID, onSelectNode, systemText }: ChatTimelineOptions) {
+function renderChatTimeline(messages: ChatEvent[], { nodeNameByID, onSelectNode, systemText }: ChatTimelineOptions) {
   let previousDay = ''
 
   return messages.map((m) => {
     const currentDay = dayKey(m.observed_at)
     const needsSeparator = currentDay !== previousDay
     previousDay = currentDay
-    const isNodeClickable = typeof m.node_id === 'string' && clickableNodeIDs.has(m.node_id)
+    const isNodeClickable = typeof m.node_id === 'string'
     const nodeLabel = m.node_id ? (nodeNameByID.get(m.node_id) ?? m.node_id) : 'system'
 
     return (
@@ -61,7 +61,7 @@ function renderChatTimeline(messages: ChatEvent[], { clickableNodeIDs, nodeNameB
   })
 }
 
-export function MapPage({ center, zoom, clustering, channels, disconnectedThreshold, onViewChange }: Props) {
+export function MapPage({ center, zoom, clustering, channels, disconnectedThreshold, onOpenNodeDetails, onViewChange }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const adapterRef = useRef<LeafletMapAdapter | null>(null)
   const nodes = useNodeStore((s) => s.mapNodes)
@@ -104,18 +104,16 @@ export function MapPage({ center, zoom, clustering, channels, disconnectedThresh
   }, [selectedId])
 
   const focusNodeFromChat = (id: string) => {
-    setSelectedId(id)
-    adapterRef.current?.focusNode(id)
+    if (adapterRef.current?.focusNode(id)) {
+      return
+    }
+    onOpenNodeDetails(id)
   }
 
   const nodeNameByID = new Map<string, string>()
-  const clickableNodeIDs = new Set<string>()
   for (const item of nodes) {
     const node = item.node
     nodeNameByID.set(node.node_id, node.long_name || node.short_name || node.node_id)
-    if (item.position) {
-      clickableNodeIDs.add(node.node_id)
-    }
   }
 
   const systemText = (code?: string): string => {
@@ -161,7 +159,6 @@ export function MapPage({ center, zoom, clustering, channels, disconnectedThresh
           </div>
           <div className="chat-list">
             {renderChatTimeline(chat, {
-              clickableNodeIDs,
               nodeNameByID,
               onSelectNode: focusNodeFromChat,
               systemText

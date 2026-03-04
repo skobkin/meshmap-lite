@@ -299,6 +299,11 @@ export function App() {
     localStorage.setItem(mapViewKey, JSON.stringify(next))
   }, [])
 
+  const openNodeDetails = useCallback((id: string) => {
+    setPage('nodes')
+    setSelectedId(id)
+  }, [setSelectedId])
+
   useEffect(() => {
     writeHashMapView(mapView)
   }, [mapView.center[0], mapView.center[1], mapView.zoom])
@@ -356,6 +361,7 @@ export function App() {
           clustering={meta?.map.clustering ?? true}
           channels={channels}
           disconnectedThreshold={meta?.disconnected_threshold}
+          onOpenNodeDetails={openNodeDetails}
           onViewChange={onMapViewChange}
         />
       )}
