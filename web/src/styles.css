@@ -493,6 +493,12 @@ body {
   border-radius: 0 !important;
 }
 
+.leaflet-marker-icon:focus,
+.leaflet-marker-icon:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 .leaflet-container .leaflet-control-zoom a {
   display: block;
   width: 26px;

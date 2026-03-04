@@ -21,17 +21,22 @@ interface PopupSection {
   rows: PopupRow[]
 }
 
-L.Icon.Default.mergeOptions({
+const SELECTED_MARKER_SCALE = 1 / 0.6
+
+const DEFAULT_MARKER_OPTIONS = {
   iconUrl: '/static/images/node-marker.svg',
   iconRetinaUrl: '/static/images/node-marker.svg',
   shadowUrl: '/static/images/node-marker-shadow.svg',
-  iconSize: [30, 42],
-  iconAnchor: [15, 42],
-  popupAnchor: [0, -34],
-  tooltipAnchor: [16, -20],
-  shadowSize: [42, 20],
-  shadowAnchor: [21, 10]
-})
+  iconSize: [18, 25] as L.PointExpression,
+  iconAnchor: [9, 25] as L.PointExpression,
+  popupAnchor: [0, -20] as L.PointExpression,
+  tooltipAnchor: [10, -12] as L.PointExpression,
+  shadowSize: [25, 12] as L.PointExpression,
+  shadowAnchor: [13, 6] as L.PointExpression
+}
+
+const DEFAULT_MARKER_ICON = L.icon(DEFAULT_MARKER_OPTIONS)
+const SELECTED_MARKER_ICON = L.icon(scaleMarkerOptions(DEFAULT_MARKER_OPTIONS, SELECTED_MARKER_SCALE))
 
 export class LeafletMapAdapter {
   private map: Map
@@ -104,21 +109,24 @@ export class LeafletMapAdapter {
       const m = this.markers[id]
       if (m) {
         m.setLatLng(latlng)
+        m.setIcon(this.selectedID === id ? SELECTED_MARKER_ICON : DEFAULT_MARKER_ICON)
         m.getPopup()?.setContent(html)
         if (this.selectedID === id) {
           m.openPopup()
         }
       } else {
-        const marker = L.marker(latlng).bindPopup(html, {
+        const marker = L.marker(latlng, { icon: this.selectedID === id ? SELECTED_MARKER_ICON : DEFAULT_MARKER_ICON }).bindPopup(html, {
           autoPan: false,
           closeButton: false
         })
         marker.on('popupopen', () => {
+          marker.setIcon(SELECTED_MARKER_ICON)
           this.selectedID = id
           this.onSelectNode?.(id)
         })
         marker.on('popupclose', () => {
           if (this.selectedID !== id) return
+          marker.setIcon(DEFAULT_MARKER_ICON)
           this.selectedID = undefined
           this.onSelectNode?.(undefined)
         })
@@ -200,6 +208,23 @@ function parseDurationMs(raw?: string): number | undefined {
   }
   if (!found) return undefined
   return Math.max(0, Math.floor(total))
+}
+
+function scalePoint(value: L.PointExpression, scale: number): [number, number] {
+  const [x, y] = Array.isArray(value) ? value : [value.x, value.y]
+  return [Math.round(x * scale), Math.round(y * scale)]
+}
+
+function scaleMarkerOptions(options: typeof DEFAULT_MARKER_OPTIONS, scale: number): typeof DEFAULT_MARKER_OPTIONS {
+  return {
+    ...options,
+    iconSize: scalePoint(options.iconSize, scale),
+    iconAnchor: scalePoint(options.iconAnchor, scale),
+    popupAnchor: scalePoint(options.popupAnchor, scale),
+    tooltipAnchor: scalePoint(options.tooltipAnchor, scale),
+    shadowSize: scalePoint(options.shadowSize, scale),
+    shadowAnchor: scalePoint(options.shadowAnchor, scale)
+  }
 }
 
 function mqttStatus(lastSeen?: string, disconnectedThreshold?: string): { status: 'Connected' | 'Disconnected'; age?: string } {
