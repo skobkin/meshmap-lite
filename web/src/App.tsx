@@ -179,19 +179,6 @@ export function App() {
 
       setBootstrapErrors(errors)
       setBootstrapDone(true)
-
-      if (!selected) return
-
-      try {
-        const messages = await api.chatMessages(selected, nextMeta?.show_recent_messages ?? 50, { signal: controller.signal })
-        if (!mounted) return
-        setMessages(messages)
-        loadedMessagesFor.current = selected
-      } catch (err) {
-        if (mounted && !isAbortError(err)) {
-          setBootstrapErrors((prev) => [...prev, `Failed to load chat history for channel "${selected}".`])
-        }
-      }
     })()
 
     return () => {
