@@ -1,8 +1,10 @@
+import { Fragment } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { LeafletMapAdapter } from '../maps/leafletMap'
 import { useNodeStore } from '../stores/nodes'
 import { useChatStore } from '../stores/chat'
-import { hhmm } from '../utils/time'
+import { dayKey, dayLabel, hhmm } from '../utils/time'
+import type { ChatEvent } from '../api/types'
 
 interface Props {
   center: [number, number]
@@ -17,6 +19,29 @@ const sidebarStateKey = 'meshmap-lite.map.chat.collapsed'
 
 function readSidebarState(): boolean {
   return localStorage.getItem(sidebarStateKey) === '1'
+}
+
+function renderChatTimeline(messages: ChatEvent[], nodeNameByID: Map<string, string>, systemText: (code?: string) => string) {
+  let previousDay = ''
+
+  return messages.map((m) => {
+    const currentDay = dayKey(m.observed_at)
+    const needsSeparator = currentDay !== previousDay
+    previousDay = currentDay
+
+    return (
+      <Fragment key={m.id}>
+        {needsSeparator && (
+          <div className="chat-day-separator" role="separator" aria-label={dayLabel(m.observed_at)}>
+            <span>{dayLabel(m.observed_at)}</span>
+          </div>
+        )}
+        <p className={m.event_type === 'system' ? 'system' : ''}>
+          <code>{hhmm(m.observed_at)}</code> <mark>{m.node_id ? (nodeNameByID.get(m.node_id) ?? m.node_id) : 'system'}</mark> {m.event_type === 'system' ? systemText(m.system_code) : (m.message_text ?? '')}
+        </p>
+      </Fragment>
+    )
+  })
 }
 
 export function MapPage({ center, zoom, clustering, channels, disconnectedThreshold, onViewChange }: Props) {
@@ -109,11 +134,7 @@ export function MapPage({ center, zoom, clustering, channels, disconnectedThresh
             </button>
           </div>
           <div className="chat-list">
-            {chat.map((m) => (
-              <p key={m.id} className={m.event_type === 'system' ? 'system' : ''}>
-                <code>{hhmm(m.observed_at)}</code> <mark>{m.node_id ? (nodeNameByID.get(m.node_id) ?? m.node_id) : 'system'}</mark> {m.event_type === 'system' ? systemText(m.system_code) : (m.message_text ?? '')}
-              </p>
-            ))}
+            {renderChatTimeline(chat, nodeNameByID, systemText)}
           </div>
         </aside>
       )}

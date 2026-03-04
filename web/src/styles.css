@@ -320,6 +320,29 @@ body {
   font-size: 0.9rem;
 }
 
+.chat-day-separator {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.9rem 0 0.7rem;
+  color: #6f6f6f;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.chat-day-separator::before,
+.chat-day-separator::after {
+  content: '';
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--surface-border);
+}
+
+.chat-day-separator span {
+  white-space: nowrap;
+}
+
 .chat-list p.system {
   color: #6f6f6f;
   font-style: italic;
