@@ -1,7 +1,11 @@
 import type { ChannelItem, ChatEvent, LogEvent, MapNode, Meta, NodeDetails, NodeSummary } from './types'
 
-async function request<T>(path: string): Promise<T> {
-  const r = await fetch(path)
+interface RequestOptions {
+  signal?: AbortSignal
+}
+
+async function request<T>(path: string, options?: RequestOptions): Promise<T> {
+  const r = await fetch(path, { signal: options?.signal })
   if (!r.ok) {
     throw new Error(`request failed: ${r.status}`)
   }
@@ -9,11 +13,11 @@ async function request<T>(path: string): Promise<T> {
 }
 
 export const api = {
-  meta: () => request<Meta>('/api/v1/meta'),
-  channels: () => request<ChannelItem[]>('/api/v1/channels'),
-  mapNodes: () => request<MapNode[]>('/api/v1/map/nodes'),
-  chatMessages: (channel: string, limit: number) => request<ChatEvent[]>(`/api/v1/chat/messages?channel=${encodeURIComponent(channel)}&limit=${limit}`),
-  logEvents: (params: { limit?: number; before?: number; eventKinds?: number[]; channel?: string }) => {
+  meta: (options?: RequestOptions) => request<Meta>('/api/v1/meta', options),
+  channels: (options?: RequestOptions) => request<ChannelItem[]>('/api/v1/channels', options),
+  mapNodes: (options?: RequestOptions) => request<MapNode[]>('/api/v1/map/nodes', options),
+  chatMessages: (channel: string, limit: number, options?: RequestOptions) => request<ChatEvent[]>(`/api/v1/chat/messages?channel=${encodeURIComponent(channel)}&limit=${limit}`, options),
+  logEvents: (params: { limit?: number; before?: number; eventKinds?: number[]; channel?: string }, options?: RequestOptions) => {
     const q = new URLSearchParams()
     if (params.limit && params.limit > 0) q.set('limit', String(params.limit))
     if (params.before && params.before > 0) q.set('before', String(params.before))
@@ -22,8 +26,8 @@ export const api = {
       q.append('event_kind', String(kind))
     }
     const suffix = q.toString()
-    return request<LogEvent[]>(`/api/v1/log/events${suffix ? `?${suffix}` : ''}`)
+    return request<LogEvent[]>(`/api/v1/log/events${suffix ? `?${suffix}` : ''}`, options)
   },
-  nodes: () => request<NodeSummary[]>('/api/v1/nodes'),
-  node: (id: string) => request<NodeDetails>(`/api/v1/nodes/${encodeURIComponent(id)}`)
+  nodes: (options?: RequestOptions) => request<NodeSummary[]>('/api/v1/nodes', options),
+  node: (id: string, options?: RequestOptions) => request<NodeDetails>(`/api/v1/nodes/${encodeURIComponent(id)}`, options)
 }

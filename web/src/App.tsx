@@ -21,6 +21,10 @@ interface SavedMapView {
   zoom: number
 }
 
+function isAbortError(err: unknown): boolean {
+  return err instanceof DOMException && err.name === 'AbortError'
+}
+
 function parseURLNumber(raw: string | null): number | null {
   if (raw === null) return null
   const n = Number(raw)
@@ -125,64 +129,72 @@ export function App() {
 
   useEffect(() => {
     let stopWS: (() => void) | undefined
-    let cancelled = false
+    const controller = new AbortController()
+    let mounted = true
 
     void (async () => {
       const errors: string[] = []
+      const [metaResult, channelsResult, mapNodesResult] = await Promise.allSettled([
+        api.meta({ signal: controller.signal }),
+        api.channels({ signal: controller.signal }),
+        api.mapNodes({ signal: controller.signal })
+      ])
+
       let nextMeta: typeof meta
       let nextChannels: string[] = []
 
-      try {
-        nextMeta = await api.meta()
-        if (!cancelled) setMeta(nextMeta)
-      } catch {
+      if (metaResult.status === 'fulfilled') {
+        nextMeta = metaResult.value
+        if (mounted) {
+          setMeta(nextMeta)
+          if (nextMeta.websocket_path) {
+            stopWS = startWS(nextMeta.websocket_path)
+          }
+        }
+      } else if (!isAbortError(metaResult.reason)) {
         errors.push('Failed to load app metadata. Live updates are unavailable until reload.')
       }
 
-      try {
-        const channelItems = await api.channels()
-        nextChannels = channelItems.map((x) => x.name)
-        if (!cancelled) setChannels(nextChannels)
-      } catch {
+      if (channelsResult.status === 'fulfilled') {
+        nextChannels = channelsResult.value.map((x) => x.name)
+        if (mounted) setChannels(nextChannels)
+      } else if (!isAbortError(channelsResult.reason)) {
         errors.push('Failed to load channels list. Stored/default channel will be used.')
       }
 
-      try {
-        const mapNodes = await api.mapNodes()
-        if (!cancelled) setMapNodes(mapNodes)
-      } catch {
+      if (mapNodesResult.status === 'fulfilled') {
+        if (mounted) setMapNodes(mapNodesResult.value)
+      } else if (!isAbortError(mapNodesResult.reason)) {
         errors.push('Failed to load map nodes snapshot.')
       }
 
+      if (!mounted) return
+
       const selected = canonicalChannelName(nextChannels, channel || nextMeta?.default_chat_channel || nextChannels[0])
-      if (selected && !cancelled) {
+      if (selected) {
         setChannel(selected)
       }
 
-      if (selected) {
-        try {
-          const messages = await api.chatMessages(selected, nextMeta?.show_recent_messages ?? 50)
-          if (!cancelled) {
-            setMessages(messages)
-            loadedMessagesFor.current = selected
-          }
-        } catch {
-          errors.push(`Failed to load chat history for channel "${selected}".`)
+      setBootstrapErrors(errors)
+      setBootstrapDone(true)
+
+      if (!selected) return
+
+      try {
+        const messages = await api.chatMessages(selected, nextMeta?.show_recent_messages ?? 50, { signal: controller.signal })
+        if (!mounted) return
+        setMessages(messages)
+        loadedMessagesFor.current = selected
+      } catch (err) {
+        if (mounted && !isAbortError(err)) {
+          setBootstrapErrors((prev) => [...prev, `Failed to load chat history for channel "${selected}".`])
         }
-      }
-
-      if (nextMeta?.websocket_path && !cancelled) {
-        stopWS = startWS(nextMeta.websocket_path)
-      }
-
-      if (!cancelled) {
-        setBootstrapErrors(errors)
-        setBootstrapDone(true)
       }
     })()
 
     return () => {
-      cancelled = true
+      mounted = false
+      controller.abort()
       stopWS?.()
     }
   }, [])
@@ -191,37 +203,49 @@ export function App() {
     if (!bootstrapDone) return
     if (!channel) return
     if (loadedMessagesFor.current === channel) return
-    void api.chatMessages(channel, meta?.show_recent_messages ?? 50)
+    const controller = new AbortController()
+    void api.chatMessages(channel, meta?.show_recent_messages ?? 50, { signal: controller.signal })
       .then((items) => {
         setMessages(items)
         loadedMessagesFor.current = channel
       })
-      .catch(() => {
+      .catch((err) => {
+        if (isAbortError(err)) return
         setBootstrapErrors((prev) => [...prev, `Failed to load chat history for channel "${channel}".`])
       })
+
+    return () => controller.abort()
   }, [bootstrapDone, channel, meta?.show_recent_messages])
 
   useEffect(() => {
     if (page !== 'nodes') return
     if (nodesLoadedOnce) return
-    void api.nodes()
+    const controller = new AbortController()
+    void api.nodes({ signal: controller.signal })
       .then((items) => {
         setSummaries(items)
         setNodesLoadedOnce(true)
         setNodesLoadError('')
       })
-      .catch(() => {
+      .catch((err) => {
+        if (isAbortError(err)) return
         setNodesLoadError('Failed to load node list.')
       })
+
+    return () => controller.abort()
   }, [page, nodesLoadedOnce])
 
   useEffect(() => {
     if (!selectedId) return
-    void api.node(selectedId)
+    const controller = new AbortController()
+    void api.node(selectedId, { signal: controller.signal })
       .then(setDetails)
-      .catch(() => {
+      .catch((err) => {
+        if (isAbortError(err)) return
         setBootstrapErrors((prev) => [...prev, `Failed to load details for node "${selectedId}".`])
       })
+
+    return () => controller.abort()
   }, [selectedId])
 
   useEffect(() => {
@@ -238,20 +262,22 @@ export function App() {
 
     const requestID = activeLogRequest.current + 1
     activeLogRequest.current = requestID
+    const controller = new AbortController()
     setLogsLoading(true)
     void api.logEvents({
       limit: meta?.log_page_size_default ?? 100,
       eventKinds: logFilters.eventKinds,
       channel: logFilters.channel
-    })
+    }, { signal: controller.signal })
       .then((items) => {
         if (activeLogRequest.current !== requestID) return
         lastLoadedLogKey.current = requestKey
         setLogInitial(items)
         setLogLoadError('')
       })
-      .catch(() => {
+      .catch((err) => {
         if (activeLogRequest.current !== requestID) return
+        if (isAbortError(err)) return
         setLogLoadError('Failed to load log events.')
       })
       .finally(() => {
@@ -259,6 +285,8 @@ export function App() {
           setLogsLoading(false)
         }
       })
+
+    return () => controller.abort()
   }, [page, bootstrapDone, logLoadedOnce, logFilters.eventKinds, logFilters.channel, logsLoading, meta?.log_page_size_default, setLogInitial, setLogLoadError])
 
   useEffect(() => {
@@ -302,7 +330,8 @@ export function App() {
         appendOlderLogs(items)
         setLogLoadError('')
       })
-      .catch(() => {
+      .catch((err) => {
+        if (isAbortError(err)) return
         setLogLoadError('Failed to load older log events.')
       })
       .finally(() => setLogsLoading(false))
