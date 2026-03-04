@@ -294,9 +294,16 @@ function compactSections(sections: Array<PopupSection | null>): PopupSection[] {
 }
 
 function popupHtml(id: string, title: string, sections: PopupSection[]): string {
-  return [
-    `<b>${title}</b>`,
-    ...sections.map((item) => `<div><strong>${item.title}</strong></div>${item.rows.map((row) => `${row.label}: ${row.value}`).join('<br/>')}`),
+  const sectionsHtml = sections.map((item) => (
+    `<div class="map-popup-section">` +
+      `<div class="map-popup-section-title"><strong>${item.title}</strong></div>` +
+      `<div class="map-popup-section-body">${item.rows.map((row) => `${row.label}: ${row.value}`).join('<br/>')}</div>` +
+    `</div>`
+  )).join('')
+
+  return (
+    `<div class="map-popup-title"><b>${title}</b></div>` +
+    sectionsHtml +
     `<div class="map-popup-actions"><a href="#" data-node-details-link="${id}">Details</a></div>`
-  ].join('<br/>')
+  )
 }

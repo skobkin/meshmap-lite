@@ -334,6 +334,18 @@ body {
   filter: brightness(0.95);
 }
 
+.map-popup-title {
+  margin-bottom: 0.2rem;
+}
+
+.map-popup-section {
+  margin-top: 0.3rem;
+}
+
+.map-popup-section-title {
+  margin-bottom: 0.12rem;
+}
+
 .map-popup-actions {
   margin-top: 0.45rem;
   padding-top: 0.45rem;
