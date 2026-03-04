@@ -111,7 +111,11 @@ func TestHubHonorsOriginPolicy(t *testing.T) {
 
 	conn, resp, err := websocket.DefaultDialer.Dial(wsURL(server.URL), http.Header{"Origin": []string{"https://blocked.example"}})
 	if resp != nil && resp.Body != nil {
-		closeReadCloser(t, resp.Body)
+		defer func() {
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				t.Errorf("close body: %v", closeErr)
+			}
+		}()
 	}
 	if err == nil {
 		_ = conn.Close()
@@ -124,7 +128,11 @@ func mustDialWS(t *testing.T, serverURL string) *websocket.Conn {
 
 	conn, resp, err := websocket.DefaultDialer.Dial(wsURL(serverURL), nil)
 	if resp != nil && resp.Body != nil {
-		closeReadCloser(t, resp.Body)
+		defer func() {
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				t.Errorf("close body: %v", closeErr)
+			}
+		}()
 	}
 	if err != nil {
 		t.Fatal(err)
@@ -145,15 +153,6 @@ func closeConn(t *testing.T, conn *websocket.Conn) {
 	t.Cleanup(func() {
 		if err := conn.Close(); err != nil {
 			t.Errorf("close websocket connection: %v", err)
-		}
-	})
-}
-
-func closeReadCloser(t *testing.T, closer io.Closer) {
-	t.Helper()
-	t.Cleanup(func() {
-		if err := closer.Close(); err != nil {
-			t.Errorf("close body: %v", err)
 		}
 	})
 }
