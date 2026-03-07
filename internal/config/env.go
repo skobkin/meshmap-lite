@@ -69,6 +69,9 @@ var envSetters = map[string]envSetter{
 	"web.map.disconnected_threshold": func(cfg *Config, value string) {
 		cfg.Web.Map.DisconnectedThreshold = mustDuration(value, cfg.Web.Map.DisconnectedThreshold)
 	},
+	"web.map.hide_position_after": func(cfg *Config, value string) {
+		cfg.Web.Map.HidePositionAfter = mustDuration(value, cfg.Web.Map.HidePositionAfter)
+	},
 	"web.map.precision_circles_mode": func(cfg *Config, value string) {
 		cfg.Web.Map.PrecisionCirclesMode = MapPrecisionCirclesMode(strings.ToLower(strings.TrimSpace(value)))
 	},

@@ -33,6 +33,7 @@ func (s *Server) meta(w http.ResponseWriter, _ *http.Request) {
 		DisconnectedThreshold: s.cfg.Web.Map.DisconnectedThreshold.String(),
 		Map: metaMapPayload{
 			Clustering:           s.cfg.Web.Map.Clustering,
+			HidePositionAfter:    s.cfg.Web.Map.HidePositionAfter.String(),
 			PrecisionCirclesMode: string(s.cfg.Web.Map.PrecisionCirclesMode),
 			DefaultView: metaDefaultViewPayload{
 				Latitude:  s.cfg.Web.Map.DefaultView.Latitude,
@@ -52,7 +53,7 @@ func (s *Server) channels(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) mapNodes(w http.ResponseWriter, r *http.Request) {
-	items, err := s.store.GetMapNodes(r.Context())
+	items, err := s.store.GetMapNodes(r.Context(), s.cfg.Web.Map.HidePositionAfter)
 	if err != nil {
 		if isRequestCanceled(err) {
 			s.log.Debug("map nodes canceled", "err", err)

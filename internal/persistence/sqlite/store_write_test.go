@@ -179,6 +179,69 @@ func TestGetNodeDetails_WithTelemetryOnSingleConnection(t *testing.T) {
 	}
 }
 
+func TestGetMapNodes_HidesStaleAndMissingPositions(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, config.SQLConfig{URL: "file::memory:?cache=shared", AutoMigrate: true}, nil)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	recentObservedAt := now.Add(-24 * time.Hour)
+	staleObservedAt := now.Add(-(15 * 24 * time.Hour))
+
+	for _, tc := range []struct {
+		nodeID     string
+		observedAt *time.Time
+	}{
+		{nodeID: "!recent111", observedAt: &recentObservedAt},
+		{nodeID: "!stale222", observedAt: &staleObservedAt},
+		{nodeID: "!missing333", observedAt: nil},
+	} {
+		updatedAt := now
+		if tc.observedAt != nil {
+			updatedAt = *tc.observedAt
+		}
+		if _, err := s.UpsertNode(ctx, domain.Node{
+			NodeID:             tc.nodeID,
+			LongName:           tc.nodeID,
+			FirstSeenAt:        now,
+			LastSeenAnyEventAt: updatedAt,
+			UpdatedAt:          updatedAt,
+		}); err != nil {
+			t.Fatalf("upsert node %s: %v", tc.nodeID, err)
+		}
+		if tc.observedAt == nil {
+			continue
+		}
+		if err := s.UpsertPosition(ctx, domain.NodePosition{
+			NodeID:     tc.nodeID,
+			Latitude:   10.1,
+			Longitude:  20.2,
+			ObservedAt: *tc.observedAt,
+			UpdatedAt:  *tc.observedAt,
+			SourceKind: domain.PositionSourceChannel,
+		}); err != nil {
+			t.Fatalf("upsert position %s: %v", tc.nodeID, err)
+		}
+	}
+
+	items, err := s.GetMapNodes(ctx, 14*24*time.Hour)
+	if err != nil {
+		t.Fatalf("get map nodes: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 visible map node, got %d", len(items))
+	}
+	if items[0].Node.NodeID != "!recent111" {
+		t.Fatalf("expected recent node to remain visible, got %q", items[0].Node.NodeID)
+	}
+	if items[0].Position == nil {
+		t.Fatalf("expected visible map node to include position")
+	}
+}
+
 func ptrFloat64(v float64) *float64 {
 	return &v
 }

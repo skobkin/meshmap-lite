@@ -116,6 +116,7 @@ export interface Meta {
   disconnected_threshold: string
   map: {
     clustering: boolean
+    hide_position_after: string
     precision_circles_mode: MapPrecisionCirclesMode
     default_view: {
       latitude: number

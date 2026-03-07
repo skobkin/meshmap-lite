@@ -19,9 +19,9 @@ This document is the source of truth for the public HTTP and WebSocket contract 
 
 - `GET /healthz`: returns `200 {"status":"ok"}`.
 - `GET /readyz`: returns `200 {"status":"ready"}` when the app is ready, otherwise `503 {"status":"not_ready"}`.
-- `GET /api/v1/meta`: returns UI/runtime metadata including `app_name`, `version`, `websocket_path`, chat defaults, log settings, and map defaults. The `map` object includes `clustering`, `precision_circles_mode` (`none`, `selected`, `always`), and `default_view`.
+- `GET /api/v1/meta`: returns UI/runtime metadata including `app_name`, `version`, `websocket_path`, chat defaults, log settings, and map defaults. The `map` object includes `clustering`, `hide_position_after`, `precision_circles_mode` (`none`, `selected`, `always`), and `default_view`.
 - `GET /api/v1/channels`: returns configured channels as `{name, chat_enabled, is_primary}` items.
-- `GET /api/v1/map/nodes`: returns map snapshot items as `{node, position?}`.
+- `GET /api/v1/map/nodes`: returns map snapshot items as `{node, position?}` for nodes whose latest position is newer than `meta.map.hide_position_after`.
 - `GET /api/v1/chat/messages`: returns chat history ordered newest-first. `channel` defaults to `meta.default_chat_channel`; `limit` defaults to `meta.show_recent_messages`; `before` paginates by chat row ID.
 - `GET /api/v1/log/events`: returns non-chat activity log rows ordered newest-first. `limit` defaults to `meta.log_page_size_default`; `before` paginates by log row ID; `channel` filters by channel name; `event_kind` may be repeated or passed as a comma-separated list. `event_kinds` is also accepted as an alias for compatibility.
   - `details` is event-specific JSON. New traceroute rows use semantic fields such as `role`, `status`, `request_id`, `from`, `to`, `forward_path`, `return_path`, `forward_snr`, `return_snr`, and `inferred_*` markers instead of only hop counts.

@@ -16,7 +16,7 @@ type FakeStore struct {
 	InsertChatEventFn func(context.Context, domain.ChatEvent) (int64, error)
 	InsertLogEventFn  func(context.Context, domain.LogEvent) (int64, error)
 
-	GetMapNodesFn    func(context.Context) ([]repo.MapNode, error)
+	GetMapNodesFn    func(context.Context, time.Duration) ([]repo.MapNode, error)
 	ListNodesFn      func(context.Context) ([]repo.NodeSummary, error)
 	GetNodeDetailsFn func(context.Context, string) (repo.NodeDetails, error)
 	ListChatEventsFn func(context.Context, repo.ChatEventQuery) ([]domain.ChatEvent, error)
@@ -70,9 +70,9 @@ func (f *FakeStore) InsertLogEvent(ctx context.Context, event domain.LogEvent) (
 }
 
 // GetMapNodes implements repo.ReadStore.
-func (f *FakeStore) GetMapNodes(ctx context.Context) ([]repo.MapNode, error) {
+func (f *FakeStore) GetMapNodes(ctx context.Context, hidePositionAfter time.Duration) ([]repo.MapNode, error) {
 	if f.GetMapNodesFn != nil {
-		return f.GetMapNodesFn(ctx)
+		return f.GetMapNodesFn(ctx, hidePositionAfter)
 	}
 
 	return nil, nil

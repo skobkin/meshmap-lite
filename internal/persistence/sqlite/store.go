@@ -382,15 +382,18 @@ func (s *Store) ensureLogChannel(ctx context.Context, name string) (int64, error
 	return id, nil
 }
 
-// GetMapNodes returns nodes with optional latest positions for map rendering.
-func (s *Store) GetMapNodes(ctx context.Context) ([]repo.MapNode, error) {
+// GetMapNodes returns nodes with recent latest positions for map rendering.
+func (s *Store) GetMapNodes(ctx context.Context, hidePositionAfter time.Duration) ([]repo.MapNode, error) {
+	cutoff := time.Now().UTC().Add(-hidePositionAfter).Format(time.RFC3339Nano)
 	rows, err := s.db.QueryContext(ctx, `
 SELECT n.node_id,n.node_num,n.long_name,n.short_name,n.role,n.board_model,n.firmware_version,n.lora_region,n.lora_frequency_desc,
        n.modem_preset,n.has_default_channel,n.has_opted_report_location,n.neighbor_nodes_count,n.mqtt_gateway_capable,n.first_seen_at,n.last_seen_any_event_at,n.last_seen_mqtt_gateway_at,n.last_seen_position_at,n.updated_at,
        p.latitude,p.longitude,p.altitude_m,p.position_precision,p.source_kind,p.source_channel,p.reported_at,p.observed_at,p.updated_at
 FROM nodes n
 LEFT JOIN node_positions p ON p.node_id=n.node_id
-ORDER BY n.updated_at DESC`)
+WHERE p.node_id IS NOT NULL
+  AND p.observed_at >= ?
+ORDER BY n.updated_at DESC`, cutoff)
 	if err != nil {
 		return nil, err
 	}

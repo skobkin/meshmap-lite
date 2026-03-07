@@ -56,6 +56,7 @@ web:
   map:
     clustering: false
     disconnected_threshold: 60m
+    hide_position_after: 336h
     precision_circles_mode: selected
     default_view:
       latitude: 64.5

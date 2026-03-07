@@ -18,7 +18,7 @@ type WriteStore interface {
 
 // ReadStore defines query operations used by HTTP and other read APIs.
 type ReadStore interface {
-	GetMapNodes(ctx context.Context) ([]MapNode, error)
+	GetMapNodes(ctx context.Context, hidePositionAfter time.Duration) ([]MapNode, error)
 	ListNodes(ctx context.Context) ([]NodeSummary, error)
 	GetNodeDetails(ctx context.Context, nodeID string) (NodeDetails, error)
 	ListChatEvents(ctx context.Context, q ChatEventQuery) ([]domain.ChatEvent, error)

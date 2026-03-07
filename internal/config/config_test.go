@@ -27,6 +27,7 @@ channels:
 	t.Setenv("MML_INGEST__TRACEROUTE__MAX_ENTRIES", "2222")
 	t.Setenv("MML_INGEST__MAP_REPORTS__TOPIC_SUFFIX", "custom/map")
 	t.Setenv("MML_WEB__WS__STATS_INTERVAL", "90s")
+	t.Setenv("MML_WEB__MAP__HIDE_POSITION_AFTER", "336h")
 	t.Setenv("MML_WEB__MAP__PRECISION_CIRCLES_MODE", "always")
 	cfg, err := Load(path)
 	if err != nil {
@@ -55,6 +56,9 @@ channels:
 	}
 	if cfg.Web.WS.StatsInterval != 90*time.Second {
 		t.Fatalf("expected web.ws.stats_interval env override")
+	}
+	if cfg.Web.Map.HidePositionAfter != 14*24*time.Hour {
+		t.Fatalf("expected web.map.hide_position_after env override, got %v", cfg.Web.Map.HidePositionAfter)
 	}
 	if cfg.Web.Map.PrecisionCirclesMode != MapPrecisionCirclesAlways {
 		t.Fatalf("expected web.map.precision_circles_mode env override, got %q", cfg.Web.Map.PrecisionCirclesMode)
@@ -108,6 +112,9 @@ channels:
 	}
 	if cfg.Web.Map.PrecisionCirclesMode != MapPrecisionCirclesSelected {
 		t.Fatalf("expected web.map.precision_circles_mode default to be %q, got %q", MapPrecisionCirclesSelected, cfg.Web.Map.PrecisionCirclesMode)
+	}
+	if cfg.Web.Map.HidePositionAfter != 14*24*time.Hour {
+		t.Fatalf("expected web.map.hide_position_after default to be 14 days, got %v", cfg.Web.Map.HidePositionAfter)
 	}
 }
 
@@ -191,6 +198,31 @@ channels:
 	}
 	if cfg.Web.WS.StatsInterval != DefaultWSStatsInterval {
 		t.Fatalf("expected default stats interval, got %v", cfg.Web.WS.StatsInterval)
+	}
+}
+
+func TestLoadNormalizesInvalidMapHidePositionAfter(t *testing.T) {
+	d := t.TempDir()
+	path := filepath.Join(d, "cfg.yaml")
+	if err := os.WriteFile(path, []byte(`
+mqtt:
+  root_topic: msh/test
+web:
+  map:
+    hide_position_after: 0s
+channels:
+  LongFast:
+    psk: AQ==
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Web.Map.HidePositionAfter != 14*24*time.Hour {
+		t.Fatalf("expected default map hide_position_after, got %v", cfg.Web.Map.HidePositionAfter)
 	}
 }
 

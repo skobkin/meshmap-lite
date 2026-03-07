@@ -75,4 +75,7 @@ func normalize(cfg *Config) {
 	if cfg.Web.WS.StatsInterval <= 0 {
 		cfg.Web.WS.StatsInterval = DefaultWSStatsInterval
 	}
+	if cfg.Web.Map.HidePositionAfter <= 0 {
+		cfg.Web.Map.HidePositionAfter = defaultMapHidePositionAfter
+	}
 }
