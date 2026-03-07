@@ -1,5 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="__MARKER_WIDTH__" height="__MARKER_HEIGHT__" viewBox="0 0 30 42" role="img" aria-label="Client mute map marker">
   <path d="M15 1C7.82 1 2 6.82 2 14c0 8.68 9.76 19.73 12.3 22.44.38.41 1.02.41 1.4 0C18.24 33.73 28 22.68 28 14 28 6.82 22.18 1 15 1Z" fill="__MARKER_FILL__" stroke="__MARKER_STROKE__" stroke-width="2"/>
-  <path d="M10.2 15.9H12.1L14.7 13.5V18.5L12.1 16.1H10.2Z" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M17.2 13.4 20.9 17.1M20.9 13.4 17.2 17.1" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round"/>
+  <rect x="8.2" y="13.5" width="3.3" height="4.8" rx="0.8" fill="#ffffff"/>
+  <path d="M11.2 14.1 14.8 11.3V20.5L11.2 17.7Z" fill="#ffffff"/>
+  <path d="M17.6 12.7 22 17.1" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M22 12.7 17.6 17.1" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/>
 </svg>
