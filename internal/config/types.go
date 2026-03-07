@@ -95,6 +95,18 @@ type WebConfig struct {
 	Log        LogConfig  `koanf:"log"`
 }
 
+// MapPrecisionCirclesMode controls how node precision circles are rendered on the web map.
+type MapPrecisionCirclesMode string
+
+const (
+	// MapPrecisionCirclesNone disables node precision circles on the web map.
+	MapPrecisionCirclesNone MapPrecisionCirclesMode = "none"
+	// MapPrecisionCirclesSelected shows node precision circles only for the selected node.
+	MapPrecisionCirclesSelected MapPrecisionCirclesMode = "selected"
+	// MapPrecisionCirclesAlways shows node precision circles for every eligible node.
+	MapPrecisionCirclesAlways MapPrecisionCirclesMode = "always"
+)
+
 // ChatConfig controls chat API/UI behavior.
 type ChatConfig struct {
 	Enabled            bool   `koanf:"enabled"`
@@ -110,9 +122,10 @@ type WSConfig struct {
 
 // MapConfig controls map rendering defaults and liveness thresholds.
 type MapConfig struct {
-	Clustering            bool              `koanf:"clustering"`
-	DisconnectedThreshold time.Duration     `koanf:"disconnected_threshold"`
-	DefaultView           DefaultViewConfig `koanf:"default_view"`
+	Clustering            bool                    `koanf:"clustering"`
+	DisconnectedThreshold time.Duration           `koanf:"disconnected_threshold"`
+	PrecisionCirclesMode  MapPrecisionCirclesMode `koanf:"precision_circles_mode"`
+	DefaultView           DefaultViewConfig       `koanf:"default_view"`
 }
 
 // LogConfig controls log tab behavior.

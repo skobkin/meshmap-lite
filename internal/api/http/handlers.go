@@ -32,7 +32,8 @@ func (s *Server) meta(w http.ResponseWriter, _ *http.Request) {
 		LogPageSizeDefault:    s.cfg.Web.Log.PageSizeDefault,
 		DisconnectedThreshold: s.cfg.Web.Map.DisconnectedThreshold.String(),
 		Map: metaMapPayload{
-			Clustering: s.cfg.Web.Map.Clustering,
+			Clustering:           s.cfg.Web.Map.Clustering,
+			PrecisionCirclesMode: string(s.cfg.Web.Map.PrecisionCirclesMode),
 			DefaultView: metaDefaultViewPayload{
 				Latitude:  s.cfg.Web.Map.DefaultView.Latitude,
 				Longitude: s.cfg.Web.Map.DefaultView.Longitude,

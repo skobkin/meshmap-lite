@@ -4,12 +4,13 @@ import { LeafletMapAdapter } from '../maps/leafletMap'
 import { useNodeStore } from '../stores/nodes'
 import { useChatStore } from '../stores/chat'
 import { dayKey, dayLabel, hhmm } from '../utils/time'
-import type { ChatEvent } from '../api/types'
+import type { ChatEvent, MapPrecisionCirclesMode } from '../api/types'
 
 interface Props {
   center: [number, number]
   zoom: number
   clustering: boolean
+  precisionCirclesMode: MapPrecisionCirclesMode
   channels: string[]
   disconnectedThreshold?: string
   onOpenNodeDetails: (id: string) => void
@@ -61,7 +62,7 @@ function renderChatTimeline(messages: ChatEvent[], { nodeNameByID, onSelectNode,
   })
 }
 
-export function MapPage({ center, zoom, clustering, channels, disconnectedThreshold, onOpenNodeDetails, onViewChange }: Props) {
+export function MapPage({ center, zoom, clustering, precisionCirclesMode, channels, disconnectedThreshold, onOpenNodeDetails, onViewChange }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const adapterRef = useRef<LeafletMapAdapter | null>(null)
   const nodes = useNodeStore((s) => s.mapNodes)
@@ -82,6 +83,7 @@ export function MapPage({ center, zoom, clustering, channels, disconnectedThresh
     if (!ref.current) return
     adapterRef.current = new LeafletMapAdapter(ref.current, center, zoom, {
       clustering,
+      precisionCirclesMode,
       onOpenNodeDetails,
       onViewChange,
       onSelectNode: setSelectedId
@@ -90,7 +92,7 @@ export function MapPage({ center, zoom, clustering, channels, disconnectedThresh
       adapterRef.current?.destroy()
       adapterRef.current = null
     }
-  }, [clustering, onOpenNodeDetails, onViewChange, setSelectedId])
+  }, [clustering, onOpenNodeDetails, onViewChange, precisionCirclesMode, setSelectedId])
 
   useEffect(() => {
     adapterRef.current?.setView(center, zoom)

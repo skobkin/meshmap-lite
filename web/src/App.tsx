@@ -359,6 +359,7 @@ export function App() {
           center={center}
           zoom={zoom}
           clustering={meta?.map.clustering ?? true}
+          precisionCirclesMode={meta?.map.precision_circles_mode ?? 'selected'}
           channels={channels}
           disconnectedThreshold={meta?.disconnected_threshold}
           onOpenNodeDetails={openNodeDetails}

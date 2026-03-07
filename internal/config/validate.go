@@ -18,6 +18,11 @@ func validate(cfg Config) error {
 	if len(cfg.Channels) == 0 {
 		return errors.New("at least one channel must be configured")
 	}
+	switch cfg.Web.Map.PrecisionCirclesMode {
+	case MapPrecisionCirclesNone, MapPrecisionCirclesSelected, MapPrecisionCirclesAlways:
+	default:
+		return fmt.Errorf("unsupported web.map.precision_circles_mode: %s", cfg.Web.Map.PrecisionCirclesMode)
+	}
 
 	primary := 0
 	for _, channel := range cfg.Channels {

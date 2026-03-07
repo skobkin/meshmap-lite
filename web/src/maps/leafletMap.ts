@@ -1,6 +1,6 @@
 import L, { Map } from 'leaflet'
 import 'leaflet.markercluster'
-import type { MapNode } from '../api/types'
+import type { MapNode, MapPrecisionCirclesMode } from '../api/types'
 import { relativeTime } from '../utils/time'
 import clientMarkerSvgTemplate from './marker-icons/client.svg?raw'
 import clientBaseMarkerSvgTemplate from './marker-icons/client-base.svg?raw'
@@ -15,6 +15,7 @@ type MarkerIconKey = 'default' | 'router' | 'router-late' | 'client' | 'client-b
 
 interface LeafletMapOptions {
   clustering?: boolean
+  precisionCirclesMode?: MapPrecisionCirclesMode
   onOpenNodeDetails?: (id: string) => void
   onViewChange?: (center: [number, number], zoom: number) => void
   onSelectNode?: (id?: string) => void
@@ -52,7 +53,10 @@ export class LeafletMapAdapter {
   private readonly markerLayer: L.FeatureGroup | L.MarkerClusterGroup
   private markers: MarkerMap = {}
   private mapNodesByID = new globalThis.Map<string, MapNode>()
-  private precisionCircle?: L.Circle
+  private readonly precisionCircleLayer: L.FeatureGroup
+  private precisionCircles = new globalThis.Map<string, L.Circle>()
+  private readonly precisionCirclesMode: MapPrecisionCirclesMode
+  private lastDisconnectedThreshold?: string
   private selectedID?: string
   private readonly onOpenNodeDetails?: (id: string) => void
   private readonly onSelectNode?: (id?: string) => void
@@ -60,11 +64,13 @@ export class LeafletMapAdapter {
   constructor(el: HTMLElement, center: [number, number], zoom: number, opts: LeafletMapOptions = {}) {
     this.onOpenNodeDetails = opts.onOpenNodeDetails
     this.onSelectNode = opts.onSelectNode
+    this.precisionCirclesMode = opts.precisionCirclesMode ?? 'none'
     this.map = L.map(el).setView(center, zoom)
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(this.map)
+    this.precisionCircleLayer = L.featureGroup().addTo(this.map)
     this.markerLayer = opts.clustering
       ? L.markerClusterGroup({
           chunkedLoading: true,
@@ -90,8 +96,10 @@ export class LeafletMapAdapter {
   }
 
   render(nodes: MapNode[], disconnectedThreshold?: string): void {
+    this.lastDisconnectedThreshold = disconnectedThreshold
     this.mapNodesByID = new globalThis.Map(nodes.map((node) => [node.node.node_id, node]))
     const visibleNodeIDs = new Set<string>()
+    const visibleCircleIDs = new Set<string>()
     for (const n of nodes) {
       if (!n.position) continue
       const id = n.node.node_id
@@ -142,7 +150,7 @@ export class LeafletMapAdapter {
           detailsLink?.addEventListener('click', this.handleDetailsLinkClick)
           marker.setIcon(buildMarkerIcon(markerIconKey, markerFreshness, true))
           this.selectedID = id
-          this.syncPrecisionCircle()
+          this.render(Array.from(this.mapNodesByID.values()), this.lastDisconnectedThreshold)
           this.onSelectNode?.(id)
         })
         marker.on('popupclose', () => {
@@ -152,7 +160,7 @@ export class LeafletMapAdapter {
           if (this.selectedID !== id) return
           marker.setIcon(buildMarkerIcon(markerIconKey, markerFreshness, false))
           this.selectedID = undefined
-          this.syncPrecisionCircle()
+          this.render(Array.from(this.mapNodesByID.values()), this.lastDisconnectedThreshold)
           this.onSelectNode?.(undefined)
         })
         this.markers[id] = marker.addTo(this.markerLayer)
@@ -160,6 +168,34 @@ export class LeafletMapAdapter {
           marker.openPopup()
         }
       }
+
+      if (!this.shouldRenderPrecisionCircle(id, n.position.position_precision)) {
+        continue
+      }
+
+      visibleCircleIDs.add(id)
+      const circle = this.precisionCircles.get(id)
+      const circleLatLng: L.LatLngExpression = [n.position.latitude, n.position.longitude]
+      const radiusMeters = precisionBitsToRadiusMeters(n.position.position_precision)
+      if (radiusMeters === undefined) {
+        continue
+      }
+      if (circle) {
+        circle.setLatLng(circleLatLng)
+        circle.setRadius(radiusMeters)
+        continue
+      }
+
+      this.precisionCircles.set(id, L.circle(circleLatLng, {
+        radius: radiusMeters,
+        color: '#0b3f97',
+        weight: 1.5,
+        opacity: 0.45,
+        fillColor: '#1f6ae5',
+        fillOpacity: 0.14,
+        interactive: false,
+        bubblingMouseEvents: false
+      }).addTo(this.precisionCircleLayer))
     }
 
     for (const [id, marker] of Object.entries(this.markers)) {
@@ -171,20 +207,26 @@ export class LeafletMapAdapter {
       delete this.markers[id]
     }
 
-    this.syncPrecisionCircle()
+    for (const [id, circle] of this.precisionCircles.entries()) {
+      if (visibleCircleIDs.has(id)) continue
+      this.precisionCircleLayer.removeLayer(circle)
+      this.precisionCircles.delete(id)
+    }
   }
 
   setSelectedNode(id?: string): void {
     if (id === this.selectedID) return
     if (!id) {
+      this.selectedID = undefined
       this.map.closePopup()
-      this.clearPrecisionCircle()
+      this.render(Array.from(this.mapNodesByID.values()), this.lastDisconnectedThreshold)
       return
     }
     const marker = this.markers[id]
     if (!marker) {
+      this.selectedID = undefined
       this.map.closePopup()
-      this.clearPrecisionCircle()
+      this.render(Array.from(this.mapNodesByID.values()), this.lastDisconnectedThreshold)
       return
     }
     marker.openPopup()
@@ -217,7 +259,8 @@ export class LeafletMapAdapter {
       marker.off('popupopen')
       marker.off('popupclose')
     }
-    this.clearPrecisionCircle()
+    this.precisionCircleLayer.clearLayers()
+    this.precisionCircles.clear()
     this.map.remove()
   }
 
@@ -234,45 +277,19 @@ export class LeafletMapAdapter {
     this.onOpenNodeDetails?.(id)
   }
 
-  private syncPrecisionCircle(): void {
-    if (!this.selectedID) {
-      this.clearPrecisionCircle()
-      return
+  private shouldRenderPrecisionCircle(id: string, bits?: number): boolean {
+    if (precisionBitsToRadiusMeters(bits) === undefined) {
+      return false
     }
-
-    const selectedNode = this.mapNodesByID.get(this.selectedID)
-    const position = selectedNode?.position
-    const radiusMeters = position ? precisionBitsToRadiusMeters(position.position_precision) : undefined
-    if (!position || radiusMeters === undefined) {
-      this.clearPrecisionCircle()
-      return
+    switch (this.precisionCirclesMode) {
+      case 'always':
+        return true
+      case 'selected':
+        return this.selectedID === id
+      case 'none':
+      default:
+        return false
     }
-
-    const center: L.LatLngExpression = [position.latitude, position.longitude]
-    if (this.precisionCircle) {
-      this.precisionCircle.setLatLng(center)
-      this.precisionCircle.setRadius(radiusMeters)
-      return
-    }
-
-    this.precisionCircle = L.circle(center, {
-      radius: radiusMeters,
-      color: '#0b3f97',
-      weight: 1.5,
-      opacity: 0.45,
-      fillColor: '#1f6ae5',
-      fillOpacity: 0.14,
-      interactive: false,
-      bubblingMouseEvents: false
-    }).addTo(this.map)
-  }
-
-  private clearPrecisionCircle(): void {
-    if (!this.precisionCircle) {
-      return
-    }
-    this.precisionCircle.remove()
-    this.precisionCircle = undefined
   }
 }
 

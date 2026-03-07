@@ -75,6 +75,7 @@ func defaultConfig() Config {
 			Map: MapConfig{
 				Clustering:            false,
 				DisconnectedThreshold: defaultMapDisconnectedThreshold,
+				PrecisionCirclesMode:  MapPrecisionCirclesSelected,
 				DefaultView:           DefaultViewConfig{Latitude: 64.5, Longitude: 40.6, Zoom: 13},
 			},
 			Log: LogConfig{

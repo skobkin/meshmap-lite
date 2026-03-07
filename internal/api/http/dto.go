@@ -22,8 +22,9 @@ type metaPayload struct {
 }
 
 type metaMapPayload struct {
-	Clustering  bool                   `json:"clustering"`
-	DefaultView metaDefaultViewPayload `json:"default_view"`
+	Clustering           bool                   `json:"clustering"`
+	PrecisionCirclesMode string                 `json:"precision_circles_mode"`
+	DefaultView          metaDefaultViewPayload `json:"default_view"`
 }
 
 type metaDefaultViewPayload struct {

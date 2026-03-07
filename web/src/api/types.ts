@@ -1,4 +1,5 @@
 export type WSState = 'connecting' | 'connected' | 'reconnecting' | 'disconnected'
+export type MapPrecisionCirclesMode = 'none' | 'selected' | 'always'
 
 export interface WSStats {
   known_nodes_count: number
@@ -115,6 +116,7 @@ export interface Meta {
   disconnected_threshold: string
   map: {
     clustering: boolean
+    precision_circles_mode: MapPrecisionCirclesMode
     default_view: {
       latitude: number
       longitude: number

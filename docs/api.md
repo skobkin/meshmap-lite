@@ -19,7 +19,7 @@ This document is the source of truth for the public HTTP and WebSocket contract 
 
 - `GET /healthz`: returns `200 {"status":"ok"}`.
 - `GET /readyz`: returns `200 {"status":"ready"}` when the app is ready, otherwise `503 {"status":"not_ready"}`.
-- `GET /api/v1/meta`: returns UI/runtime metadata including `app_name`, `version`, `websocket_path`, chat defaults, log settings, and map defaults.
+- `GET /api/v1/meta`: returns UI/runtime metadata including `app_name`, `version`, `websocket_path`, chat defaults, log settings, and map defaults. The `map` object includes `clustering`, `precision_circles_mode` (`none`, `selected`, `always`), and `default_view`.
 - `GET /api/v1/channels`: returns configured channels as `{name, chat_enabled, is_primary}` items.
 - `GET /api/v1/map/nodes`: returns map snapshot items as `{node, position?}`.
 - `GET /api/v1/chat/messages`: returns chat history ordered newest-first. `channel` defaults to `meta.default_chat_channel`; `limit` defaults to `meta.show_recent_messages`; `before` paginates by chat row ID.
