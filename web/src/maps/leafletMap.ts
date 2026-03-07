@@ -2,11 +2,15 @@ import L, { Map } from 'leaflet'
 import 'leaflet.markercluster'
 import type { MapNode } from '../api/types'
 import { relativeTime } from '../utils/time'
+import clientBaseMarkerSvgTemplate from './marker-icons/client-base.svg?raw'
+import clientMuteMarkerSvgTemplate from './marker-icons/client-mute.svg?raw'
 import defaultMarkerSvgTemplate from './marker-icons/default.svg?raw'
+import routerLateMarkerSvgTemplate from './marker-icons/router-late.svg?raw'
+import routerMarkerSvgTemplate from './marker-icons/router.svg?raw'
 
 type MarkerMap = Record<string, L.Marker>
 type MarkerFreshness = 'mqtt-recent' | 'heard-recent' | 'stale' | 'cold'
-type MarkerIconKey = 'default'
+type MarkerIconKey = 'default' | 'router' | 'router-late' | 'client-base' | 'client-mute'
 
 interface LeafletMapOptions {
   clustering?: boolean
@@ -34,7 +38,11 @@ const MARKER_SHADOW_URL = '/static/images/node-marker-shadow.svg'
 const markerIconCache = new globalThis.Map<string, L.Icon>()
 const COLD_NODE_AGE_MS = 7 * 24 * 60 * 60 * 1000
 const markerSvgTemplates: Record<MarkerIconKey, string> = {
-  default: defaultMarkerSvgTemplate
+  default: defaultMarkerSvgTemplate,
+  router: routerMarkerSvgTemplate,
+  'router-late': routerLateMarkerSvgTemplate,
+  'client-base': clientBaseMarkerSvgTemplate,
+  'client-mute': clientMuteMarkerSvgTemplate
 }
 
 export class LeafletMapAdapter {
@@ -281,8 +289,19 @@ function parseTimestampMs(raw?: string): number | undefined {
   return value
 }
 
-function markerIconKeyForRole(_role?: string): MarkerIconKey {
-  return 'default'
+function markerIconKeyForRole(role?: string): MarkerIconKey {
+  switch (role) {
+    case 'ROUTER':
+      return 'router'
+    case 'ROUTER_LATE':
+      return 'router-late'
+    case 'CLIENT_BASE':
+      return 'client-base'
+    case 'CLIENT_MUTE':
+      return 'client-mute'
+    default:
+      return 'default'
+  }
 }
 
 function buildMarkerIcon(iconKey: MarkerIconKey, freshness: MarkerFreshness, selected: boolean): L.Icon {

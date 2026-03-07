@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="__MARKER_WIDTH__" height="__MARKER_HEIGHT__" viewBox="0 0 30 42" role="img" aria-label="Router map marker">
+  <path d="M15 1C7.82 1 2 6.82 2 14c0 8.68 9.76 19.73 12.3 22.44.38.41 1.02.41 1.4 0C18.24 33.73 28 22.68 28 14 28 6.82 22.18 1 15 1Z" fill="__MARKER_FILL__" stroke="__MARKER_STROKE__" stroke-width="2"/>
+  <circle cx="15" cy="14" r="5.75" fill="#ffffff" fill-opacity="0.22"/>
+  <path d="M15 14V11.2M15 14 12.6 16M15 14 17.8 15.8" fill="none" stroke="#ffffff" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="15" cy="10.4" r="1.25" fill="#ffffff"/>
+  <circle cx="11.6" cy="16.7" r="1.25" fill="#ffffff"/>
+  <circle cx="19" cy="16.4" r="1.25" fill="#ffffff"/>
+</svg>
