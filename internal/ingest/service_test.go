@@ -7,8 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"meshmap-lite/internal/config"
 	"meshmap-lite/internal/domain"
 	"meshmap-lite/internal/meshtastic"
+	"meshmap-lite/internal/repo"
 	"meshmap-lite/internal/repo/testkit"
 )
 
@@ -53,6 +55,14 @@ func (s *testStore) InsertLogEvent(_ context.Context, e domain.LogEvent) (int64,
 type testEmitter struct{}
 
 func (testEmitter) Emit(domain.RealtimeEvent) {}
+
+type capturingEmitter struct {
+	events []domain.RealtimeEvent
+}
+
+func (e *capturingEmitter) Emit(event domain.RealtimeEvent) {
+	e.events = append(e.events, event)
+}
 
 func TestHandleMapReportMergesNodeAndPositionFields(t *testing.T) {
 	store := &testStore{}
@@ -216,5 +226,51 @@ func TestLogEventFromParsedRoutingKeepsTracerouteFailureSignal(t *testing.T) {
 	}
 	if _, exists := event.Details["traceroute_status"]; exists {
 		t.Fatalf("NONE routing error must not mark traceroute failed: %#v", event.Details)
+	}
+}
+
+func TestPersistLogEvent_EmitsResolvedNodeDisplayName(t *testing.T) {
+	store := &testStore{}
+	store.GetNodeDetailsFn = func(_ context.Context, nodeID string) (repo.NodeDetails, error) {
+		if nodeID != "!9028d008" {
+			t.Fatalf("unexpected node id lookup: %q", nodeID)
+		}
+
+		return repo.NodeDetails{
+			Node: domain.Node{
+				NodeID:    nodeID,
+				LongName:  "Alpha Base",
+				ShortName: "AB",
+			},
+		}, nil
+	}
+	emitter := &capturingEmitter{}
+	now := time.Unix(1772296589, 0).UTC()
+	svc := &Service{
+		cfg: Config{
+			Log: config.LogConfig{LiveUpdates: true},
+		},
+		store:   store,
+		emitter: emitter,
+		log:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	svc.persistLogEvent(context.Background(), domain.LogEvent{
+		ObservedAt: now,
+		NodeID:     "!9028d008",
+		EventKind:  domain.LogEventKindRoutingValue,
+		Encrypted:  true,
+		Channel:    "LongFast",
+	})
+
+	if len(emitter.events) != 1 {
+		t.Fatalf("expected 1 emitted event, got %d", len(emitter.events))
+	}
+	view, ok := emitter.events[0].Payload.(domain.LogEventView)
+	if !ok {
+		t.Fatalf("unexpected payload type: %T", emitter.events[0].Payload)
+	}
+	if view.NodeDisplay != "Alpha Base" {
+		t.Fatalf("expected resolved node display, got %q", view.NodeDisplay)
 	}
 }

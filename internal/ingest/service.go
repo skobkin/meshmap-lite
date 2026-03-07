@@ -2,6 +2,8 @@ package ingest
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -241,7 +243,7 @@ func (s *Service) persistLogEvent(ctx context.Context, logEvent domain.LogEvent)
 		ID:             id,
 		ObservedAt:     logEvent.ObservedAt,
 		NodeID:         logEvent.NodeID,
-		NodeDisplay:    logEvent.NodeID,
+		NodeDisplay:    s.resolveNodeDisplayName(ctx, logEvent.NodeID),
 		EventKindValue: logEvent.EventKind,
 		EventKindTitle: domain.LogEventKindTitle(logEvent.EventKind),
 		Encrypted:      logEvent.Encrypted,
@@ -254,6 +256,38 @@ func (s *Service) persistLogEvent(ctx context.Context, logEvent domain.LogEvent)
 	if s.cfg.Log.LiveUpdates {
 		s.emitter.Emit(domain.RealtimeEvent{Type: "log.event", TS: logEvent.ObservedAt, Payload: view})
 	}
+}
+
+func (s *Service) resolveNodeDisplayName(ctx context.Context, nodeID string) string {
+	if nodeID == "" {
+		return ""
+	}
+
+	type nodeDetailsReader interface {
+		GetNodeDetails(context.Context, string) (repo.NodeDetails, error)
+	}
+
+	reader, ok := s.store.(nodeDetailsReader)
+	if !ok {
+		return nodeID
+	}
+
+	details, err := reader.GetNodeDetails(ctx, nodeID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			s.log.Debug("resolve log event node display failed", "node_id", nodeID, "err", err)
+		}
+
+		return nodeID
+	}
+	if details.Node.LongName != "" {
+		return details.Node.LongName
+	}
+	if details.Node.ShortName != "" {
+		return details.Node.ShortName
+	}
+
+	return nodeID
 }
 
 func (s *Service) flushExpiredTraceroutes(ctx context.Context, now time.Time) {
