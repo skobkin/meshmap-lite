@@ -2,6 +2,7 @@ import L, { Map } from 'leaflet'
 import 'leaflet.markercluster'
 import type { MapNode } from '../api/types'
 import { relativeTime } from '../utils/time'
+import clientMarkerSvgTemplate from './marker-icons/client.svg?raw'
 import clientBaseMarkerSvgTemplate from './marker-icons/client-base.svg?raw'
 import clientMuteMarkerSvgTemplate from './marker-icons/client-mute.svg?raw'
 import defaultMarkerSvgTemplate from './marker-icons/default.svg?raw'
@@ -10,7 +11,7 @@ import routerMarkerSvgTemplate from './marker-icons/router.svg?raw'
 
 type MarkerMap = Record<string, L.Marker>
 type MarkerFreshness = 'mqtt-recent' | 'heard-recent' | 'stale' | 'cold'
-type MarkerIconKey = 'default' | 'router' | 'router-late' | 'client-base' | 'client-mute'
+type MarkerIconKey = 'default' | 'router' | 'router-late' | 'client' | 'client-base' | 'client-mute'
 
 interface LeafletMapOptions {
   clustering?: boolean
@@ -41,6 +42,7 @@ const markerSvgTemplates: Record<MarkerIconKey, string> = {
   default: defaultMarkerSvgTemplate,
   router: routerMarkerSvgTemplate,
   'router-late': routerLateMarkerSvgTemplate,
+  client: clientMarkerSvgTemplate,
   'client-base': clientBaseMarkerSvgTemplate,
   'client-mute': clientMuteMarkerSvgTemplate
 }
@@ -295,6 +297,8 @@ function markerIconKeyForRole(role?: string): MarkerIconKey {
       return 'router'
     case 'ROUTER_LATE':
       return 'router-late'
+    case 'CLIENT':
+      return 'client'
     case 'CLIENT_BASE':
       return 'client-base'
     case 'CLIENT_MUTE':

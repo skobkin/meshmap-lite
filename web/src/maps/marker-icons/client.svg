@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="__MARKER_WIDTH__" height="__MARKER_HEIGHT__" viewBox="0 0 30 42" role="img" aria-label="Client map marker">
+  <path d="M15 1C7.82 1 2 6.82 2 14c0 8.68 9.76 19.73 12.3 22.44.38.41 1.02.41 1.4 0C18.24 33.73 28 22.68 28 14 28 6.82 22.18 1 15 1Z" fill="__MARKER_FILL__" stroke="__MARKER_STROKE__" stroke-width="2"/>
+  <rect x="10.1" y="8.6" width="9.8" height="13.8" rx="2.2" fill="#ffffff"/>
+  <rect x="11.5" y="10.4" width="7" height="8.7" rx="0.9" fill="__MARKER_FILL__"/>
+  <circle cx="15" cy="20.4" r="0.95" fill="__MARKER_FILL__"/>
+</svg>
