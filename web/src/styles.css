@@ -529,6 +529,10 @@ body {
   box-shadow: none !important;
 }
 
+.map-node-marker-selected {
+  filter: drop-shadow(0 0 3px rgba(15, 23, 42, 0.24));
+}
+
 .leaflet-container .leaflet-control-zoom a {
   display: block;
   width: 26px;

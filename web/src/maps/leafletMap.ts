@@ -2,8 +2,11 @@ import L, { Map } from 'leaflet'
 import 'leaflet.markercluster'
 import type { MapNode } from '../api/types'
 import { relativeTime } from '../utils/time'
+import defaultMarkerSvgTemplate from './marker-icons/default.svg?raw'
 
 type MarkerMap = Record<string, L.Marker>
+type MarkerFreshness = 'mqtt-recent' | 'heard-recent' | 'stale' | 'cold'
+type MarkerIconKey = 'default'
 
 interface LeafletMapOptions {
   clustering?: boolean
@@ -22,22 +25,17 @@ interface PopupSection {
   rows: PopupRow[]
 }
 
-const SELECTED_MARKER_SCALE = 1 / 0.6
-
-const DEFAULT_MARKER_OPTIONS = {
-  iconUrl: '/static/images/node-marker.svg',
-  iconRetinaUrl: '/static/images/node-marker.svg',
-  shadowUrl: '/static/images/node-marker-shadow.svg',
-  iconSize: [18, 25] as L.PointExpression,
-  iconAnchor: [9, 25] as L.PointExpression,
-  popupAnchor: [0, -20] as L.PointExpression,
-  tooltipAnchor: [10, -12] as L.PointExpression,
-  shadowSize: [25, 12] as L.PointExpression,
-  shadowAnchor: [13, 6] as L.PointExpression
+const SELECTED_MARKER_SCALE = 1.15
+const MARKER_ICON_SIZE: [number, number] = [30, 42]
+const MARKER_ICON_ANCHOR: [number, number] = [15, 36]
+const MARKER_POPUP_ANCHOR: [number, number] = [0, -28]
+const MARKER_TOOLTIP_ANCHOR: [number, number] = [10, -18]
+const MARKER_SHADOW_URL = '/static/images/node-marker-shadow.svg'
+const markerIconCache = new globalThis.Map<string, L.Icon>()
+const COLD_NODE_AGE_MS = 7 * 24 * 60 * 60 * 1000
+const markerSvgTemplates: Record<MarkerIconKey, string> = {
+  default: defaultMarkerSvgTemplate
 }
-
-const DEFAULT_MARKER_ICON = L.icon(DEFAULT_MARKER_OPTIONS)
-const SELECTED_MARKER_ICON = L.icon(scaleMarkerOptions(DEFAULT_MARKER_OPTIONS, SELECTED_MARKER_SCALE))
 
 export class LeafletMapAdapter {
   private map: Map
@@ -86,6 +84,8 @@ export class LeafletMapAdapter {
       const id = n.node.node_id
       visibleNodeIDs.add(id)
       const mqtt = mqttStatus(n.node.last_seen_mqtt_gateway_at, disconnectedThreshold)
+      const markerFreshness = markerFreshnessState(n, disconnectedThreshold)
+      const markerIconKey = markerIconKeyForRole(n.node.role)
       const lora = compactValues([displayValue(n.node.lora_region), displayValue(n.node.lora_frequency_desc)]).join(' / ')
       const html = popupHtml(id, n.node.long_name ?? id, compactSections([
         section('Identity', compactRows([
@@ -109,16 +109,17 @@ export class LeafletMapAdapter {
         ]))
       ]))
       const latlng: [number, number] = [n.position.latitude, n.position.longitude]
+      const markerIcon = buildMarkerIcon(markerIconKey, markerFreshness, this.selectedID === id)
       const m = this.markers[id]
       if (m) {
         m.setLatLng(latlng)
-        m.setIcon(this.selectedID === id ? SELECTED_MARKER_ICON : DEFAULT_MARKER_ICON)
+        m.setIcon(markerIcon)
         m.getPopup()?.setContent(html)
         if (this.selectedID === id) {
           m.openPopup()
         }
       } else {
-        const marker = L.marker(latlng, { icon: this.selectedID === id ? SELECTED_MARKER_ICON : DEFAULT_MARKER_ICON }).bindPopup(html, {
+        const marker = L.marker(latlng, { icon: markerIcon }).bindPopup(html, {
           autoPan: false,
           closeButton: false
         })
@@ -126,7 +127,7 @@ export class LeafletMapAdapter {
           const popupEl = marker.getPopup()?.getElement()
           const detailsLink = popupEl?.querySelector<HTMLElement>('[data-node-details-link]')
           detailsLink?.addEventListener('click', this.handleDetailsLinkClick)
-          marker.setIcon(SELECTED_MARKER_ICON)
+          marker.setIcon(buildMarkerIcon(markerIconKey, markerFreshness, true))
           this.selectedID = id
           this.onSelectNode?.(id)
         })
@@ -135,7 +136,7 @@ export class LeafletMapAdapter {
           const detailsLink = popupEl?.querySelector<HTMLElement>('[data-node-details-link]')
           detailsLink?.removeEventListener('click', this.handleDetailsLinkClick)
           if (this.selectedID !== id) return
-          marker.setIcon(DEFAULT_MARKER_ICON)
+          marker.setIcon(buildMarkerIcon(markerIconKey, markerFreshness, false))
           this.selectedID = undefined
           this.onSelectNode?.(undefined)
         })
@@ -240,18 +241,6 @@ function scalePoint(value: L.PointExpression, scale: number): [number, number] {
   return [Math.round(x * scale), Math.round(y * scale)]
 }
 
-function scaleMarkerOptions(options: typeof DEFAULT_MARKER_OPTIONS, scale: number): typeof DEFAULT_MARKER_OPTIONS {
-  return {
-    ...options,
-    iconSize: scalePoint(options.iconSize, scale),
-    iconAnchor: scalePoint(options.iconAnchor, scale),
-    popupAnchor: scalePoint(options.popupAnchor, scale),
-    tooltipAnchor: scalePoint(options.tooltipAnchor, scale),
-    shadowSize: scalePoint(options.shadowSize, scale),
-    shadowAnchor: scalePoint(options.shadowAnchor, scale)
-  }
-}
-
 function mqttStatus(lastSeen?: string, disconnectedThreshold?: string): { status: 'Connected' | 'Disconnected'; age?: string } {
   if (!lastSeen) return { status: 'Disconnected' }
   const t = new Date(lastSeen)
@@ -261,6 +250,106 @@ function mqttStatus(lastSeen?: string, disconnectedThreshold?: string): { status
   const age = relativeTime(lastSeen)
   if (typeof thresholdMs !== 'number') return { status: 'Connected', age }
   return ageMs <= thresholdMs ? { status: 'Connected', age } : { status: 'Disconnected', age }
+}
+
+function markerFreshnessState(node: MapNode, disconnectedThreshold?: string): MarkerFreshness {
+  const thresholdMs = parseDurationMs(disconnectedThreshold)
+  const lastMQTTSeenAt = parseTimestampMs(node.node.last_seen_mqtt_gateway_at)
+  if (typeof thresholdMs === 'number' && lastMQTTSeenAt !== undefined && Date.now() - lastMQTTSeenAt <= thresholdMs) {
+    return 'mqtt-recent'
+  }
+
+  const lastAnySeenAt = parseTimestampMs(node.node.last_seen_any_event_at)
+  if (lastAnySeenAt === undefined) {
+    return 'cold'
+  }
+
+  const ageMs = Date.now() - lastAnySeenAt
+  if (typeof thresholdMs === 'number' && ageMs <= thresholdMs) {
+    return 'heard-recent'
+  }
+  if (ageMs < COLD_NODE_AGE_MS) {
+    return 'stale'
+  }
+  return 'cold'
+}
+
+function parseTimestampMs(raw?: string): number | undefined {
+  if (!raw) return undefined
+  const value = new Date(raw).getTime()
+  if (Number.isNaN(value)) return undefined
+  return value
+}
+
+function markerIconKeyForRole(_role?: string): MarkerIconKey {
+  return 'default'
+}
+
+function buildMarkerIcon(iconKey: MarkerIconKey, freshness: MarkerFreshness, selected: boolean): L.Icon {
+  const scale = selected ? SELECTED_MARKER_SCALE : 1
+  const [width, height] = scalePoint(MARKER_ICON_SIZE, scale)
+  const iconAnchor = scalePoint(MARKER_ICON_ANCHOR, scale)
+  const popupAnchor = scalePoint(MARKER_POPUP_ANCHOR, scale)
+  const tooltipAnchor = scalePoint(MARKER_TOOLTIP_ANCHOR, scale)
+  const cacheKey = `${iconKey}:${freshness}:${selected ? 'selected' : 'default'}:${width}x${height}`
+  const cached = markerIconCache.get(cacheKey)
+  if (cached) {
+    return cached
+  }
+
+  const icon = L.icon({
+    iconUrl: markerDataUrl(iconKey, freshness, selected),
+    iconRetinaUrl: markerDataUrl(iconKey, freshness, selected),
+    shadowUrl: MARKER_SHADOW_URL,
+    iconSize: [width, height],
+    iconAnchor,
+    popupAnchor,
+    tooltipAnchor,
+    shadowSize: scalePoint([25, 12], scale),
+    shadowAnchor: scalePoint([13, 6], scale),
+    className: selected ? 'map-node-marker-selected' : 'map-node-marker'
+  })
+  markerIconCache.set(cacheKey, icon)
+  return icon
+}
+
+function markerDataUrl(iconKey: MarkerIconKey, freshness: MarkerFreshness, selected: boolean): string {
+  const [fill, stroke] = markerColors(freshness)
+  const scale = selected ? SELECTED_MARKER_SCALE : 1
+  const [width, height] = scalePoint(MARKER_ICON_SIZE, scale)
+  const svg = markerSvg(iconKey, {
+    fill,
+    stroke,
+    width,
+    height
+  })
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`
+}
+
+function markerSvg(
+  iconKey: MarkerIconKey,
+  { fill, stroke, width, height }: { fill: string; stroke: string; width: number; height: number }
+): string {
+  const template = markerSvgTemplates[iconKey] ?? markerSvgTemplates.default
+  return template
+    .replaceAll('__MARKER_FILL__', fill)
+    .replaceAll('__MARKER_STROKE__', stroke)
+    .replaceAll('__MARKER_WIDTH__', String(width))
+    .replaceAll('__MARKER_HEIGHT__', String(height))
+}
+
+function markerColors(freshness: MarkerFreshness): [string, string] {
+  switch (freshness) {
+    case 'mqtt-recent':
+      return ['#4fbc6a', '#2f8142']
+    case 'heard-recent':
+      return ['#1f7a39', '#124a22']
+    case 'cold':
+      return ['#7b8794', '#4b5563']
+    case 'stale':
+    default:
+      return ['#1f6ae5', '#0b3f97']
+  }
 }
 
 function displayValue(v: string | number | boolean | undefined): string | null {
