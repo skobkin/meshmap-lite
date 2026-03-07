@@ -65,11 +65,20 @@ func Run(configPath string) error {
 		TTL:  cfg.Storage.KV.TTL,
 	})
 	ing := ingest.New(ingest.Config{
-		MQTT:       cfg.MQTT,
-		Ingest:     cfg.Ingest,
-		MapReports: cfg.MapReports,
-		Channels:   cfg.Channels,
-		Log:        cfg.Web.Log,
+		RootTopic: cfg.MQTT.RootTopic,
+		Traceroute: ingest.TracerouteConfig{
+			Timeout:        cfg.Ingest.Traceroute.Timeout,
+			MaxEntries:     cfg.Ingest.Traceroute.MaxEntries,
+			FinalRetention: cfg.Ingest.Traceroute.FinalRetention,
+		},
+		MapReports: ingest.MapReportsConfig{
+			Enabled:     cfg.Ingest.MapReports.Enabled,
+			TopicSuffix: cfg.Ingest.MapReports.TopicSuffix,
+		},
+		Channels: ingestChannels(cfg.Channels),
+		Log: ingest.LogConfig{
+			LiveUpdates: cfg.Web.Log.LiveUpdates,
+		},
 	}, store, dedupStore, hub, logMgr.Logger("internal/ingest"))
 
 	var mqttReady atomic.Bool
@@ -137,4 +146,16 @@ func Run(configPath string) error {
 	log.Info("shutdown complete")
 
 	return nil
+}
+
+func ingestChannels(channels map[string]config.ChannelConfig) map[string]ingest.ChannelConfig {
+	out := make(map[string]ingest.ChannelConfig, len(channels))
+	for name, ch := range channels {
+		out[name] = ingest.ChannelConfig{
+			PSK:     ch.PSK,
+			Primary: ch.Primary,
+		}
+	}
+
+	return out
 }

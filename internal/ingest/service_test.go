@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"meshmap-lite/internal/config"
 	"meshmap-lite/internal/domain"
 	"meshmap-lite/internal/meshtastic"
 	"meshmap-lite/internal/repo"
@@ -248,7 +247,7 @@ func TestPersistLogEvent_EmitsResolvedNodeDisplayName(t *testing.T) {
 	now := time.Unix(1772296589, 0).UTC()
 	svc := &Service{
 		cfg: Config{
-			Log: config.LogConfig{LiveUpdates: true},
+			Log: LogConfig{LiveUpdates: true},
 		},
 		store:   store,
 		emitter: emitter,

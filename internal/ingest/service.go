@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"meshmap-lite/internal/config"
 	"meshmap-lite/internal/dedup"
 	"meshmap-lite/internal/domain"
 	"meshmap-lite/internal/meshtastic"
@@ -34,11 +33,35 @@ type Service struct {
 
 // Config contains the subset of app config required by the ingest service.
 type Config struct {
-	MQTT       config.MQTTConfig
-	Ingest     config.IngestConfig
-	MapReports config.MapReportsConfig
-	Channels   map[string]config.ChannelConfig
-	Log        config.LogConfig
+	RootTopic  string
+	Traceroute TracerouteConfig
+	MapReports MapReportsConfig
+	Channels   map[string]ChannelConfig
+	Log        LogConfig
+}
+
+// TracerouteConfig bounds ingest-side traceroute lifecycle tracking.
+type TracerouteConfig struct {
+	Timeout        time.Duration
+	MaxEntries     int
+	FinalRetention time.Duration
+}
+
+// MapReportsConfig controls optional Meshtastic map report ingest.
+type MapReportsConfig struct {
+	Enabled     bool
+	TopicSuffix string
+}
+
+// ChannelConfig contains the per-channel fields used by ingest.
+type ChannelConfig struct {
+	PSK     string
+	Primary bool
+}
+
+// LogConfig contains the ingest-relevant log settings.
+type LogConfig struct {
+	LiveUpdates bool
 }
 
 // New constructs ingest service and configures parser channel keys.
@@ -56,9 +79,9 @@ func New(cfg Config, store repo.WriteStore, dedupStore *dedup.Store, emitter Rea
 		emitter: emitter,
 		log:     log,
 		tracker: newTracerouteTracker(log, tracerouteTrackerOptions{
-			timeout:        cfg.Ingest.Traceroute.Timeout,
-			maxEntries:     cfg.Ingest.Traceroute.MaxEntries,
-			finalRetention: cfg.Ingest.Traceroute.FinalRetention,
+			timeout:        cfg.Traceroute.Timeout,
+			maxEntries:     cfg.Traceroute.MaxEntries,
+			finalRetention: cfg.Traceroute.FinalRetention,
 		}),
 		now: func() time.Time {
 			return time.Now().UTC()
@@ -71,7 +94,7 @@ func (s *Service) HandleMessage(ctx context.Context, topic string, payload []byt
 	now := s.currentTime()
 	s.flushExpiredTraceroutes(ctx, now)
 	s.log.Debug("ingest mqtt payload", "topic", topic, "bytes", len(payload))
-	topicInfo := meshtastic.ClassifyTopic(s.cfg.MQTT.RootTopic, s.cfg.MapReports.TopicSuffix, topic)
+	topicInfo := meshtastic.ClassifyTopic(s.cfg.RootTopic, s.cfg.MapReports.TopicSuffix, topic)
 	if topicInfo.Kind == meshtastic.TopicKindUnknown {
 		s.log.Debug("skip message with unknown topic", "topic", topic)
 

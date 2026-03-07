@@ -46,6 +46,7 @@ func defaultConfig() Config {
 			Keepalive:        defaultMQTTKeepalive,
 		},
 		Ingest: IngestConfig{
+			MapReports: MapReportsConfig{Enabled: true, TopicSuffix: "2/map"},
 			Traceroute: TracerouteIngestConfig{
 				Timeout:        defaultTracerouteTimeout,
 				MaxEntries:     defaultTracerouteEntries,
@@ -62,8 +63,7 @@ func defaultConfig() Config {
 				LogPruneBatchRows: defaultLogPruneBatchRows,
 			},
 		},
-		MapReports: MapReportsConfig{Enabled: true, TopicSuffix: "2/map"},
-		Channels:   map[string]ChannelConfig{},
+		Channels: map[string]ChannelConfig{},
 		Web: WebConfig{
 			ListenAddr: defaultWebListenAddr,
 			BasePath:   defaultWebBasePath,

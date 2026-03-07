@@ -48,12 +48,14 @@ var envSetters = map[string]envSetter{
 	"ingest.traceroute.final_retention": func(cfg *Config, value string) {
 		cfg.Ingest.Traceroute.FinalRetention = mustDuration(value, cfg.Ingest.Traceroute.FinalRetention)
 	},
-	"map_reports.enabled":      func(cfg *Config, value string) { cfg.MapReports.Enabled = mustBool(value, cfg.MapReports.Enabled) },
-	"map_reports.topic_suffix": func(cfg *Config, value string) { cfg.MapReports.TopicSuffix = value },
-	"web.listen_addr":          func(cfg *Config, value string) { cfg.Web.ListenAddr = value },
-	"web.base_path":            func(cfg *Config, value string) { cfg.Web.BasePath = value },
-	"web.chat.enabled":         func(cfg *Config, value string) { cfg.Web.Chat.Enabled = mustBool(value, cfg.Web.Chat.Enabled) },
-	"web.chat.default_channel": func(cfg *Config, value string) { cfg.Web.Chat.DefaultChannel = value },
+	"ingest.map_reports.enabled": func(cfg *Config, value string) {
+		cfg.Ingest.MapReports.Enabled = mustBool(value, cfg.Ingest.MapReports.Enabled)
+	},
+	"ingest.map_reports.topic_suffix": func(cfg *Config, value string) { cfg.Ingest.MapReports.TopicSuffix = value },
+	"web.listen_addr":                 func(cfg *Config, value string) { cfg.Web.ListenAddr = value },
+	"web.base_path":                   func(cfg *Config, value string) { cfg.Web.BasePath = value },
+	"web.chat.enabled":                func(cfg *Config, value string) { cfg.Web.Chat.Enabled = mustBool(value, cfg.Web.Chat.Enabled) },
+	"web.chat.default_channel":        func(cfg *Config, value string) { cfg.Web.Chat.DefaultChannel = value },
 	"web.chat.show_recent_messages": func(cfg *Config, value string) {
 		cfg.Web.Chat.ShowRecentMessages = mustInt(value, cfg.Web.Chat.ShowRecentMessages)
 	},

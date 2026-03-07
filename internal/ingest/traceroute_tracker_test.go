@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"meshmap-lite/internal/config"
 	"meshmap-lite/internal/meshtastic"
 )
 
@@ -271,12 +270,10 @@ func TestTracerouteTrackerEvictsOldestNonFinalWhenFull(t *testing.T) {
 func TestServiceTracerouteLogDecisionSuppressesMatchedPacketRows(t *testing.T) {
 	svc := &Service{
 		cfg: Config{
-			Ingest: config.IngestConfig{
-				Traceroute: config.TracerouteIngestConfig{
-					Timeout:        30 * time.Second,
-					MaxEntries:     16,
-					FinalRetention: 30 * time.Second,
-				},
+			Traceroute: TracerouteConfig{
+				Timeout:        30 * time.Second,
+				MaxEntries:     16,
+				FinalRetention: 30 * time.Second,
 			},
 		},
 		tracker: newTracerouteTracker(nil, tracerouteTrackerOptions{

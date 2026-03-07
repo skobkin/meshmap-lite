@@ -25,6 +25,7 @@ channels:
 	t.Setenv("MML_CHANNELS__LONGFAST__PRIMARY", "true")
 	t.Setenv("MML_STORAGE__SQL__LOG_PRUNE_BATCH_ROWS", "1234")
 	t.Setenv("MML_INGEST__TRACEROUTE__MAX_ENTRIES", "2222")
+	t.Setenv("MML_INGEST__MAP_REPORTS__TOPIC_SUFFIX", "custom/map")
 	t.Setenv("MML_WEB__WS__STATS_INTERVAL", "90s")
 	cfg, err := Load(path)
 	if err != nil {
@@ -47,6 +48,9 @@ channels:
 	}
 	if cfg.Ingest.Traceroute.MaxEntries != 2222 {
 		t.Fatalf("expected ingest traceroute max_entries env override")
+	}
+	if cfg.Ingest.MapReports.TopicSuffix != "custom/map" {
+		t.Fatalf("expected ingest map_reports topic_suffix env override")
 	}
 	if cfg.Web.WS.StatsInterval != 90*time.Second {
 		t.Fatalf("expected web.ws.stats_interval env override")

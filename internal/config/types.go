@@ -11,13 +11,12 @@ const (
 
 // Config is the root application configuration loaded from YAML and environment.
 type Config struct {
-	MQTT       MQTTConfig               `koanf:"mqtt" json:"mqtt"`
-	Ingest     IngestConfig             `koanf:"ingest" json:"ingest"`
-	Storage    StorageConfig            `koanf:"storage" json:"storage"`
-	MapReports MapReportsConfig         `koanf:"map_reports" json:"map_reports"`
-	Channels   map[string]ChannelConfig `koanf:"channels" json:"channels"`
-	Web        WebConfig                `koanf:"web" json:"web"`
-	Logging    LoggingConfig            `koanf:"logging" json:"logging"`
+	MQTT     MQTTConfig               `koanf:"mqtt" json:"mqtt"`
+	Ingest   IngestConfig             `koanf:"ingest" json:"ingest"`
+	Storage  StorageConfig            `koanf:"storage" json:"storage"`
+	Channels map[string]ChannelConfig `koanf:"channels" json:"channels"`
+	Web      WebConfig                `koanf:"web" json:"web"`
+	Logging  LoggingConfig            `koanf:"logging" json:"logging"`
 }
 
 // MQTTConfig contains MQTT broker and connection settings.
@@ -40,6 +39,7 @@ type MQTTConfig struct {
 
 // IngestConfig controls ingest-side correlation and synthesis policies.
 type IngestConfig struct {
+	MapReports MapReportsConfig       `koanf:"map_reports" json:"map_reports"`
 	Traceroute TracerouteIngestConfig `koanf:"traceroute" json:"traceroute"`
 }
 
