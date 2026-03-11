@@ -671,9 +671,58 @@ body {
   align-items: flex-start;
 }
 
+.json-toggle,
+.json-toggle-spacer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin-top: 0.05rem;
+  margin-right: 0.3rem;
+}
+
+.json-toggle {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--pico-color);
+  cursor: pointer;
+  line-height: 1;
+  transition:
+    color 120ms ease,
+    transform 120ms ease;
+}
+
+.json-toggle:hover,
+.json-toggle:focus-visible {
+  color: color-mix(in srgb, var(--pico-color) 78%, white 22%);
+}
+
+.json-toggle:focus-visible {
+  outline: 1px solid currentcolor;
+  outline-offset: 2px;
+}
+
+.json-toggle:active {
+  transform: scale(0.96);
+}
+
+.json-toggle-icon {
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
 .json-indent {
   display: inline-block;
   flex: 0 0 auto;
+}
+
+.json-collapsed {
+  color: var(--pico-muted-color);
+  font-style: italic;
 }
 
 .json-key {
@@ -720,6 +769,15 @@ body {
   color: #ff938a;
 }
 
+[data-theme="dark"] .json-toggle {
+  color: #9bd7ff;
+}
+
+[data-theme="dark"] .json-toggle:hover,
+[data-theme="dark"] .json-toggle:focus-visible {
+  color: #d7f0ff;
+}
+
 @media (prefers-color-scheme: dark) {
   .json-key {
     color: #7cc7ff;
@@ -739,6 +797,15 @@ body {
 
   .json-null {
     color: #ff938a;
+  }
+
+  .json-toggle {
+    color: #9bd7ff;
+  }
+
+  .json-toggle:hover,
+  .json-toggle:focus-visible {
+    color: #d7f0ff;
   }
 }
 

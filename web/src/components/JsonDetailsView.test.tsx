@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { render, screen, within } from '@testing-library/preact'
+import { fireEvent, render, screen, within } from '@testing-library/preact'
 import { describe, expect, it } from 'vitest'
 
 import { JsonDetailsView } from './JsonDetailsView'
@@ -48,5 +48,45 @@ describe('JsonDetailsView', () => {
     render(<JsonDetailsView value={{ note: 'line\n"quote"' }} />)
 
     expect(screen.getByText('"line\\n\\"quote\\""').classList.contains('json-string')).toBe(true)
+  })
+
+  it('collapses and expands object nodes without persisting state', () => {
+    render(
+      <JsonDetailsView
+        value={{
+          nested: {
+            value: 'alpha',
+            count: 2
+          }
+        }}
+      />
+    )
+
+    fireEvent.click(screen.getByLabelText('Collapse object at $.nested'))
+
+    expect(screen.getByText('{...} 2 keys').classList.contains('json-collapsed')).toBe(true)
+    expect(screen.queryByText('"alpha"')).toBeNull()
+
+    fireEvent.click(screen.getByLabelText('Expand object at $.nested'))
+
+    expect(screen.getByText('"alpha"').classList.contains('json-string')).toBe(true)
+    expect(screen.getByText('2').classList.contains('json-number')).toBe(true)
+  })
+
+  it('collapses array nodes into a one-line summary', () => {
+    render(
+      <JsonDetailsView
+        value={{
+          items: ['x', 'y', 'z']
+        }}
+      />
+    )
+
+    fireEvent.click(screen.getByLabelText('Collapse array at $.items'))
+
+    expect(screen.getByText('[...] 3 items').classList.contains('json-collapsed')).toBe(true)
+    expect(screen.queryByText('"x"')).toBeNull()
+    expect(screen.queryByText('"y"')).toBeNull()
+    expect(screen.queryByText('"z"')).toBeNull()
   })
 })

@@ -53,10 +53,6 @@ function logTitle(event: LogEvent): string {
   return parts.join(' · ')
 }
 
-function DefaultLogDetailsView({ event }: { event: LogEvent }) {
-  return <JsonDetailsView value={event.details ?? {}} />
-}
-
 interface Props {
   event?: LogEvent
   onClose: () => void
@@ -84,7 +80,7 @@ export function LogDetailsModal({ event, onClose, renderers }: Props) {
   const renderer = resolveLogDetailsRenderer(event, renderers)
   const content = renderer
     ? renderer.render(event)
-    : <DefaultLogDetailsView event={event} />
+    : <JsonDetailsView value={event.details ?? {}} />
 
   return (
     <div

@@ -1,17 +1,29 @@
-import type { ComponentChildren, VNode } from 'preact'
+import { useState } from 'preact/hooks'
+
+import type { ComponentChildren } from 'preact'
 
 interface JsonDetailsViewProps {
   value: unknown
 }
 
-interface JsonRenderOptions {
+interface JsonNodeProps {
+  depth: number
+  path: string
+  value: unknown
+  keyPrefix?: string
+  trailingComma?: boolean
+}
+
+interface JsonCollectionNodeProps {
+  depth: number
+  path: string
   keyPrefix?: string
   trailingComma?: boolean
 }
 
 const INDENT_SIZE_REM = 1
 
-function JsonLine({
+const JsonLine = ({
   depth,
   children,
   trailingComma = false
@@ -19,7 +31,7 @@ function JsonLine({
   depth: number
   children: ComponentChildren
   trailingComma?: boolean
-}) {
+}) => {
   return (
     <div className="json-line">
       <span
@@ -33,7 +45,7 @@ function JsonLine({
   )
 }
 
-function renderScalar(value: unknown): VNode {
+function renderScalar(value: unknown) {
   if (typeof value === 'string') {
     return <span className="json-string">{JSON.stringify(value)}</span>
   }
@@ -54,7 +66,7 @@ function renderScalar(value: unknown): VNode {
   return <span className="json-string">{fallback}</span>
 }
 
-function renderPrefix(keyPrefix?: string): ComponentChildren {
+function renderPrefix(keyPrefix?: string) {
   if (!keyPrefix) return null
 
   return (
@@ -65,107 +77,198 @@ function renderPrefix(keyPrefix?: string): ComponentChildren {
   )
 }
 
-function renderValue(
-  value: unknown,
-  depth: number,
-  options: JsonRenderOptions = {}
-): VNode[] {
-  const prefix = renderPrefix(options.keyPrefix)
+function objectSummary(entryCount: number): string {
+  return entryCount === 1 ? '{...} 1 key' : `{...} ${entryCount} keys`
+}
 
+function arraySummary(itemCount: number): string {
+  return itemCount === 1 ? '[...] 1 item' : `[...] ${itemCount} items`
+}
+
+const JsonToggle = ({
+  expanded,
+  onToggle,
+  label
+}: {
+  expanded: boolean
+  onToggle: () => void
+  label: string
+}) => {
+  return (
+    <button
+      aria-label={label}
+      className="json-toggle"
+      type="button"
+      onClick={onToggle}
+    >
+      <span aria-hidden="true" className="json-toggle-icon">
+        {expanded ? '-' : '+'}
+      </span>
+    </button>
+  )
+}
+
+const JsonNode = ({ depth, path, value, keyPrefix, trailingComma = false }: JsonNodeProps) => {
   if (Array.isArray(value)) {
-    if (value.length === 0) {
-      return [
-        <JsonLine key={`array-empty-${depth}-${options.keyPrefix ?? 'root'}`} depth={depth} trailingComma={options.trailingComma}>
-          {prefix}
-          <span className="json-punctuation">[]</span>
-        </JsonLine>
-      ]
-    }
-
-    const lines: VNode[] = [
-      <JsonLine key={`array-open-${depth}-${options.keyPrefix ?? 'root'}`} depth={depth}>
-        {prefix}
-        <span className="json-punctuation">[</span>
-      </JsonLine>
-    ]
-
-    value.forEach((item, index) => {
-      lines.push(
-        ...renderValue(item, depth + 1, {
-          trailingComma: index < value.length - 1
-        }).map((line, lineIndex) => (
-          <div key={`array-item-${depth}-${index}-${lineIndex}`}>{line}</div>
-        ))
-      )
-    })
-
-    lines.push(
-      <JsonLine
-        key={`array-close-${depth}-${options.keyPrefix ?? 'root'}`}
+    return (
+      <JsonArrayNode
         depth={depth}
-        trailingComma={options.trailingComma}
-      >
-        <span className="json-punctuation">]</span>
-      </JsonLine>
+        keyPrefix={keyPrefix}
+        path={path}
+        trailingComma={trailingComma}
+        value={value}
+      />
     )
-
-    return lines
   }
 
   if (value && typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>)
-    if (entries.length === 0) {
-      return [
-        <JsonLine key={`object-empty-${depth}-${options.keyPrefix ?? 'root'}`} depth={depth} trailingComma={options.trailingComma}>
-          {prefix}
-          <span className="json-punctuation">{'{}'}</span>
-        </JsonLine>
-      ]
-    }
+    return (
+      <JsonObjectNode
+        depth={depth}
+        keyPrefix={keyPrefix}
+        path={path}
+        trailingComma={trailingComma}
+        value={value as Record<string, unknown>}
+      />
+    )
+  }
 
-    const lines: VNode[] = [
-      <JsonLine key={`object-open-${depth}-${options.keyPrefix ?? 'root'}`} depth={depth}>
+  return (
+    <JsonLine depth={depth} trailingComma={trailingComma}>
+      {renderPrefix(keyPrefix)}
+      {renderScalar(value)}
+    </JsonLine>
+  )
+}
+
+const JsonArrayNode = ({
+  depth,
+  path,
+  value,
+  keyPrefix,
+  trailingComma = false
+}: JsonCollectionNodeProps & { value: unknown[] }) => {
+  const [expanded, setExpanded] = useState(true)
+  const prefix = renderPrefix(keyPrefix)
+
+  if (value.length === 0) {
+    return (
+      <JsonLine depth={depth} trailingComma={trailingComma}>
+        {prefix}
+        <span className="json-punctuation">[]</span>
+      </JsonLine>
+    )
+  }
+
+  if (!expanded) {
+    return (
+      <JsonLine depth={depth} trailingComma={trailingComma}>
+        <JsonToggle
+          expanded={false}
+          label={`Expand array at ${path}`}
+          onToggle={() => setExpanded(true)}
+        />
+        {prefix}
+        <span className="json-collapsed">{arraySummary(value.length)}</span>
+      </JsonLine>
+    )
+  }
+
+  return (
+    <>
+      <JsonLine depth={depth}>
+        <JsonToggle
+          expanded
+          label={`Collapse array at ${path}`}
+          onToggle={() => setExpanded(false)}
+        />
+        {prefix}
+        <span className="json-punctuation">[</span>
+      </JsonLine>
+      {value.map((item, index) => (
+        <JsonNode
+          depth={depth + 1}
+          key={`${path}[${index}]`}
+          path={`${path}[${index}]`}
+          trailingComma={index < value.length - 1}
+          value={item}
+        />
+      ))}
+      <JsonLine depth={depth} trailingComma={trailingComma}>
+        <span className="json-toggle-spacer" aria-hidden="true" />
+        <span className="json-punctuation">]</span>
+      </JsonLine>
+    </>
+  )
+}
+
+const JsonObjectNode = ({
+  depth,
+  path,
+  value,
+  keyPrefix,
+  trailingComma = false
+}: JsonCollectionNodeProps & { value: Record<string, unknown> }) => {
+  const [expanded, setExpanded] = useState(true)
+  const prefix = renderPrefix(keyPrefix)
+  const entries = Object.entries(value)
+
+  if (entries.length === 0) {
+    return (
+      <JsonLine depth={depth} trailingComma={trailingComma}>
+        {prefix}
+        <span className="json-punctuation">{'{}'}</span>
+      </JsonLine>
+    )
+  }
+
+  if (!expanded) {
+    return (
+      <JsonLine depth={depth} trailingComma={trailingComma}>
+        <JsonToggle
+          expanded={false}
+          label={`Expand object at ${path}`}
+          onToggle={() => setExpanded(true)}
+        />
+        {prefix}
+        <span className="json-collapsed">{objectSummary(entries.length)}</span>
+      </JsonLine>
+    )
+  }
+
+  return (
+    <>
+      <JsonLine depth={depth}>
+        <JsonToggle
+          expanded
+          label={`Collapse object at ${path}`}
+          onToggle={() => setExpanded(false)}
+        />
         {prefix}
         <span className="json-punctuation">{'{'}</span>
       </JsonLine>
-    ]
-
-    entries.forEach(([key, item], index) => {
-      lines.push(
-        ...renderValue(item, depth + 1, {
-          keyPrefix: key,
-          trailingComma: index < entries.length - 1
-        }).map((line, lineIndex) => (
-          <div key={`object-item-${depth}-${key}-${lineIndex}`}>{line}</div>
-        ))
-      )
-    })
-
-    lines.push(
-      <JsonLine
-        key={`object-close-${depth}-${options.keyPrefix ?? 'root'}`}
-        depth={depth}
-        trailingComma={options.trailingComma}
-      >
+      {entries.map(([entryKey, item], index) => (
+        <JsonNode
+          depth={depth + 1}
+          key={`${path}.${entryKey}`}
+          keyPrefix={entryKey}
+          path={`${path}.${entryKey}`}
+          trailingComma={index < entries.length - 1}
+          value={item}
+        />
+      ))}
+      <JsonLine depth={depth} trailingComma={trailingComma}>
+        <span className="json-toggle-spacer" aria-hidden="true" />
         <span className="json-punctuation">{'}'}</span>
       </JsonLine>
-    )
-
-    return lines
-  }
-
-  return [
-    <JsonLine key={`scalar-${depth}-${options.keyPrefix ?? 'root'}`} depth={depth} trailingComma={options.trailingComma}>
-      {prefix}
-      {renderScalar(value)}
-    </JsonLine>
-  ]
+    </>
+  )
 }
 
 export function JsonDetailsView({ value }: JsonDetailsViewProps) {
   return (
     <div className="json-view">
-      {renderValue(value, 0)}
+      <JsonNode depth={0} path="$" value={value} />
     </div>
   )
 }
