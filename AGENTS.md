@@ -120,6 +120,7 @@ Before considering work finished, run the same baseline checks as CI, adjusted t
 ## Commits
 
 - The repository uses Conventional Commits. Keep commit subjects scoped and check recent history for local examples.
+- When asked for a commit message, default to the current uncommitted changes only. If there are no uncommitted changes or the user explicitly asks about the branch, base the message on the current branch diff against its base branch at `origin`.
 - If a change updates the DB schema, include migrations in the same change.
 - Mention migration or manual operator actions only when they are actually required.
 
