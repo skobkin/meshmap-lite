@@ -55,8 +55,8 @@ export function Header({ appName, page, version, ws, wsStats, onPage }: Props) {
       </nav>
       <div className="header-icons">
         <ConnectionStatus ws={ws} wsStats={wsStats} />
-        <a className="repo-link" href="https://git.skobk.in/skobkin/meshmap-lite" target="_blank" rel="noreferrer" title="Source repository" aria-label="Source repository">
-          <img src="/static/icons/repo-graph.svg" alt="" aria-hidden="true" />
+        <a className="repo-link" href="https://git.skobk.in/skobkin/meshmap-lite" target="_blank" rel="noreferrer" title="Source" aria-label="Source code">
+          <span className="repo-link-icon" aria-hidden="true" />
         </a>
         <a href="https://meshtastic.org" target="_blank" rel="noreferrer" title="Powered by Meshtastic">
           <img className="meshtastic-logo" src="/static/icons/meshtastic-powered.svg" alt="Powered by Meshtastic" />
