@@ -35,6 +35,8 @@ linters:
         - name: unreachable-code
         - name: unnecessary-stmt
   exclusions:
+    paths:
+      - web/
     rules:
       - path: internal/meshtasticpb/.*
         linters:

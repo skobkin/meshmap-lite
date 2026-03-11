@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from 'preact/hooks'
 import { LeafletMapAdapter } from '../maps/leafletMap'
 import { useChatStore } from '../stores/chat'
 import { useNodeStore } from '../stores/nodes'
-import { dayKey, dayLabel, hhmm } from '../utils/time'
 import { chatNodeLabel } from '../utils/chat'
+import { dayKey, dayLabel, hhmm } from '../utils/time'
 
 import type { ChatEvent, MapPrecisionCirclesMode } from '../api/types'
 

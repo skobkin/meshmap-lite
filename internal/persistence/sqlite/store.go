@@ -395,6 +395,7 @@ func (s *Store) ResolveNodeDisplay(ctx context.Context, nodeID string) (string, 
 		if errors.Is(err, sql.ErrNoRows) {
 			return nodeID, nil
 		}
+
 		return "", err
 	}
 
