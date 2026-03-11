@@ -106,8 +106,8 @@ Before considering work finished, run the same baseline checks as CI, adjusted t
 ### Frontend (if changed)
 
 - `cd web && npm run typecheck`
-- `cd web && npm run lint` (if configured)
-- `cd web && npm run test` (if configured)
+- `cd web && npm run lint`
+- `cd web && npm run test`
 - `cd web && npm run build`
 
 ### Project hygiene
