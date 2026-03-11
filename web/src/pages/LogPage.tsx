@@ -1,3 +1,7 @@
+import { useState } from 'preact/hooks'
+
+import { LogDetailsModal, hasLogDetails } from '../components/LogDetailsModal'
+
 import type { LogEvent } from '../api/types'
 
 interface Props {
@@ -29,11 +33,6 @@ function formatTime(value: string): string {
   return d.toLocaleString()
 }
 
-function detailsText(details?: Record<string, unknown>): string {
-  if (!details || Object.keys(details).length === 0) return '-'
-  return JSON.stringify(details)
-}
-
 export function LogPage({
   channels,
   items,
@@ -44,6 +43,8 @@ export function LogPage({
   onChangeChannel,
   onLoadMore
 }: Props) {
+  const [selectedEvent, setSelectedEvent] = useState<LogEvent>()
+
   return (
     <section className="log-layout container-fluid">
       <details className="log-filters">
@@ -96,12 +97,24 @@ export function LogPage({
                 <td>{row.event_kind_title}</td>
                 <td>{row.encrypted ? 'yes' : 'no'}</td>
                 <td>{row.channel_name ?? '-'}</td>
-                <td><small>{detailsText(row.details)}</small></td>
+                <td>
+                  {hasLogDetails(row.details) ? (
+                    <button
+                      type="button"
+                      className="secondary log-details-trigger"
+                      aria-label={`View details for ${row.event_kind_title}`}
+                      onClick={() => setSelectedEvent(row)}
+                    >
+                      View
+                    </button>
+                  ) : '-'}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
         <button type="button" className="secondary" onClick={onLoadMore}>Load more</button>
+        <LogDetailsModal event={selectedEvent} onClose={() => setSelectedEvent(undefined)} />
       </article>
     </section>
   )

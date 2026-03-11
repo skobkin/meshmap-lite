@@ -575,6 +575,96 @@ body {
   white-space: nowrap;
 }
 
+.log-details-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  min-width: 0;
+  min-height: 0;
+  padding: 0.15rem 0.55rem;
+  border-width: 1px;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.log-details-modal-header button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  min-width: 0;
+  min-height: 0;
+  padding: 0.2rem 0.65rem;
+  border-width: 1px;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.log-details-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: rgb(15 23 42 / 52%);
+  backdrop-filter: blur(2px);
+}
+
+.log-details-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: min(960px, 100%);
+  max-height: min(80dvh, 100%);
+  padding: 1rem;
+  overflow: hidden;
+  border: 1px solid var(--surface-border);
+  border-radius: 16px;
+  background: var(--surface-bg);
+  box-shadow: 0 1.5rem 3rem rgb(15 23 42 / 28%);
+}
+
+.log-details-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+}
+
+.log-details-modal-header h3,
+.log-details-modal-header p {
+  margin: 0;
+}
+
+.log-details-modal-kicker {
+  color: var(--pico-muted-color);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.log-details-modal-body {
+  min-height: 0;
+  overflow: auto;
+}
+
+.log-details-json {
+  margin: 0;
+  padding: 0.9rem;
+  overflow: auto;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-bg) 70%, black 6%);
+  font-size: 0.82rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .leaflet-control-attribution .leaflet-attribution-flag {
   display: none !important;
   width: 0 !important;
@@ -634,6 +724,15 @@ body {
 
   .log-filters-content {
     grid-template-columns: 1fr;
+  }
+
+  .log-details-modal {
+    width: 100%;
+    max-height: calc(100dvh - 2rem);
+  }
+
+  .log-details-modal-header {
+    flex-direction: column;
   }
 
   .chat-panel {
