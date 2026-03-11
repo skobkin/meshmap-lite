@@ -171,8 +171,8 @@ let apiMock: {
 let startWSMock: ReturnType<typeof vi.fn>
 
 async function renderApp() {
-  const { App } = await import('./App')
-  return render(<App />)
+  const appModule = await import('./App')
+  return render(<appModule.App />)
 }
 
 function setupModuleMocks(): void {
