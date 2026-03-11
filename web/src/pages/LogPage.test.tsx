@@ -76,10 +76,8 @@ describe('LogPage', () => {
 
     expect(screen.getByRole('dialog')).toBeTruthy()
     expect(screen.getByRole('heading', { name: /Map report · Bravo Node/i })).toBeTruthy()
-    const hasPrettyJson = (content: string, node: Element | null): boolean => (
-      Boolean(node?.classList.contains('log-details-json')) && content.includes('"answer": 42')
-    )
-    expect(screen.getByText(hasPrettyJson)).toBeTruthy()
+    expect(screen.getByText('"answer"').classList.contains('json-key')).toBe(true)
+    expect(screen.getByText('42').classList.contains('json-number')).toBe(true)
 
     await user.click(screen.getByRole('button', { name: 'Close details' }))
 

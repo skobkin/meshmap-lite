@@ -653,16 +653,51 @@ body {
   overflow: auto;
 }
 
-.log-details-json {
+.json-view {
   margin: 0;
   padding: 0.9rem;
   overflow: auto;
   border-radius: 12px;
   background: color-mix(in srgb, var(--surface-bg) 70%, black 6%);
+  font-family: ui-monospace, sfmono-regular, "SF Mono", consolas, "Liberation Mono", monospace;
   font-size: 0.82rem;
   line-height: 1.45;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.json-line {
+  display: flex;
+  align-items: flex-start;
+}
+
+.json-indent {
+  display: inline-block;
+  flex: 0 0 auto;
+}
+
+.json-key {
+  color: color-mix(in srgb, var(--pico-color) 82%, #8ec5ff);
+}
+
+.json-string {
+  color: color-mix(in srgb, var(--pico-color) 76%, #8dd694);
+}
+
+.json-number {
+  color: color-mix(in srgb, var(--pico-color) 72%, #f7b267);
+}
+
+.json-boolean {
+  color: color-mix(in srgb, var(--pico-color) 74%, #c792ea);
+}
+
+.json-null {
+  color: color-mix(in srgb, var(--pico-color) 66%, #ff7b72);
+}
+
+.json-punctuation {
+  color: var(--pico-muted-color);
 }
 
 .leaflet-control-attribution .leaflet-attribution-flag {

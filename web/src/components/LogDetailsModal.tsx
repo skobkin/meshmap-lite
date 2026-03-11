@@ -1,5 +1,7 @@
 import { useEffect, useId } from 'preact/hooks'
 
+import { JsonDetailsView } from './JsonDetailsView'
+
 import type { LogEvent } from '../api/types'
 import type { ComponentChildren } from 'preact'
 
@@ -52,11 +54,7 @@ function logTitle(event: LogEvent): string {
 }
 
 function DefaultLogDetailsView({ event }: { event: LogEvent }) {
-  return (
-    <pre className="log-details-json">
-      {JSON.stringify(event.details ?? {}, null, 2)}
-    </pre>
-  )
+  return <JsonDetailsView value={event.details ?? {}} />
 }
 
 interface Props {
