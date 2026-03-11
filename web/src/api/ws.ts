@@ -3,11 +3,18 @@ import { useLogStore } from '../stores/log'
 import { useMetaStore } from '../stores/meta'
 import { useNodeStore } from '../stores/nodes'
 import { useWSStore } from '../stores/ws'
+
 import type { LogEvent, Node, NodePosition, WSStats } from './types'
 
 interface EventEnvelope {
   type: string
   payload: unknown
+}
+
+function isEventEnvelope(payload: unknown): payload is EventEnvelope {
+  if (!payload || typeof payload !== 'object') return false
+  const event = payload as Record<string, unknown>
+  return typeof event.type === 'string' && 'payload' in event
 }
 
 function isNodePayload(payload: unknown): payload is Node {
@@ -61,7 +68,14 @@ export function startWS(path: string): () => void {
     }
 
     ws.onmessage = (e) => {
-      const msg = JSON.parse(e.data) as EventEnvelope
+      if (typeof e.data !== 'string') {
+        return
+      }
+      const parsed: unknown = JSON.parse(e.data)
+      if (!isEventEnvelope(parsed)) {
+        return
+      }
+      const msg = parsed
       if (msg.type === 'chat.message' || msg.type === 'chat.system') {
         useChatStore.getState().pushMessage(msg.payload as never)
         return

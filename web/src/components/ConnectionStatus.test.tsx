@@ -2,6 +2,7 @@
 
 import { render, screen } from '@testing-library/preact'
 import { describe, expect, it } from 'vitest'
+
 import { ConnectionStatus } from './ConnectionStatus'
 
 describe('ConnectionStatus', () => {

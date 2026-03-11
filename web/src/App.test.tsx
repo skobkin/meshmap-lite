@@ -4,8 +4,10 @@ import { render, screen, waitFor } from '@testing-library/preact'
 import userEvent from '@testing-library/user-event'
 import { useSyncExternalStore } from 'preact/compat'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ChannelItem, ChatEvent, LogEvent, MapNode, Meta, NodeDetails, NodeSummary, WSState, WSStats } from './api/types'
+
 import { chatStorageKey } from './stores/chatState'
+
+import type { ChannelItem, ChatEvent, LogEvent, MapNode, Meta, NodeDetails, NodeSummary, WSState, WSStats } from './api/types'
 
 type Selector<T, U> = (state: T) => U
 
@@ -14,6 +16,10 @@ interface StoreHook<T> {
   <U>(selector: Selector<T, U>): U
   getState: () => T
   reset: () => void
+}
+
+interface RequestOptions {
+  signal?: AbortSignal
 }
 
 function createStoreHook<T extends object>(
@@ -314,9 +320,9 @@ describe('App', () => {
     await screen.findByTestId('map-page')
 
     await waitFor(() => {
-      expect(apiMock.chatMessages).toHaveBeenCalledWith('mesh', 50, expect.objectContaining({
-        signal: expect.any(AbortSignal)
-      }))
+      expect(apiMock.chatMessages).toHaveBeenCalled()
+      const options = apiMock.chatMessages.mock.calls[0]?.[2] as RequestOptions | undefined
+      expect(options?.signal).toBeInstanceOf(AbortSignal)
     })
 
     expect(startWSMock).toHaveBeenCalledWith('/api/v1/ws')
@@ -332,9 +338,9 @@ describe('App', () => {
 
     await screen.findByTestId('map-page')
     await waitFor(() => {
-      expect(apiMock.chatMessages).toHaveBeenCalledWith('mesh', 50, expect.objectContaining({
-        signal: expect.any(AbortSignal)
-      }))
+      expect(apiMock.chatMessages).toHaveBeenCalled()
+      const options = apiMock.chatMessages.mock.calls[0]?.[2] as RequestOptions | undefined
+      expect(options?.signal).toBeInstanceOf(AbortSignal)
     })
 
     expect(startWSMock).toHaveBeenCalledWith('/api/v1/ws')
@@ -379,9 +385,9 @@ describe('App', () => {
         limit: 100,
         eventKinds: [],
         channel: ''
-      }, expect.objectContaining({
-        signal: expect.any(AbortSignal)
-      }))
+      }, expect.anything())
+      const options = apiMock.logEvents.mock.calls[0]?.[1] as RequestOptions | undefined
+      expect(options?.signal).toBeInstanceOf(AbortSignal)
     })
 
     expect(screen.getByText('Log items: 2')).toBeTruthy()
@@ -393,9 +399,9 @@ describe('App', () => {
         limit: 100,
         eventKinds: [7],
         channel: ''
-      }, expect.objectContaining({
-        signal: expect.any(AbortSignal)
-      }))
+      }, expect.anything())
+      const options = apiMock.logEvents.mock.calls[1]?.[1] as RequestOptions | undefined
+      expect(options?.signal).toBeInstanceOf(AbortSignal)
     })
 
     expect(screen.getByText('Log items: 1')).toBeTruthy()

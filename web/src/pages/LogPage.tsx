@@ -92,10 +92,10 @@ export function LogPage({
             {items.map((row) => (
               <tr key={row.id}>
                 <td>{formatTime(row.observed_at)}</td>
-                <td><code>{row.node_display_name || row.node_id || '-'}</code></td>
+                <td><code>{row.node_display_name ?? row.node_id ?? '-'}</code></td>
                 <td>{row.event_kind_title}</td>
                 <td>{row.encrypted ? 'yes' : 'no'}</td>
-                <td>{row.channel_name || '-'}</td>
+                <td>{row.channel_name ?? '-'}</td>
                 <td><small>{detailsText(row.details)}</small></td>
               </tr>
             ))}

@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+
 import type { WSState, WSStats } from '../api/types'
 
 interface WSStore {

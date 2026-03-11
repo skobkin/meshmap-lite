@@ -1,8 +1,10 @@
-import type { ComponentChildren } from 'preact'
 import { useState } from 'preact/hooks'
-import type { NodeDetails, NodeSummary } from '../api/types'
+
 import { defaultMarkerDataUrl } from '../maps/markerIcons'
 import { relativeTime } from '../utils/time'
+
+import type { NodeDetails, NodeSummary } from '../api/types'
+import type { ComponentChildren } from 'preact'
 
 interface Props {
   items: NodeSummary[]
@@ -39,7 +41,7 @@ function row(label: string, value: ComponentChildren | null): DetailRow | null {
   return value === null ? null : { label, value }
 }
 
-function compactRows(rows: Array<DetailRow | null>): DetailRow[] {
+function compactRows(rows: (DetailRow | null)[]): DetailRow[] {
   return rows.filter((item): item is DetailRow => item !== null)
 }
 
@@ -143,14 +145,19 @@ export function NodesPage({ items, selected, details, loadError, onOpenMap, onSe
           aria-label="Filter nodes"
           placeholder="Name or ID"
           value={filter}
-          onInput={(e) => setFilter((e.currentTarget as HTMLInputElement).value)}
+          onInput={(e) => setFilter((e.currentTarget).value)}
         />
         <div className="node-list" role="list">
           {loadError && <p className="load-error">{loadError}</p>}
           {filteredItems.map((n) => (
-            <a key={n.node_id} href="#" className={selected === n.node_id ? 'active' : ''} onClick={(e) => { e.preventDefault(); onSelect(n.node_id) }}>
+            <button
+              key={n.node_id}
+              type="button"
+              className={selected === n.node_id ? 'active' : ''}
+              onClick={() => onSelect(n.node_id)}
+            >
               <strong>{n.display_name}</strong>
-            </a>
+            </button>
           ))}
           {!loadError && filteredItems.length === 0 && <p className="node-list-empty">No matching nodes.</p>}
         </div>
@@ -164,18 +171,15 @@ export function NodesPage({ items, selected, details, loadError, onOpenMap, onSe
                 {section.title === 'Position' && details.position ? (
                   <div className="node-section-heading">
                     <h4>{section.title}</h4>
-                    <a
-                      href="#"
+                    <button
+                      type="button"
                       className="node-section-map-link"
                       aria-label="Open node on map"
                       title="Open node on map"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        onOpenMap(details.node.node_id)
-                      }}
+                      onClick={() => onOpenMap(details.node.node_id)}
                     >
                       <img className="node-section-map-icon" src={defaultMapMarkerIconURL} alt="" aria-hidden="true" />
-                    </a>
+                    </button>
                   </div>
                 ) : (
                   <h4>{section.title}</h4>

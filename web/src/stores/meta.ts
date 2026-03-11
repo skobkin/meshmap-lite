@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+
 import type { Meta } from '../api/types'
 
 interface MetaState {

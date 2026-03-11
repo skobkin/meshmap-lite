@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { Node, NodePosition } from '../api/types'
+
 import { upsertMapNode, upsertNode, upsertPosition } from './nodeState'
+
+import type { Node, NodePosition } from '../api/types'
 
 describe('node state helpers', () => {
   it('creates a stub node when a position arrives before node details', () => {

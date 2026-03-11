@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { ChatEvent } from '../api/types'
+
 import { chatStorageKey, pushChatMessage, readStoredChatChannel } from './chatState'
+
+import type { ChatEvent } from '../api/types'
 
 function message(id: number): ChatEvent {
   return {

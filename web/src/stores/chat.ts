@@ -1,6 +1,8 @@
 import { create } from 'zustand'
-import type { ChatEvent } from '../api/types'
+
 import { chatStorageKey, pushChatMessage, readStoredChatChannel } from './chatState'
+
+import type { ChatEvent } from '../api/types'
 
 interface ChatState {
   channel: string

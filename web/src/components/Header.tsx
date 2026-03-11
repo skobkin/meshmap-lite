@@ -1,5 +1,6 @@
-import type { WSState, WSStats } from '../api/types'
 import { ConnectionStatus } from './ConnectionStatus'
+
+import type { WSState, WSStats } from '../api/types'
 
 interface Props {
   appName: string

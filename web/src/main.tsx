@@ -1,4 +1,5 @@
 import { render } from 'preact'
+
 import '@picocss/pico/css/pico.min.css'
 import 'leaflet/dist/leaflet.css'
 import 'leaflet.markercluster/dist/MarkerCluster.css'

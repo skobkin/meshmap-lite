@@ -1,6 +1,6 @@
-import clientMarkerSvgTemplate from './marker-icons/client.svg?raw'
 import clientBaseMarkerSvgTemplate from './marker-icons/client-base.svg?raw'
 import clientMuteMarkerSvgTemplate from './marker-icons/client-mute.svg?raw'
+import clientMarkerSvgTemplate from './marker-icons/client.svg?raw'
 import defaultMarkerSvgTemplate from './marker-icons/default.svg?raw'
 import routerLateMarkerSvgTemplate from './marker-icons/router-late.svg?raw'
 import routerMarkerSvgTemplate from './marker-icons/router.svg?raw'

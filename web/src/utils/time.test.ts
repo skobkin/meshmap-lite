@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
 import { dayKey, dayLabel, relativeTime } from './time'
 
 describe('time helpers', () => {

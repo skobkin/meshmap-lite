@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { LogEvent } from '../api/types'
+
 import { prependLiveLogItem } from './logState'
+
+import type { LogEvent } from '../api/types'
 
 function event(id: number, overrides: Partial<LogEvent> = {}): LogEvent {
   return {

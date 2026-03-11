@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks'
+
 import { api } from './api/client'
 import { startWS } from './api/ws'
 import { Header } from './components/Header'
 import { LogPage } from './pages/LogPage'
 import { MapPage } from './pages/MapPage'
 import { NodesPage } from './pages/NodesPage'
-import { useMetaStore } from './stores/meta'
 import { useChatStore } from './stores/chat'
 import { useLogStore } from './stores/log'
+import { useMetaStore } from './stores/meta'
 import { useNodeStore } from './stores/nodes'
 import { useWSStore } from './stores/ws'
 
@@ -129,6 +130,8 @@ export function App() {
   const loadedMessagesFor = useRef('')
   const lastLoadedLogKey = useRef('')
   const activeLogRequest = useRef(0)
+  const initialChannelRef = useRef(channel)
+  const mapCenter = mapView.center
 
   useEffect(() => {
     let stopWS: (() => void) | undefined
@@ -173,7 +176,10 @@ export function App() {
 
       if (!mounted) return
 
-      const selected = canonicalChannelName(nextChannels, channel || nextMeta?.default_chat_channel || nextChannels[0])
+      const preferredChannel = initialChannelRef.current.trim().length > 0
+        ? initialChannelRef.current
+        : nextMeta?.default_chat_channel ?? nextChannels[0]
+      const selected = canonicalChannelName(nextChannels, preferredChannel)
       if (selected) {
         setChannel(selected)
       }
@@ -187,7 +193,7 @@ export function App() {
       controller.abort()
       stopWS?.()
     }
-  }, [])
+  }, [setChannel, setMapNodes, setMeta])
 
   useEffect(() => {
     if (!bootstrapDone) return
@@ -205,7 +211,7 @@ export function App() {
       })
 
     return () => controller.abort()
-  }, [bootstrapDone, channel, meta?.show_recent_messages])
+  }, [bootstrapDone, channel, meta?.show_recent_messages, setMessages])
 
   useEffect(() => {
     if (page !== 'nodes') return
@@ -223,7 +229,7 @@ export function App() {
       })
 
     return () => controller.abort()
-  }, [page, nodesLoadedOnce])
+  }, [page, nodesLoadedOnce, setSummaries])
 
   useEffect(() => {
     if (!selectedId) return
@@ -236,7 +242,7 @@ export function App() {
       })
 
     return () => controller.abort()
-  }, [selectedId])
+  }, [selectedId, setDetails])
 
   useEffect(() => {
     if (page !== 'log') return
@@ -282,7 +288,7 @@ export function App() {
     if (!channels.length || !channel) return
     const canonical = canonicalChannelName(channels, channel)
     if (canonical !== channel) setChannel(canonical)
-  }, [channels, channel])
+  }, [channels, channel, setChannel])
 
   useEffect(() => {
     if (!meta) return
@@ -313,8 +319,8 @@ export function App() {
   }, [setSelectedId])
 
   useEffect(() => {
-    writeHashMapView(mapView)
-  }, [mapView.center[0], mapView.center[1], mapView.zoom])
+    writeHashMapView({ center: mapCenter, zoom: mapView.zoom })
+  }, [mapCenter, mapView.zoom])
 
   const loadMoreLogs = useCallback(() => {
     if (logsLoading) return

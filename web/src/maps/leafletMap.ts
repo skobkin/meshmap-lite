@@ -1,7 +1,8 @@
-import L, { Map } from 'leaflet'
+import L from 'leaflet'
+
 import 'leaflet.markercluster'
-import type { MapNode, MapPrecisionCirclesMode } from '../api/types'
 import { relativeTime } from '../utils/time'
+
 import {
   MARKER_ICON_ANCHOR,
   MARKER_FRESHNESS,
@@ -14,6 +15,9 @@ import {
   type MarkerFreshness,
   type MarkerIconKey
 } from './markerIcons'
+
+import type { MapNode, MapPrecisionCirclesMode } from '../api/types'
+import type { Map } from 'leaflet'
 
 type MarkerMap = Record<string, L.Marker>
 
@@ -410,11 +414,11 @@ function row(label: string, value: string | null): PopupRow | null {
   return value === null ? null : { label, value }
 }
 
-function compactRows(rows: Array<PopupRow | null>): PopupRow[] {
+function compactRows(rows: (PopupRow | null)[]): PopupRow[] {
   return rows.filter((item): item is PopupRow => item !== null)
 }
 
-function compactValues(values: Array<string | null>): string[] {
+function compactValues(values: (string | null)[]): string[] {
   return values.filter((value): value is string => value !== null)
 }
 
@@ -422,7 +426,7 @@ function section(title: string, rows: PopupRow[]): PopupSection | null {
   return rows.length > 0 ? { title, rows } : null
 }
 
-function compactSections(sections: Array<PopupSection | null>): PopupSection[] {
+function compactSections(sections: (PopupSection | null)[]): PopupSection[] {
   return sections.filter((item): item is PopupSection => item !== null)
 }
 

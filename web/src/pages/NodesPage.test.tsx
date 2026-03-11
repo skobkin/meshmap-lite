@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 
-import { render, screen } from '@testing-library/preact'
-import { fireEvent } from '@testing-library/preact'
+import { render, screen, fireEvent  } from '@testing-library/preact'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { NodeDetails, NodeSummary } from '../api/types'
+
 import { NodesPage } from './NodesPage'
+
+import type { NodeDetails, NodeSummary } from '../api/types'
 
 function summary(node_id: string, overrides: Partial<NodeSummary> = {}): NodeSummary {
   return {
@@ -75,20 +76,17 @@ describe('NodesPage', () => {
       />
     )
 
-    const filter = screen.getByRole('searchbox', { name: 'Filter nodes' }) as HTMLInputElement
+    const filter = screen.getByRole('searchbox', { name: 'Filter nodes' })
 
-    filter.value = 'relay'
-    fireEvent.input(filter)
+    fireEvent.input(filter, { target: { value: 'relay' } })
     expect(screen.queryByText('Alpha Node')).toBeNull()
     expect(screen.getByText('Bravo Node')).toBeTruthy()
 
-    filter.value = 'a1'
-    fireEvent.input(filter)
+    fireEvent.input(filter, { target: { value: 'a1' } })
     expect(screen.getByText('Alpha Node')).toBeTruthy()
     expect(screen.queryByText('Bravo Node')).toBeNull()
 
-    filter.value = '!BRAVO'
-    fireEvent.input(filter)
+    fireEvent.input(filter, { target: { value: '!BRAVO' } })
     expect(screen.getByText('Bravo Node')).toBeTruthy()
   })
 

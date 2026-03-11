@@ -1,9 +1,11 @@
 import { Fragment } from 'preact'
 import { useEffect, useRef, useState } from 'preact/hooks'
+
 import { LeafletMapAdapter } from '../maps/leafletMap'
-import { useNodeStore } from '../stores/nodes'
 import { useChatStore } from '../stores/chat'
+import { useNodeStore } from '../stores/nodes'
 import { dayKey, dayLabel, hhmm } from '../utils/time'
+
 import type { ChatEvent, MapPrecisionCirclesMode } from '../api/types'
 
 interface Props {
@@ -78,6 +80,8 @@ export function MapPage({
 }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const adapterRef = useRef<LeafletMapAdapter | null>(null)
+  const initialCenterRef = useRef(center)
+  const initialZoomRef = useRef(zoom)
   const nodes = useNodeStore((s) => s.mapNodes)
   const selectedId = useNodeStore((s) => s.selectedId)
   const setSelectedId = useNodeStore((s) => s.setSelectedId)
@@ -94,7 +98,7 @@ export function MapPage({
 
   useEffect(() => {
     if (!ref.current) return
-    adapterRef.current = new LeafletMapAdapter(ref.current, center, zoom, {
+    adapterRef.current = new LeafletMapAdapter(ref.current, initialCenterRef.current, initialZoomRef.current, {
       clustering,
       precisionCirclesMode,
       onOpenNodeDetails,
@@ -109,7 +113,7 @@ export function MapPage({
 
   useEffect(() => {
     adapterRef.current?.setView(center, zoom)
-  }, [center[0], center[1], zoom])
+  }, [center, zoom])
 
   useEffect(() => {
     adapterRef.current?.render(nodes, disconnectedThreshold)
@@ -138,7 +142,7 @@ export function MapPage({
   const nodeNameByID = new Map<string, string>()
   for (const item of nodes) {
     const node = item.node
-    nodeNameByID.set(node.node_id, node.long_name || node.short_name || node.node_id)
+    nodeNameByID.set(node.node_id, node.long_name ?? node.short_name ?? node.node_id)
   }
 
   const systemText = (code?: string): string => {

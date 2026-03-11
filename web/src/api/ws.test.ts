@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
 import type { ChatEvent, LogEvent, Meta, Node, NodePosition, WSState, WSStats } from './types'
 
 interface ChatStoreState {

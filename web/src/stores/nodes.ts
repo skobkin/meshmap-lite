@@ -1,6 +1,8 @@
 import { create } from 'zustand'
-import type { MapNode, Node, NodeDetails, NodePosition, NodeSummary } from '../api/types'
+
 import { upsertMapNode, upsertNode, upsertPosition } from './nodeState'
+
+import type { MapNode, Node, NodeDetails, NodePosition, NodeSummary } from '../api/types'
 
 interface NodeState {
   mapNodes: MapNode[]

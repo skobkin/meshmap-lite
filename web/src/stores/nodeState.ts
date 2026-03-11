@@ -16,7 +16,11 @@ export function upsertNode(mapNodes: MapNode[], node: Node): MapNode[] {
     return [{ node }, ...mapNodes]
   }
   const clone = mapNodes.slice()
-  clone[idx] = { ...clone[idx], node }
+  const current = clone[idx]
+  if (!current) {
+    return mapNodes
+  }
+  clone[idx] = { ...current, node }
   return clone
 }
 
@@ -30,6 +34,10 @@ export function upsertPosition(mapNodes: MapNode[], position: NodePosition): Map
     return [{ node: stubNode, position }, ...mapNodes]
   }
   const clone = mapNodes.slice()
-  clone[idx] = { ...clone[idx], position }
+  const current = clone[idx]
+  if (!current) {
+    return mapNodes
+  }
+  clone[idx] = { ...current, position }
   return clone
 }
