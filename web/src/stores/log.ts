@@ -1,10 +1,6 @@
 import { create } from 'zustand'
 import type { LogEvent } from '../api/types'
-
-interface LogFilters {
-  eventKinds: number[]
-  channel: string
-}
+import { prependLiveLogItem, type LogFilters } from './logState'
 
 interface LogState {
   items: LogEvent[]
@@ -25,15 +21,7 @@ export const useLogStore = create<LogState>((set) => ({
   loadError: '',
   setInitial: (items) => set({ items, loadedOnce: true, loadError: '' }),
   appendOlder: (items) => set((s) => ({ items: [...s.items, ...items] })),
-  prependLive: (item) => set((s) => {
-    if (s.filters.channel && (item.channel_name ?? '') !== s.filters.channel) {
-      return s
-    }
-    if (s.filters.eventKinds.length > 0 && !s.filters.eventKinds.includes(item.event_kind_value)) {
-      return s
-    }
-    return { items: [item, ...s.items].slice(0, 1000) }
-  }),
+  prependLive: (item) => set((s) => ({ items: prependLiveLogItem(s.items, s.filters, item) })),
   setFilters: (filters) => set({ filters }),
   setLoadError: (msg) => set({ loadError: msg })
 }))

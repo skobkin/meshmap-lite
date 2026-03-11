@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { MapNode, Node, NodeDetails, NodePosition, NodeSummary } from '../api/types'
+import { upsertMapNode, upsertNode, upsertPosition } from './nodeState'
 
 interface NodeState {
   mapNodes: MapNode[]
@@ -21,37 +22,9 @@ export const useNodeStore = create<NodeState>((set) => ({
   selectedId: undefined,
   details: undefined,
   setMapNodes: (items) => set({ mapNodes: items }),
-  upsertMapNode: (item) => set((s) => {
-    const idx = s.mapNodes.findIndex((n) => n.node.node_id === item.node.node_id)
-    if (idx < 0) {
-      return { mapNodes: [item, ...s.mapNodes] }
-    }
-    const clone = s.mapNodes.slice()
-    clone[idx] = item
-    return { mapNodes: clone }
-  }),
-  upsertNode: (node) => set((s) => {
-    const idx = s.mapNodes.findIndex((n) => n.node.node_id === node.node_id)
-    if (idx < 0) {
-      return { mapNodes: [{ node }, ...s.mapNodes] }
-    }
-    const clone = s.mapNodes.slice()
-    clone[idx] = { ...clone[idx], node }
-    return { mapNodes: clone }
-  }),
-  upsertPosition: (position) => set((s) => {
-    const idx = s.mapNodes.findIndex((n) => n.node.node_id === position.node_id)
-    if (idx < 0) {
-      const stubNode: Node = {
-        node_id: position.node_id,
-        last_seen_any_event_at: position.observed_at
-      }
-      return { mapNodes: [{ node: stubNode, position }, ...s.mapNodes] }
-    }
-    const clone = s.mapNodes.slice()
-    clone[idx] = { ...clone[idx], position }
-    return { mapNodes: clone }
-  }),
+  upsertMapNode: (item) => set((s) => ({ mapNodes: upsertMapNode(s.mapNodes, item) })),
+  upsertNode: (node) => set((s) => ({ mapNodes: upsertNode(s.mapNodes, node) })),
+  upsertPosition: (position) => set((s) => ({ mapNodes: upsertPosition(s.mapNodes, position) })),
   setSummaries: (items) => set({ summaries: items }),
   setSelectedId: (id) => set({ selectedId: id }),
   setDetails: (d) => set({ details: d })

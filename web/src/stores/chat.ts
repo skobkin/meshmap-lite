@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import type { ChatEvent } from '../api/types'
-
-const key = 'meshmap-lite.chat.channel'
+import { chatStorageKey, pushChatMessage, readStoredChatChannel } from './chatState'
 
 interface ChatState {
   channel: string
@@ -12,12 +11,12 @@ interface ChatState {
 }
 
 export const useChatStore = create<ChatState>((set) => ({
-  channel: localStorage.getItem(key) ?? '',
+  channel: readStoredChatChannel(localStorage),
   messages: [],
   setChannel: (channel) => {
-    localStorage.setItem(key, channel)
+    localStorage.setItem(chatStorageKey, channel)
     set({ channel })
   },
   setMessages: (messages) => set({ messages }),
-  pushMessage: (item) => set((s) => ({ messages: [item, ...s.messages].slice(0, 500) }))
+  pushMessage: (item) => set((s) => ({ messages: pushChatMessage(s.messages, item) }))
 }))

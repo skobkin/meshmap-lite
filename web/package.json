@@ -8,7 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "lint": "echo 'lint not configured'",
-    "test": "echo 'no frontend tests configured'"
+    "test": "vitest run"
   },
   "dependencies": {
     "@picocss/pico": "^2.1.1",
@@ -23,6 +23,7 @@
     "@types/leaflet": "^1.9.21",
     "@types/node": "^24.3.0",
     "typescript": "^5.9.2",
-    "vite": "^7.1.5"
+    "vite": "^7.1.5",
+    "vitest": "^3.2.4"
   }
 }
