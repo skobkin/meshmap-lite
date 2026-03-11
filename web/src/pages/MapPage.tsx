@@ -13,6 +13,8 @@ interface Props {
   precisionCirclesMode: MapPrecisionCirclesMode
   channels: string[]
   disconnectedThreshold?: string
+  focusNodeId?: string
+  onFocusNodeHandled: () => void
   onOpenNodeDetails: (id: string) => void
   onViewChange: (center: [number, number], zoom: number) => void
 }
@@ -62,7 +64,18 @@ function renderChatTimeline(messages: ChatEvent[], { nodeNameByID, onSelectNode,
   })
 }
 
-export function MapPage({ center, zoom, clustering, precisionCirclesMode, channels, disconnectedThreshold, onOpenNodeDetails, onViewChange }: Props) {
+export function MapPage({
+  center,
+  zoom,
+  clustering,
+  precisionCirclesMode,
+  channels,
+  disconnectedThreshold,
+  focusNodeId,
+  onFocusNodeHandled,
+  onOpenNodeDetails,
+  onViewChange
+}: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const adapterRef = useRef<LeafletMapAdapter | null>(null)
   const nodes = useNodeStore((s) => s.mapNodes)
@@ -105,6 +118,12 @@ export function MapPage({ center, zoom, clustering, precisionCirclesMode, channe
   useEffect(() => {
     adapterRef.current?.setSelectedNode(selectedId)
   }, [selectedId])
+
+  useEffect(() => {
+    if (!focusNodeId) return
+    adapterRef.current?.focusNode(focusNodeId)
+    onFocusNodeHandled()
+  }, [focusNodeId, onFocusNodeHandled])
 
   const focusNodeFromChat = (id: string) => {
     const mapNode = nodes.find((item) => item.node.node_id === id)

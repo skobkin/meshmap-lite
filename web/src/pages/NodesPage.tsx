@@ -1,6 +1,7 @@
 import type { ComponentChildren } from 'preact'
 import { useState } from 'preact/hooks'
 import type { NodeDetails, NodeSummary } from '../api/types'
+import { defaultMarkerDataUrl } from '../maps/markerIcons'
 import { relativeTime } from '../utils/time'
 
 interface Props {
@@ -8,6 +9,7 @@ interface Props {
   selected?: string
   details?: NodeDetails
   loadError?: string
+  onOpenMap: (id: string) => void
   onSelect: (id: string) => void
 }
 
@@ -20,6 +22,8 @@ interface DetailSection {
   title: string
   rows: DetailRow[]
 }
+
+const defaultMapMarkerIconURL = defaultMarkerDataUrl()
 
 function displayValue(v: string | number | boolean | undefined): string | null {
   if (typeof v === 'boolean') return v ? 'yes' : 'no'
@@ -124,7 +128,7 @@ function matchesFilter(item: NodeSummary, rawFilter: string): boolean {
   ].some((value) => value?.toLowerCase().includes(filter))
 }
 
-export function NodesPage({ items, selected, details, loadError, onSelect }: Props) {
+export function NodesPage({ items, selected, details, loadError, onOpenMap, onSelect }: Props) {
   const [filter, setFilter] = useState('')
   const sections = details ? detailSections(details) : []
   const filteredItems = items.filter((item) => matchesFilter(item, filter))
@@ -157,7 +161,25 @@ export function NodesPage({ items, selected, details, loadError, onSelect }: Pro
             <h3>{details.node.long_name ?? details.node.short_name ?? details.node.node_id}</h3>
             {sections.map((section) => (
               <section key={section.title}>
-                <h4>{section.title}</h4>
+                {section.title === 'Position' && details.position ? (
+                  <div className="node-section-heading">
+                    <h4>{section.title}</h4>
+                    <a
+                      href="#"
+                      className="node-section-map-link"
+                      aria-label="Open node on map"
+                      title="Open node on map"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        onOpenMap(details.node.node_id)
+                      }}
+                    >
+                      <img className="node-section-map-icon" src={defaultMapMarkerIconURL} alt="" aria-hidden="true" />
+                    </a>
+                  </div>
+                ) : (
+                  <h4>{section.title}</h4>
+                )}
                 {section.rows.map((item) => (
                   <p key={item.label}>{item.label}: {item.value}</p>
                 ))}

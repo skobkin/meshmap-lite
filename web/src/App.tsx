@@ -96,6 +96,7 @@ function readSavedMapView(): SavedMapView | null {
 
 export function App() {
   const [page, setPage] = useState<'map' | 'nodes' | 'log'>('map')
+  const [mapFocusNodeId, setMapFocusNodeId] = useState<string>()
   const [bootstrapDone, setBootstrapDone] = useState(false)
   const [bootstrapErrors, setBootstrapErrors] = useState<string[]>([])
   const [nodesLoadedOnce, setNodesLoadedOnce] = useState(false)
@@ -301,7 +302,14 @@ export function App() {
 
   const openNodeDetails = useCallback((id: string) => {
     setPage('nodes')
+    setMapFocusNodeId(undefined)
     setSelectedId(id)
+  }, [setSelectedId])
+
+  const openNodeOnMap = useCallback((id: string) => {
+    setSelectedId(id)
+    setMapFocusNodeId(id)
+    setPage('map')
   }, [setSelectedId])
 
   useEffect(() => {
@@ -362,12 +370,21 @@ export function App() {
           precisionCirclesMode={meta?.map.precision_circles_mode ?? 'selected'}
           channels={channels}
           disconnectedThreshold={meta?.disconnected_threshold}
+          focusNodeId={mapFocusNodeId}
+          onFocusNodeHandled={() => setMapFocusNodeId(undefined)}
           onOpenNodeDetails={openNodeDetails}
           onViewChange={onMapViewChange}
         />
       )}
       {page === 'nodes' && (
-        <NodesPage items={nodes} selected={selectedId} details={details} loadError={nodesLoadError} onSelect={setSelectedId} />
+        <NodesPage
+          items={nodes}
+          selected={selectedId}
+          details={details}
+          loadError={nodesLoadError}
+          onOpenMap={openNodeOnMap}
+          onSelect={setSelectedId}
+        />
       )}
       {page === 'log' && (
         <LogPage
