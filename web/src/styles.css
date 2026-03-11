@@ -677,27 +677,69 @@ body {
 }
 
 .json-key {
-  color: color-mix(in srgb, var(--pico-color) 82%, #8ec5ff);
+  color: #2f6fed;
 }
 
 .json-string {
-  color: color-mix(in srgb, var(--pico-color) 76%, #8dd694);
+  color: #1f8f4e;
 }
 
 .json-number {
-  color: color-mix(in srgb, var(--pico-color) 72%, #f7b267);
+  color: #b65a00;
 }
 
 .json-boolean {
-  color: color-mix(in srgb, var(--pico-color) 74%, #c792ea);
+  color: #8a3ffc;
 }
 
 .json-null {
-  color: color-mix(in srgb, var(--pico-color) 66%, #ff7b72);
+  color: #c92a2a;
 }
 
 .json-punctuation {
   color: var(--pico-muted-color);
+}
+
+[data-theme="dark"] .json-key {
+  color: #7cc7ff;
+}
+
+[data-theme="dark"] .json-string {
+  color: #7ee787;
+}
+
+[data-theme="dark"] .json-number {
+  color: #ffb86b;
+}
+
+[data-theme="dark"] .json-boolean {
+  color: #d2a8ff;
+}
+
+[data-theme="dark"] .json-null {
+  color: #ff938a;
+}
+
+@media (prefers-color-scheme: dark) {
+  .json-key {
+    color: #7cc7ff;
+  }
+
+  .json-string {
+    color: #7ee787;
+  }
+
+  .json-number {
+    color: #ffb86b;
+  }
+
+  .json-boolean {
+    color: #d2a8ff;
+  }
+
+  .json-null {
+    color: #ff938a;
+  }
 }
 
 .leaflet-control-attribution .leaflet-attribution-flag {
