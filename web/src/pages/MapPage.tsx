@@ -5,6 +5,7 @@ import { LeafletMapAdapter } from '../maps/leafletMap'
 import { useChatStore } from '../stores/chat'
 import { useNodeStore } from '../stores/nodes'
 import { dayKey, dayLabel, hhmm } from '../utils/time'
+import { chatNodeLabel } from '../utils/chat'
 
 import type { ChatEvent, MapPrecisionCirclesMode } from '../api/types'
 
@@ -28,12 +29,11 @@ function readSidebarState(): boolean {
 }
 
 interface ChatTimelineOptions {
-  nodeNameByID: Map<string, string>
   onSelectNode: (id: string) => void
   systemText: (code?: string) => string
 }
 
-function renderChatTimeline(messages: ChatEvent[], { nodeNameByID, onSelectNode, systemText }: ChatTimelineOptions) {
+function renderChatTimeline(messages: ChatEvent[], { onSelectNode, systemText }: ChatTimelineOptions) {
   let previousDay = ''
 
   return messages.map((m) => {
@@ -41,7 +41,7 @@ function renderChatTimeline(messages: ChatEvent[], { nodeNameByID, onSelectNode,
     const needsSeparator = currentDay !== previousDay
     previousDay = currentDay
     const isNodeClickable = typeof m.node_id === 'string'
-    const nodeLabel = m.node_id ? (nodeNameByID.get(m.node_id) ?? m.node_id) : 'system'
+    const nodeLabel = chatNodeLabel(m)
 
     return (
       <Fragment key={m.id}>
@@ -139,12 +139,6 @@ export function MapPage({
     onOpenNodeDetails(id)
   }
 
-  const nodeNameByID = new Map<string, string>()
-  for (const item of nodes) {
-    const node = item.node
-    nodeNameByID.set(node.node_id, node.long_name ?? node.short_name ?? node.node_id)
-  }
-
   const systemText = (code?: string): string => {
     switch (code) {
       case 'node_discovered':
@@ -188,7 +182,6 @@ export function MapPage({
           </div>
           <div className="chat-list">
             {renderChatTimeline(chat, {
-              nodeNameByID,
               onSelectNode: focusNodeFromChat,
               systemText
             })}

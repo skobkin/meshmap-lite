@@ -59,6 +59,7 @@ export interface ChatEvent {
   event_type: 'message' | 'system'
   channel_name?: string
   node_id?: string
+  node_display_name?: string
   system_code?: string
   message_text?: string
   observed_at: string

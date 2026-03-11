@@ -10,11 +10,12 @@ import (
 
 // FakeStore is a lightweight configurable fake for repository-facing tests.
 type FakeStore struct {
-	UpsertNodeFn      func(context.Context, domain.Node) (bool, error)
-	UpsertPositionFn  func(context.Context, domain.NodePosition) error
-	MergeTelemetryFn  func(context.Context, domain.NodeTelemetrySnapshot) error
-	InsertChatEventFn func(context.Context, domain.ChatEvent) (int64, error)
-	InsertLogEventFn  func(context.Context, domain.LogEvent) (int64, error)
+	UpsertNodeFn         func(context.Context, domain.Node) (bool, error)
+	UpsertPositionFn     func(context.Context, domain.NodePosition) error
+	MergeTelemetryFn     func(context.Context, domain.NodeTelemetrySnapshot) error
+	InsertChatEventFn    func(context.Context, domain.ChatEvent) (int64, error)
+	InsertLogEventFn     func(context.Context, domain.LogEvent) (int64, error)
+	ResolveNodeDisplayFn func(context.Context, string) (string, error)
 
 	GetMapNodesFn    func(context.Context, time.Duration) ([]repo.MapNode, error)
 	ListNodesFn      func(context.Context) ([]repo.NodeSummary, error)
@@ -67,6 +68,15 @@ func (f *FakeStore) InsertLogEvent(ctx context.Context, event domain.LogEvent) (
 	}
 
 	return 0, nil
+}
+
+// ResolveNodeDisplay implements repo.WriteStore.
+func (f *FakeStore) ResolveNodeDisplay(ctx context.Context, nodeID string) (string, error) {
+	if f.ResolveNodeDisplayFn != nil {
+		return f.ResolveNodeDisplayFn(ctx, nodeID)
+	}
+
+	return nodeID, nil
 }
 
 // GetMapNodes implements repo.ReadStore.

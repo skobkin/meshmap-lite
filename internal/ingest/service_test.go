@@ -19,6 +19,7 @@ type testStore struct {
 	lastPosition  *domain.NodePosition
 	lastLogEvent  *domain.LogEvent
 	logEventsSeen []domain.LogEvent
+	nodeDisplay   string
 }
 
 func (s *testStore) UpsertNode(_ context.Context, node domain.Node) (bool, error) {
@@ -49,6 +50,14 @@ func (s *testStore) InsertLogEvent(_ context.Context, e domain.LogEvent) (int64,
 	s.logEventsSeen = append(s.logEventsSeen, ev)
 
 	return int64(len(s.logEventsSeen)), nil
+}
+
+func (s *testStore) ResolveNodeDisplay(_ context.Context, nodeID string) (string, error) {
+	if s.nodeDisplay != "" {
+		return s.nodeDisplay, nil
+	}
+
+	return nodeID, nil
 }
 
 type testEmitter struct{}
@@ -225,6 +234,35 @@ func TestLogEventFromParsedRoutingKeepsTracerouteFailureSignal(t *testing.T) {
 	}
 	if _, exists := event.Details["traceroute_status"]; exists {
 		t.Fatalf("NONE routing error must not mark traceroute failed: %#v", event.Details)
+	}
+}
+
+func TestHandleChatEmitsResolvedNodeDisplay(t *testing.T) {
+	store := &testStore{nodeDisplay: "skobkin-cap"}
+	emitter := &capturingEmitter{}
+	now := time.Unix(1772296589, 0).UTC()
+	svc := &Service{
+		store:   store,
+		emitter: emitter,
+		log:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	ok := svc.handleChat(context.Background(), meshtastic.ParsedEvent{
+		NodeID: "!a55e5e56",
+		Chat:   &meshtastic.ChatPayload{Text: "hello"},
+	}, "LongFast", now)
+	if !ok {
+		t.Fatalf("expected chat to be processed")
+	}
+	if len(emitter.events) != 1 {
+		t.Fatalf("expected one emitted event, got %d", len(emitter.events))
+	}
+	payload, ok := emitter.events[0].Payload.(domain.ChatEvent)
+	if !ok {
+		t.Fatalf("unexpected payload type: %T", emitter.events[0].Payload)
+	}
+	if payload.NodeDisplay != "skobkin-cap" {
+		t.Fatalf("expected resolved node display, got %q", payload.NodeDisplay)
 	}
 }
 

@@ -104,6 +104,7 @@ type ChatEvent struct {
 	EventType   ChatEventType  `json:"event_type"`
 	ChannelName string         `json:"channel_name,omitempty"`
 	NodeID      string         `json:"node_id,omitempty"`
+	NodeDisplay string         `json:"node_display_name,omitempty"`
 	SystemCode  ChatSystemCode `json:"system_code,omitempty"`
 	MessageText string         `json:"message_text,omitempty"`
 	MessageTime time.Time      `json:"message_time"`

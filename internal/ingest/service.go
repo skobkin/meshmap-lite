@@ -573,6 +573,7 @@ func (s *Service) handleChat(ctx context.Context, evt meshtastic.ParsedEvent, ch
 		return false
 	}
 	ce.ID = id
+	s.populateChatDisplay(ctx, &ce)
 	s.emitter.Emit(domain.RealtimeEvent{Type: "chat.message", TS: now, Payload: ce})
 
 	return true
@@ -704,8 +705,24 @@ func (s *Service) emitSystemNodeDiscovered(ctx context.Context, nodeID, channel 
 		return
 	}
 	ce.ID = id
+	s.populateChatDisplay(ctx, &ce)
 	s.log.Debug("emit chat system event", "node_id", nodeID, "channel", channel, "system_code", ce.SystemCode)
 	s.emitter.Emit(domain.RealtimeEvent{Type: "chat.system", TS: now, Payload: ce})
+}
+
+func (s *Service) populateChatDisplay(ctx context.Context, ce *domain.ChatEvent) {
+	if ce == nil || ce.NodeID == "" {
+		return
+	}
+
+	name, err := s.store.ResolveNodeDisplay(ctx, ce.NodeID)
+	if err != nil {
+		s.log.Debug("resolve chat node display failed", "node_id", ce.NodeID, "err", err)
+		ce.NodeDisplay = ce.NodeID
+
+		return
+	}
+	ce.NodeDisplay = name
 }
 
 func boolPtr(v bool) *bool {

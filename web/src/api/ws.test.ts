@@ -152,6 +152,7 @@ describe('startWS', () => {
       payload: {
         id: 7,
         event_type: 'message',
+        node_display_name: 'Node Alpha',
         observed_at: '2026-03-11T10:00:00Z'
       }
     })
@@ -193,7 +194,14 @@ describe('startWS', () => {
     })
 
     expect(wsStore.state).toBe('connected')
-    expect(chatStore.messages.map((item) => item.id)).toEqual([7])
+    expect(chatStore.messages).toEqual([
+      {
+        id: 7,
+        event_type: 'message',
+        node_display_name: 'Node Alpha',
+        observed_at: '2026-03-11T10:00:00Z'
+      }
+    ])
     expect(wsStore.stats?.known_nodes_count).toBe(10)
     expect(nodeStore.nodes).toEqual([
       {

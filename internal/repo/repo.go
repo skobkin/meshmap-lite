@@ -14,6 +14,7 @@ type WriteStore interface {
 	MergeTelemetry(ctx context.Context, snapshot domain.NodeTelemetrySnapshot) error
 	InsertChatEvent(ctx context.Context, event domain.ChatEvent) (int64, error)
 	InsertLogEvent(ctx context.Context, event domain.LogEvent) (int64, error)
+	ResolveNodeDisplay(ctx context.Context, nodeID string) (string, error)
 }
 
 // ReadStore defines query operations used by HTTP and other read APIs.

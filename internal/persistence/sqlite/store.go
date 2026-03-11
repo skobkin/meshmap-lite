@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -382,6 +383,24 @@ func (s *Store) ensureLogChannel(ctx context.Context, name string) (int64, error
 	return id, nil
 }
 
+// ResolveNodeDisplay returns the best-known user-facing node label.
+func (s *Store) ResolveNodeDisplay(ctx context.Context, nodeID string) (string, error) {
+	if strings.TrimSpace(nodeID) == "" {
+		return "", nil
+	}
+
+	var longName, shortName sql.NullString
+	err := s.db.QueryRowContext(ctx, `SELECT long_name,short_name FROM nodes WHERE node_id=?`, nodeID).Scan(&longName, &shortName)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nodeID, nil
+		}
+		return "", err
+	}
+
+	return displayName(longName.String, shortName.String, nodeID), nil
+}
+
 // GetMapNodes returns nodes with recent latest positions for map rendering.
 func (s *Store) GetMapNodes(ctx context.Context, hidePositionAfter time.Duration) ([]repo.MapNode, error) {
 	cutoff := time.Now().UTC().Add(-hidePositionAfter).Format(time.RFC3339Nano)
@@ -495,15 +514,17 @@ func (s *Store) ListChatEvents(ctx context.Context, q repo.ChatEventQuery) ([]do
 		q.Limit = 500
 	}
 	query := `
-SELECT id,event_type,channel_name,node_id,message_text,system_code,message_time,reported_at,observed_at,packet_id,created_at
-FROM chat_events
+SELECT e.id,e.event_type,e.channel_name,e.node_id,n.long_name,n.short_name,
+       e.message_text,e.system_code,e.message_time,e.reported_at,e.observed_at,e.packet_id,e.created_at
+FROM chat_events e
+LEFT JOIN nodes n ON n.node_id=e.node_id
 WHERE (LOWER(channel_name)=LOWER(?) OR channel_name='')`
 	args := []interface{}{q.Channel}
 	if q.BeforeID > 0 {
-		query += ` AND id < ?`
+		query += ` AND e.id < ?`
 		args = append(args, q.BeforeID)
 	}
-	query += ` ORDER BY id DESC LIMIT ?`
+	query += ` ORDER BY e.id DESC LIMIT ?`
 	args = append(args, q.Limit)
 	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -704,13 +725,16 @@ func scanMapNode(rows *sql.Rows) (domain.Node, *domain.NodePosition, error) {
 
 func scanChat(rows *sql.Rows) (domain.ChatEvent, error) {
 	var e domain.ChatEvent
-	var eventType, channel, nodeID, messageText, systemCode, msgTime, reported, observed, packetID, created sql.NullString
-	if err := rows.Scan(&e.ID, &eventType, &channel, &nodeID, &messageText, &systemCode, &msgTime, &reported, &observed, &packetID, &created); err != nil {
+	var eventType, channel, nodeID, longName, shortName, messageText, systemCode, msgTime, reported, observed, packetID, created sql.NullString
+	if err := rows.Scan(&e.ID, &eventType, &channel, &nodeID, &longName, &shortName, &messageText, &systemCode, &msgTime, &reported, &observed, &packetID, &created); err != nil {
 		return e, err
 	}
 	e.EventType = domain.ChatEventType(eventType.String)
 	e.ChannelName = channel.String
 	e.NodeID = nodeID.String
+	if e.NodeID != "" {
+		e.NodeDisplay = displayName(longName.String, shortName.String, e.NodeID)
+	}
 	e.MessageText = messageText.String
 	e.SystemCode = domain.ChatSystemCode(systemCode.String)
 	e.MessageTime = mustTime(msgTime)

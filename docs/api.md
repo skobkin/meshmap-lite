@@ -22,7 +22,7 @@ This document is the source of truth for the public HTTP and WebSocket contract 
 - `GET /api/v1/meta`: returns UI/runtime metadata including `app_name`, `version`, `websocket_path`, chat defaults, log settings, and map defaults. The `map` object includes `clustering`, `hide_position_after`, `precision_circles_mode` (`none`, `selected`, `always`), and `default_view`.
 - `GET /api/v1/channels`: returns configured channels as `{name, chat_enabled, is_primary}` items.
 - `GET /api/v1/map/nodes`: returns map snapshot items as `{node, position?}` for nodes whose latest position is newer than `meta.map.hide_position_after`.
-- `GET /api/v1/chat/messages`: returns chat history ordered newest-first. `channel` defaults to `meta.default_chat_channel`; `limit` defaults to `meta.show_recent_messages`; `before` paginates by chat row ID.
+- `GET /api/v1/chat/messages`: returns chat history ordered newest-first. `channel` defaults to `meta.default_chat_channel`; `limit` defaults to `meta.show_recent_messages`; `before` paginates by chat row ID. Each item may include `node_display_name`, resolved with `long_name -> short_name -> node_id`.
 - `GET /api/v1/log/events`: returns non-chat activity log rows ordered newest-first. `limit` defaults to `meta.log_page_size_default`; `before` paginates by log row ID; `channel` filters by channel name; `event_kind` may be repeated or passed as a comma-separated list. `event_kinds` is also accepted as an alias for compatibility.
   - `details` is event-specific JSON. New traceroute rows use semantic fields such as `role`, `status`, `request_id`, `from`, `to`, `forward_path`, `return_path`, `forward_snr`, `return_snr`, and `inferred_*` markers instead of only hop counts.
   - Correlated traceroute lifecycle rows are emitted as traceroute log events with `details.scope="lifecycle"`. For matched runs, the app stores terminal lifecycle rows instead of separate raw traceroute/routing packet rows. These rows may include lifecycle `status` values such as `partial`, `completed`, `failed`, or `timed_out`, plus `started_at`, `updated_at`, `completed_at`, `source_packets`, and `steps` with intermediate event types/timestamps/packet IDs.
@@ -35,8 +35,8 @@ This document is the source of truth for the public HTTP and WebSocket contract 
 
 ## WebSocket events
 
-- `chat.message`: chat message payload matching the chat history item shape.
-- `chat.system`: system chat payload matching the chat history item shape.
+- `chat.message`: chat message payload matching the chat history item shape, including optional `node_display_name`.
+- `chat.system`: system chat payload matching the chat history item shape, including optional `node_display_name`.
 - `node.upsert`: full node payload for identity/liveness updates.
 - `node.position`: node position payload for map updates.
 - `log.event`: log event payload matching `GET /api/v1/log/events`.
