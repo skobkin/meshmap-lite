@@ -146,8 +146,7 @@ export class LeafletMapAdapter {
         })
         marker.on('popupopen', () => {
           const popupEl = marker.getPopup()?.getElement()
-          const detailsLink = popupEl?.querySelector<HTMLElement>('[data-node-details-link]')
-          detailsLink?.addEventListener('click', this.handleDetailsLinkClick)
+          popupEl?.addEventListener('click', this.handlePopupClick)
           marker.setIcon(buildMarkerIcon(markerIconKey, markerFreshness, true))
           this.selectedID = id
           this.render(Array.from(this.mapNodesByID.values()), this.lastDisconnectedThreshold)
@@ -155,8 +154,7 @@ export class LeafletMapAdapter {
         })
         marker.on('popupclose', () => {
           const popupEl = marker.getPopup()?.getElement()
-          const detailsLink = popupEl?.querySelector<HTMLElement>('[data-node-details-link]')
-          detailsLink?.removeEventListener('click', this.handleDetailsLinkClick)
+          popupEl?.removeEventListener('click', this.handlePopupClick)
           if (this.selectedID !== id) return
           marker.setIcon(buildMarkerIcon(markerIconKey, markerFreshness, false))
           this.selectedID = undefined
@@ -254,8 +252,7 @@ export class LeafletMapAdapter {
   destroy(): void {
     for (const marker of Object.values(this.markers)) {
       const popupEl = marker.getPopup()?.getElement()
-      const detailsLink = popupEl?.querySelector<HTMLElement>('[data-node-details-link]')
-      detailsLink?.removeEventListener('click', this.handleDetailsLinkClick)
+      popupEl?.removeEventListener('click', this.handlePopupClick)
       marker.off('popupopen')
       marker.off('popupclose')
     }
@@ -264,13 +261,18 @@ export class LeafletMapAdapter {
     this.map.remove()
   }
 
-  private readonly handleDetailsLinkClick = (event: Event): void => {
-    event.preventDefault()
-    const target = event.currentTarget
-    if (!(target instanceof HTMLElement)) {
+  private readonly handlePopupClick = (event: Event): void => {
+    const target = event.target
+    if (!(target instanceof Element)) {
       return
     }
-    const id = target.dataset.nodeDetailsLink
+    const detailsLink = target.closest<HTMLElement>('[data-node-details-link]')
+    if (!detailsLink) {
+      return
+    }
+    event.preventDefault()
+    event.stopPropagation()
+    const id = detailsLink.dataset.nodeDetailsLink
     if (!id) {
       return
     }
