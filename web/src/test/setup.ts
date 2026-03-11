@@ -1,3 +1,4 @@
+import { cleanup } from '@testing-library/preact'
 import { afterEach, beforeEach, vi } from 'vitest'
 
 class MemoryStorage implements Storage {
@@ -32,15 +33,25 @@ beforeEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
 
-  const storage = new MemoryStorage()
-  vi.stubGlobal('localStorage', storage)
-  vi.stubGlobal('location', {
-    protocol: 'http:',
-    host: 'meshmap.test'
-  } satisfies Partial<Location>)
-  vi.stubGlobal('window', globalThis)
+  if (typeof localStorage === 'undefined') {
+    vi.stubGlobal('localStorage', new MemoryStorage())
+  } else {
+    localStorage.clear()
+  }
+
+  if (typeof location === 'undefined') {
+    vi.stubGlobal('location', {
+      protocol: 'http:',
+      host: 'meshmap.test'
+    } satisfies Partial<Location>)
+  }
+
+  if (typeof window === 'undefined') {
+    vi.stubGlobal('window', globalThis)
+  }
 })
 
 afterEach(() => {
+  cleanup()
   vi.useRealTimers()
 })
