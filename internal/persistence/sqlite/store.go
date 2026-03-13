@@ -800,8 +800,7 @@ func scanMapNode(rows *sql.Rows) (domain.Node, *domain.NodePosition, error) {
 		return n, nil, err
 	}
 	if nodeNum.Valid {
-		if nodeNum.Int64 >= 0 && nodeNum.Int64 <= math.MaxUint32 {
-			v := uint32(nodeNum.Int64)
+		if v, ok := checkedUint32FromInt64(nodeNum.Int64); ok {
 			n.NodeNum = &v
 		}
 	}
@@ -835,8 +834,7 @@ func scanMapNode(rows *sql.Rows) (domain.Node, *domain.NodePosition, error) {
 		pos.AltitudeM = &v
 	}
 	if pPrec.Valid {
-		if pPrec.Int64 >= 0 && pPrec.Int64 <= math.MaxUint32 {
-			v := uint32(pPrec.Int64)
+		if v, ok := checkedUint32FromInt64(pPrec.Int64); ok {
 			pos.PositionPrecision = &v
 		}
 	}
@@ -935,9 +933,10 @@ func scanTopologyEdge(rows *sql.Rows) (domain.TopologyEdge, error) {
 	out.Inferred = inferred == 1
 	out.SNR = parseNullableFloat(snr)
 	out.NeighborLastRXAt = parseNullableTime(neighborLastRXAt)
-	if broadcastInterval.Valid && broadcastInterval.Int64 >= 0 && broadcastInterval.Int64 <= math.MaxUint32 {
-		v := uint32(broadcastInterval.Int64)
-		out.NeighborBroadcastIntervalSec = &v
+	if broadcastInterval.Valid {
+		if v, ok := checkedUint32FromInt64(broadcastInterval.Int64); ok {
+			out.NeighborBroadcastIntervalSec = &v
+		}
 	}
 	out.FirstObservedAt = mustTime(firstObserved)
 	out.LastObservedAt = mustTime(lastObserved)
@@ -956,6 +955,14 @@ func displayName(longName, shortName, id string) string {
 	}
 
 	return id
+}
+
+func checkedUint32FromInt64(v int64) (uint32, bool) {
+	if v < 0 || v > math.MaxUint32 {
+		return 0, false
+	}
+
+	return uint32(uint64(v)), true
 }
 
 func mustTime(v sql.NullString) time.Time {
