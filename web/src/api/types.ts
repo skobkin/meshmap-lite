@@ -81,6 +81,7 @@ export interface NodeDetails {
   node: Node
   position?: NodePosition
   telemetry?: NodeTelemetry
+  neighbors?: NodeNeighbor[]
 }
 
 export interface TopologyEdge {
@@ -97,6 +98,22 @@ export interface TopologyEdge {
   last_observed_at: string
   last_reported_at?: string
   updated_at: string
+}
+
+export interface NodeNeighbor {
+  node_id: string
+  display_name: string
+  long_name?: string
+  short_name?: string
+  has_position: boolean
+  evidence_kind: 'neighbor_info' | 'inferred'
+  snr?: number
+  channel_name?: string
+  reported_by_node_id?: string
+  neighbor_last_rx_at?: string
+  neighbor_broadcast_interval_secs?: number
+  last_observed_at: string
+  last_reported_at?: string
 }
 
 export interface NodeTelemetry {
@@ -134,6 +151,7 @@ export interface Meta {
   map: {
     clustering: boolean
     hide_position_after: string
+    topology_cache_ttl: string
     precision_circles_mode: MapPrecisionCirclesMode
     default_view: {
       latitude: number

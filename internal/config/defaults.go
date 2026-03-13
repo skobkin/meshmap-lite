@@ -31,6 +31,7 @@ const (
 	defaultStorageKVTTL             = 6 * time.Hour
 	defaultMapDisconnectedThreshold = 60 * time.Minute
 	defaultMapHidePositionAfter     = 14 * 24 * time.Hour
+	defaultMapTopologyCacheTTL      = 10 * time.Minute
 	defaultTracerouteFinalRetention = defaultTracerouteTimeout
 	defaultStorageKVSize            = 100000
 )
@@ -77,6 +78,7 @@ func defaultConfig() Config {
 				Clustering:            false,
 				DisconnectedThreshold: defaultMapDisconnectedThreshold,
 				HidePositionAfter:     defaultMapHidePositionAfter,
+				TopologyCacheTTL:      defaultMapTopologyCacheTTL,
 				PrecisionCirclesMode:  MapPrecisionCirclesSelected,
 				DefaultView:           DefaultViewConfig{Latitude: 64.5, Longitude: 40.6, Zoom: 13},
 			},

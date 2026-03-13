@@ -1,13 +1,14 @@
 import { Fragment } from 'preact'
-import { useEffect, useRef, useState } from 'preact/hooks'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks'
 
 import { LeafletMapAdapter } from '../maps/leafletMap'
 import { useChatStore } from '../stores/chat'
 import { useNodeStore } from '../stores/nodes'
 import { chatNodeLabel } from '../utils/chat'
 import { dayKey, dayLabel, hhmm } from '../utils/time'
+import { TOPOLOGY_COLOR, sortedNeighbors } from '../utils/topology'
 
-import type { ChatEvent, MapPrecisionCirclesMode } from '../api/types'
+import type { ChatEvent, MapPrecisionCirclesMode, NodeDetails } from '../api/types'
 import type { JSX } from 'preact'
 
 interface Props {
@@ -18,7 +19,10 @@ interface Props {
   channels: string[]
   disconnectedThreshold?: string
   focusNodeId?: string
+  topologyDetails?: NodeDetails
+  topologyNodeId?: string
   onFocusNodeHandled: () => void
+  onHoverTopologyNode: (id?: string) => void
   onOpenNodeDetails: (id: string) => void
   onViewChange: (center: [number, number], zoom: number) => void
 }
@@ -27,6 +31,14 @@ const sidebarStateKey = 'meshmap-lite.map.chat.collapsed'
 
 function readSidebarState(): boolean {
   return localStorage.getItem(sidebarStateKey) === '1'
+}
+
+function hoverTopologyEnabled(): boolean {
+  if (typeof window.matchMedia !== 'function') {
+    return true
+  }
+
+  return window.matchMedia('(hover: hover) and (pointer: fine)').matches
 }
 
 interface ChatTimelineOptions {
@@ -75,7 +87,10 @@ export function MapPage({
   channels,
   disconnectedThreshold,
   focusNodeId,
+  topologyDetails,
+  topologyNodeId,
   onFocusNodeHandled,
+  onHoverTopologyNode,
   onOpenNodeDetails,
   onViewChange
 }: Props): JSX.Element {
@@ -83,6 +98,8 @@ export function MapPage({
   const adapterRef = useRef<LeafletMapAdapter | null>(null)
   const initialCenterRef = useRef(center)
   const initialZoomRef = useRef(zoom)
+  const hoverTimerRef = useRef<number>()
+  const hoverEnabledRef = useRef(hoverTopologyEnabled())
   const nodes = useNodeStore((s) => s.mapNodes)
   const selectedId = useNodeStore((s) => s.selectedId)
   const setSelectedId = useNodeStore((s) => s.setSelectedId)
@@ -90,6 +107,32 @@ export function MapPage({
   const channel = useChatStore((s) => s.channel)
   const setChannel = useChatStore((s) => s.setChannel)
   const [collapsed, setCollapsed] = useState<boolean>(() => readSidebarState())
+  const activeNeighbors = useMemo(() => sortedNeighbors(topologyDetails), [topologyDetails])
+
+  const clearHoverTimer = (): void => {
+    if (hoverTimerRef.current) {
+      window.clearTimeout(hoverTimerRef.current)
+      hoverTimerRef.current = undefined
+    }
+  }
+
+  const handleHoverNode = useCallback((id?: string): void => {
+    if (!hoverEnabledRef.current) {
+      return
+    }
+
+    clearHoverTimer()
+    if (!id) {
+      onHoverTopologyNode(undefined)
+
+      return
+    }
+
+    hoverTimerRef.current = window.setTimeout(() => {
+      onHoverTopologyNode(id)
+      hoverTimerRef.current = undefined
+    }, 200)
+  }, [onHoverTopologyNode])
 
   const toggleCollapsed = (): void => {
     const next = !collapsed
@@ -101,6 +144,7 @@ export function MapPage({
     if (!ref.current) {return}
     adapterRef.current = new LeafletMapAdapter(ref.current, initialCenterRef.current, initialZoomRef.current, {
       clustering,
+      onHoverNode: handleHoverNode,
       precisionCirclesMode,
       onOpenNodeDetails,
       onViewChange,
@@ -108,10 +152,12 @@ export function MapPage({
     })
 
     return () => {
+      clearHoverTimer()
+      onHoverTopologyNode(undefined)
       adapterRef.current?.destroy()
       adapterRef.current = null
     }
-  }, [clustering, onOpenNodeDetails, onViewChange, precisionCirclesMode, setSelectedId])
+  }, [clustering, handleHoverNode, onHoverTopologyNode, onOpenNodeDetails, onViewChange, precisionCirclesMode, setSelectedId])
 
   useEffect(() => {
     adapterRef.current?.setView(center, zoom)
@@ -120,6 +166,10 @@ export function MapPage({
   useEffect(() => {
     adapterRef.current?.render(nodes, disconnectedThreshold)
   }, [nodes, disconnectedThreshold])
+
+  useEffect(() => {
+    adapterRef.current?.renderTopology(topologyNodeId, activeNeighbors)
+  }, [activeNeighbors, topologyNodeId])
 
   useEffect(() => {
     adapterRef.current?.setSelectedNode(selectedId)
@@ -157,6 +207,16 @@ export function MapPage({
     <section className={`map-layout${collapsed ? ' chat-collapsed' : ''}`}>
       <div className="map-stage">
         <div className="map-canvas" ref={ref} />
+        {topologyNodeId && activeNeighbors.some((item) => item.has_position) && (
+          <aside className="map-topology-legend" aria-label="Topology legend">
+            <strong>Topology</strong>
+            <span><i style={{ backgroundColor: TOPOLOGY_COLOR.inferred }} /> Inferred</span>
+            <span><i style={{ backgroundColor: TOPOLOGY_COLOR.noSNR }} /> Neighbor info</span>
+            <span><i style={{ backgroundColor: TOPOLOGY_COLOR.poor }} /> Poor SNR</span>
+            <span><i style={{ backgroundColor: TOPOLOGY_COLOR.fair }} /> Fair SNR</span>
+            <span><i style={{ backgroundColor: TOPOLOGY_COLOR.good }} /> Good SNR</span>
+          </aside>
+        )}
         {collapsed && (
           <button
             type="button"

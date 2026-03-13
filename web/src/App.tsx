@@ -11,7 +11,9 @@ import { useLogStore } from './stores/log'
 import { useMetaStore } from './stores/meta'
 import { useNodeStore } from './stores/nodes'
 import { useWSStore } from './stores/ws'
+import { isNodeDetailsCacheFresh, persistNodeDetailsCache, readNodeDetailsCache, upsertNodeDetailsCache } from './utils/nodeDetailsCache'
 
+import type { NodeDetails } from './api/types'
 import type { JSX } from 'preact'
 
 const mapViewKey = 'meshmap-lite.map.view'
@@ -20,6 +22,7 @@ const mapHashLngParam = 'lng'
 const mapHashZoomParam = 'z'
 const defaultAppName = 'MeshMap Lite'
 const defaultAppVersion = 'dev'
+const defaultTopologyCacheTTL = '10m'
 
 interface SavedMapView {
   center: [number, number]
@@ -108,6 +111,7 @@ function readSavedMapView(): SavedMapView | null {
 
 export function App(): JSX.Element {
   const [page, setPage] = useState<'map' | 'nodes' | 'log'>('map')
+  const [hoveredTopologyNodeId, setHoveredTopologyNodeId] = useState<string>()
   const [mapFocusNodeId, setMapFocusNodeId] = useState<string>()
   const [bootstrapDone, setBootstrapDone] = useState(false)
   const [bootstrapErrors, setBootstrapErrors] = useState<string[]>([])
@@ -115,6 +119,7 @@ export function App(): JSX.Element {
   const [nodesLoadError, setNodesLoadError] = useState<string>('')
   const [logsLoading, setLogsLoading] = useState(false)
   const [channels, setChannels] = useState<string[]>([])
+  const [detailsCache, setDetailsCache] = useState(() => readNodeDetailsCache(localStorage))
   const [mapView, setMapView] = useState<SavedMapView>(() => readHashMapView() ?? readSavedMapView() ?? { center: [64.5, 40.6], zoom: 12 })
   const ws = useWSStore((s) => s.state)
   const wsStats = useWSStore((s) => s.stats)
@@ -141,8 +146,41 @@ export function App(): JSX.Element {
   const loadedMessagesFor = useRef('')
   const lastLoadedLogKey = useRef('')
   const activeLogRequest = useRef(0)
+  const inFlightNodeDetails = useRef(new Map<string, Promise<void>>())
   const initialChannelRef = useRef(channel)
   const mapCenter = mapView.center
+  const topologyCacheTTL = meta?.map.topology_cache_ttl ?? defaultTopologyCacheTTL
+
+  const cacheNodeDetails = useCallback((item: NodeDetails): void => {
+    setDetailsCache((current) => {
+      const next = upsertNodeDetailsCache(current, item)
+      persistNodeDetailsCache(next, localStorage)
+
+      return next
+    })
+  }, [])
+
+  const refreshNodeDetails = useCallback((nodeID: string, signal?: AbortSignal): Promise<void> => {
+    const existing = inFlightNodeDetails.current.get(nodeID)
+    if (existing) {
+      return existing
+    }
+
+    const request = api.node(nodeID, { signal })
+      .then((item) => {
+        cacheNodeDetails(item)
+        if (selectedId === nodeID) {
+          setDetails(item)
+        }
+      })
+      .finally(() => {
+        inFlightNodeDetails.current.delete(nodeID)
+      })
+
+    inFlightNodeDetails.current.set(nodeID, request)
+
+    return request
+  }, [cacheNodeDetails, selectedId, setDetails])
 
   useEffect(() => {
     let stopWS: (() => void) | undefined
@@ -241,17 +279,49 @@ export function App(): JSX.Element {
   }, [page, nodesLoadedOnce, setSummaries])
 
   useEffect(() => {
-    if (!selectedId) {return}
+    if (!selectedId) {
+      setDetails(undefined)
+
+      return
+    }
+
+    const cached = detailsCache[selectedId]
+    if (cached) {
+      setDetails(cached.details)
+      if (isNodeDetailsCacheFresh(cached, topologyCacheTTL)) {
+        return
+      }
+    } else {
+      setDetails(undefined)
+    }
+
     const controller = new AbortController()
-    void api.node(selectedId, { signal: controller.signal })
-      .then(setDetails)
+    void refreshNodeDetails(selectedId, controller.signal)
       .catch((err) => {
         if (isAbortError(err)) {return}
         setBootstrapErrors((prev) => [...prev, `Failed to load details for node "${selectedId}".`])
       })
 
     return () => controller.abort()
-  }, [selectedId, setDetails])
+  }, [detailsCache, refreshNodeDetails, selectedId, setDetails, topologyCacheTTL])
+
+  useEffect(() => {
+    if (!hoveredTopologyNodeId) {return}
+
+    const cached = detailsCache[hoveredTopologyNodeId]
+    if (isNodeDetailsCacheFresh(cached, topologyCacheTTL)) {
+      return
+    }
+
+    const controller = new AbortController()
+    void refreshNodeDetails(hoveredTopologyNodeId, controller.signal)
+      .catch((err) => {
+        if (isAbortError(err)) {return}
+        setBootstrapErrors((prev) => [...prev, `Failed to load topology for node "${hoveredTopologyNodeId}".`])
+      })
+
+    return () => controller.abort()
+  }, [detailsCache, hoveredTopologyNodeId, refreshNodeDetails, topologyCacheTTL])
 
   useEffect(() => {
     if (page !== 'log') {return}
@@ -355,6 +425,8 @@ export function App(): JSX.Element {
 
   const center = useMemo<[number, number]>(() => mapView.center, [mapView.center])
   const zoom = mapView.zoom
+  const topologyNodeId = hoveredTopologyNodeId ?? selectedId
+  const topologyDetails = topologyNodeId ? detailsCache[topologyNodeId]?.details : undefined
 
   const bannerText = bootstrapErrors.length > 0
     ? `Degraded mode: ${bootstrapErrors[bootstrapErrors.length - 1]}`
@@ -386,7 +458,10 @@ export function App(): JSX.Element {
           channels={channels}
           disconnectedThreshold={meta?.disconnected_threshold}
           focusNodeId={mapFocusNodeId}
+          topologyDetails={topologyDetails}
+          topologyNodeId={topologyNodeId}
           onFocusNodeHandled={() => setMapFocusNodeId(undefined)}
+          onHoverTopologyNode={setHoveredTopologyNodeId}
           onOpenNodeDetails={openNodeDetails}
           onViewChange={onMapViewChange}
         />
@@ -396,6 +471,7 @@ export function App(): JSX.Element {
           items={nodes}
           selected={selectedId}
           details={details}
+          loading={Boolean(selectedId && details?.node.node_id !== selectedId)}
           loadError={nodesLoadError}
           onOpenMap={openNodeOnMap}
           onSelect={setSelectedId}

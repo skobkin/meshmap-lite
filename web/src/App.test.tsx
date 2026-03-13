@@ -73,6 +73,7 @@ function meta(overrides: Partial<Meta> = {}): Meta {
     map: {
       clustering: true,
       hide_position_after: '30m',
+      topology_cache_ttl: '10m',
       precision_circles_mode: 'selected',
       default_view: {
         latitude: 64.5,
@@ -108,6 +109,16 @@ function logEvent(id: number): LogEvent {
     event_kind_value: 1,
     event_kind_title: 'Map report',
     encrypted: false
+  }
+}
+
+function nodeDetails(nodeID: string): NodeDetails {
+  return {
+    node: {
+      node_id: nodeID,
+      last_seen_any_event_at: '2026-03-11T12:00:00Z'
+    },
+    neighbors: []
   }
 }
 
@@ -235,7 +246,7 @@ function setupModuleMocks(): void {
     mapNodes: vi.fn().mockResolvedValue([] satisfies MapNode[]),
     chatMessages: vi.fn().mockResolvedValue([chatMessage(1)]),
     nodes: vi.fn().mockResolvedValue([] satisfies NodeSummary[]),
-    node: vi.fn().mockResolvedValue(undefined),
+    node: vi.fn().mockResolvedValue(nodeDetails('!alpha')),
     logEvents: vi.fn().mockResolvedValue([logEvent(1)])
   }
   startWSMock = vi.fn().mockReturnValue(vi.fn())
@@ -262,20 +273,23 @@ function setupModuleMocks(): void {
     useWSStore: wsStore
   }))
   vi.doMock('./pages/MapPage', () => ({
-    MapPage: ({ channels }: { channels: string[] }): JSX.Element => (
+    MapPage: ({ channels, topologyNodeId }: { channels: string[]; topologyNodeId?: string }): JSX.Element => (
       <section data-testid="map-page">
         <p>Map page</p>
         <p>Channels: {channels.join(',')}</p>
         <p>Chat channel: {chatStore.getState().channel}</p>
         <p>Chat messages: {chatStore.getState().messages.length}</p>
+        <p>Topology node: {topologyNodeId ?? ''}</p>
       </section>
     )
   }))
   vi.doMock('./pages/NodesPage', () => ({
-    NodesPage: ({ items }: { items: NodeSummary[] }): JSX.Element => (
+    NodesPage: ({ items, details, loading }: { items: NodeSummary[]; details?: NodeDetails; loading?: boolean }): JSX.Element => (
       <section data-testid="nodes-page">
         <p>Nodes page</p>
         <p>Node summaries: {items.length}</p>
+        <p>Details node: {details?.node.node_id ?? ''}</p>
+        <p>Loading details: {loading ? 'yes' : 'no'}</p>
       </section>
     )
   }))
@@ -371,6 +385,32 @@ describe('App', () => {
     await screen.findByTestId('nodes-page')
 
     expect(apiMock.nodes).toHaveBeenCalledTimes(1)
+  })
+
+  it('reuses cached node details before refreshing stale entries', async () => {
+    const user = userEvent.setup()
+    localStorage.setItem('meshmap-lite.node-details-cache.v1', JSON.stringify({
+      '!cached': {
+        fetchedAt: 0,
+        details: nodeDetails('!cached')
+      }
+    }))
+    setupModuleMocks()
+    apiMock.node.mockResolvedValue(nodeDetails('!cached'))
+
+    await renderApp()
+    await screen.findByTestId('map-page')
+
+    nodeStore.getState().setSelectedId('!cached')
+    await user.click(screen.getByRole('button', { name: 'Nodes' }))
+
+    await screen.findByTestId('nodes-page')
+    await waitFor(() => {
+      expect(screen.getByText('Details node: !cached')).toBeTruthy()
+    })
+    await waitFor(() => {
+      expect(apiMock.node).toHaveBeenCalledWith('!cached', expect.anything())
+    })
   })
 
   it('reloads log data when filters change and replaces the visible list', async () => {

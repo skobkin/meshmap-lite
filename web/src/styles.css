@@ -276,6 +276,40 @@ body {
   height: 100%;
 }
 
+.map-topology-legend {
+  position: absolute;
+  left: 0.75rem;
+  bottom: 0.75rem;
+  z-index: 1100;
+  display: grid;
+  gap: 0.2rem;
+  min-width: 12rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 94%);
+  box-shadow: 0 0.75rem 1.5rem rgb(15 23 42 / 14%);
+  backdrop-filter: blur(6px);
+  font-size: 0.8rem;
+}
+
+.map-topology-legend strong {
+  display: block;
+}
+
+.map-topology-legend span {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.map-topology-legend i {
+  display: inline-block;
+  width: 1rem;
+  height: 0.32rem;
+  border-radius: 999px;
+}
+
 .chat-panel {
   display: flex;
   flex-direction: column;
@@ -531,6 +565,31 @@ body {
 .node-details p {
   margin: 0.12rem 0;
 }
+
+.node-neighbors-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.node-neighbor-card {
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-bg) 94%, white 6%);
+}
+
+.node-neighbor-card p:last-child {
+  margin-bottom: 0;
+}
+
+.node-neighbor-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.2rem;
+}
+
 
 .log-layout {
   padding-top: 1rem;

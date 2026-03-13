@@ -24,6 +24,7 @@ type metaPayload struct {
 type metaMapPayload struct {
 	Clustering           bool                   `json:"clustering"`
 	HidePositionAfter    string                 `json:"hide_position_after"`
+	TopologyCacheTTL     string                 `json:"topology_cache_ttl"`
 	PrecisionCirclesMode string                 `json:"precision_circles_mode"`
 	DefaultView          metaDefaultViewPayload `json:"default_view"`
 }

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen  } from '@testing-library/preact'
+import { fireEvent, render, screen } from '@testing-library/preact'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { NodesPage } from './NodesPage'
@@ -54,6 +54,7 @@ function details(overrides: Partial<NodeDetails> = {}): NodeDetails {
       observed_at: '2026-03-11T12:00:00Z',
       updated_at: '2026-03-11T12:00:00Z'
     },
+    neighbors: [],
     ...overrides
   }
 }
@@ -107,5 +108,54 @@ describe('NodesPage', () => {
     expect(screen.getByText('Voltage: 0')).toBeTruthy()
     expect(screen.getByText('Battery level: 0')).toBeTruthy()
     expect(screen.getByText('Temperature (C): 0')).toBeTruthy()
+  })
+
+  it('renders neighbors ordered by evidence quality and exposes map actions for positioned peers', () => {
+    render(
+      <NodesPage
+        items={[summary('!zero', { display_name: 'Zero Node' })]}
+        selected="!zero"
+        details={details({
+          neighbors: [
+            {
+              node_id: '!route',
+              display_name: 'Route Only',
+              has_position: false,
+              evidence_kind: 'inferred',
+              last_observed_at: '2026-03-11T12:00:00Z'
+            },
+            {
+              node_id: '!snr',
+              display_name: 'Strong Link',
+              has_position: true,
+              evidence_kind: 'neighbor_info',
+              snr: 12.4,
+              last_observed_at: '2026-03-11T12:05:00Z'
+            }
+          ]
+        })}
+        onOpenMap={() => undefined}
+        onSelect={() => undefined}
+      />
+    )
+
+    expect(screen.getByText('Strong Link')).toBeTruthy()
+    expect(screen.getByText('Signal: SNR 12.4 dB')).toBeTruthy()
+    expect(screen.getByText('Evidence: Inferred')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Open Strong Link on map' })).toBeTruthy()
+  })
+
+  it('shows a loading message while the selected node details are pending', () => {
+    render(
+      <NodesPage
+        items={[summary('!zero', { display_name: 'Zero Node' })]}
+        selected="!zero"
+        loading
+        onOpenMap={() => undefined}
+        onSelect={() => undefined}
+      />
+    )
+
+    expect(screen.getByText('Loading node details...')).toBeTruthy()
   })
 })

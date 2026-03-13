@@ -72,6 +72,9 @@ var envSetters = map[string]envSetter{
 	"web.map.hide_position_after": func(cfg *Config, value string) {
 		cfg.Web.Map.HidePositionAfter = mustDuration(value, cfg.Web.Map.HidePositionAfter)
 	},
+	"web.map.topology_cache_ttl": func(cfg *Config, value string) {
+		cfg.Web.Map.TopologyCacheTTL = mustDuration(value, cfg.Web.Map.TopologyCacheTTL)
+	},
 	"web.map.precision_circles_mode": func(cfg *Config, value string) {
 		cfg.Web.Map.PrecisionCirclesMode = MapPrecisionCirclesMode(strings.ToLower(strings.TrimSpace(value)))
 	},

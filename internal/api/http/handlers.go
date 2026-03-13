@@ -34,6 +34,7 @@ func (s *Server) meta(w http.ResponseWriter, _ *http.Request) {
 		Map: metaMapPayload{
 			Clustering:           s.cfg.Web.Map.Clustering,
 			HidePositionAfter:    s.cfg.Web.Map.HidePositionAfter.String(),
+			TopologyCacheTTL:     s.cfg.Web.Map.TopologyCacheTTL.String(),
 			PrecisionCirclesMode: string(s.cfg.Web.Map.PrecisionCirclesMode),
 			DefaultView: metaDefaultViewPayload{
 				Latitude:  s.cfg.Web.Map.DefaultView.Latitude,

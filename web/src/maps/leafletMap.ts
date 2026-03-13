@@ -1,7 +1,9 @@
 import L from 'leaflet'
 
 import 'leaflet.markercluster'
+import { parseDurationMs } from '../utils/duration'
 import { relativeTime } from '../utils/time'
+import { topologyColor } from '../utils/topology'
 
 import {
   MARKER_FRESHNESS,
@@ -16,7 +18,7 @@ import {
   markerIconKeyForRole
 } from './markerIcons'
 
-import type { MapNode, MapPrecisionCirclesMode } from '../api/types'
+import type { MapNode, MapPrecisionCirclesMode, NodeNeighbor } from '../api/types'
 import type { Map } from 'leaflet'
 
 type MarkerMap = Record<string, L.Marker>
@@ -24,6 +26,7 @@ type MarkerMap = Record<string, L.Marker>
 interface LeafletMapOptions {
   clustering?: boolean
   precisionCirclesMode?: MapPrecisionCirclesMode
+  onHoverNode?: (id?: string) => void
   onOpenNodeDetails?: (id: string) => void
   onViewChange?: (center: [number, number], zoom: number) => void
   onSelectNode?: (id?: string) => void
@@ -53,14 +56,17 @@ export class LeafletMapAdapter {
   private markers: MarkerMap = {}
   private mapNodesByID = new globalThis.Map<string, MapNode>()
   private readonly precisionCircleLayer: L.FeatureGroup
+  private readonly topologyLayer: L.FeatureGroup
   private precisionCircles = new globalThis.Map<string, L.Circle>()
   private readonly precisionCirclesMode: MapPrecisionCirclesMode
   private lastDisconnectedThreshold?: string
   private selectedID?: string
+  private readonly onHoverNode?: (id?: string) => void
   private readonly onOpenNodeDetails?: (id: string) => void
   private readonly onSelectNode?: (id?: string) => void
 
   public constructor(el: HTMLElement, center: [number, number], zoom: number, opts: LeafletMapOptions = {}) {
+    this.onHoverNode = opts.onHoverNode
     this.onOpenNodeDetails = opts.onOpenNodeDetails
     this.onSelectNode = opts.onSelectNode
     this.precisionCirclesMode = opts.precisionCirclesMode ?? 'none'
@@ -70,6 +76,7 @@ export class LeafletMapAdapter {
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(this.map)
     this.precisionCircleLayer = L.featureGroup().addTo(this.map)
+    this.topologyLayer = L.featureGroup().addTo(this.map)
     this.markerLayer = opts.clustering
       ? L.markerClusterGroup({
           chunkedLoading: true,
@@ -160,6 +167,12 @@ export class LeafletMapAdapter {
           this.render(Array.from(this.mapNodesByID.values()), this.lastDisconnectedThreshold)
           this.onSelectNode?.(undefined)
         })
+        marker.on('mouseover', () => {
+          this.onHoverNode?.(id)
+        })
+        marker.on('mouseout', () => {
+          this.onHoverNode?.(undefined)
+        })
         this.markers[id] = marker.addTo(this.markerLayer)
         if (this.selectedID === id) {
           marker.openPopup()
@@ -211,6 +224,36 @@ export class LeafletMapAdapter {
     }
   }
 
+  public renderTopology(nodeID?: string, neighbors: NodeNeighbor[] = []): void {
+    this.topologyLayer.clearLayers()
+    if (!nodeID) {
+      return
+    }
+
+    const origin = this.mapNodesByID.get(nodeID)?.position
+    if (!origin) {
+      return
+    }
+
+    for (const neighbor of neighbors) {
+      const peer = this.mapNodesByID.get(neighbor.node_id)?.position
+      if (!peer) {
+        continue
+      }
+
+      L.polyline([
+        [origin.latitude, origin.longitude],
+        [peer.latitude, peer.longitude]
+      ], {
+        color: topologyColor(neighbor),
+        weight: this.selectedID === nodeID ? 3 : 2.5,
+        opacity: 0.82,
+        interactive: false,
+        bubblingMouseEvents: false
+      }).addTo(this.topologyLayer)
+    }
+  }
+
   public setSelectedNode(id?: string): void {
     if (id === this.selectedID) {return}
     if (!id) {
@@ -257,9 +300,12 @@ export class LeafletMapAdapter {
       popupEl?.removeEventListener('click', this.handlePopupClick)
       marker.off('popupopen')
       marker.off('popupclose')
+      marker.off('mouseover')
+      marker.off('mouseout')
     }
     this.precisionCircleLayer.clearLayers()
     this.precisionCircles.clear()
+    this.topologyLayer.clearLayers()
     this.map.remove()
   }
 
@@ -295,28 +341,6 @@ export class LeafletMapAdapter {
         return false
     }
   }
-}
-
-function parseDurationMs(raw?: string): number | undefined {
-  if (!raw) {return undefined}
-  const token = /([0-9]+(?:\.[0-9]+)?)(ns|us|µs|ms|s|m|h)/g
-  let total = 0
-  let found = false
-  for (const match of raw.matchAll(token)) {
-    found = true
-    const n = Number(match[1])
-    const unit = match[2]
-    if (!Number.isFinite(n)) {continue}
-    if (unit === 'h') {total += n * 3600000}
-    if (unit === 'm') {total += n * 60000}
-    if (unit === 's') {total += n * 1000}
-    if (unit === 'ms') {total += n}
-    if (unit === 'us' || unit === 'µs') {total += n / 1000}
-    if (unit === 'ns') {total += n / 1000000}
-  }
-  if (!found) {return undefined}
-
-  return Math.max(0, Math.floor(total))
 }
 
 function scalePoint(value: L.PointExpression, scale: number): [number, number] {

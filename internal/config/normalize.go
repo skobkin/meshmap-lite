@@ -78,4 +78,7 @@ func normalize(cfg *Config) {
 	if cfg.Web.Map.HidePositionAfter <= 0 {
 		cfg.Web.Map.HidePositionAfter = defaultMapHidePositionAfter
 	}
+	if cfg.Web.Map.TopologyCacheTTL <= 0 {
+		cfg.Web.Map.TopologyCacheTTL = defaultMapTopologyCacheTTL
+	}
 }

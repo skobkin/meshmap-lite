@@ -2,6 +2,7 @@ import { useState } from 'preact/hooks'
 
 import { defaultMarkerDataUrl } from '../maps/markerIcons'
 import { relativeTime } from '../utils/time'
+import { neighborTimeLabel, sortedNeighbors, topologyEvidenceLabel, topologySignalLabel } from '../utils/topology'
 
 import type { NodeDetails, NodeSummary } from '../api/types'
 import type { ComponentChildren, JSX } from 'preact'
@@ -10,6 +11,7 @@ interface Props {
   items: NodeSummary[]
   selected?: string
   details?: NodeDetails
+  loading?: boolean
   loadError?: string
   onOpenMap: (id: string) => void
   onSelect: (id: string) => void
@@ -131,9 +133,10 @@ function matchesFilter(item: NodeSummary, rawFilter: string): boolean {
   ].some((value) => value?.toLowerCase().includes(filter))
 }
 
-export function NodesPage({ items, selected, details, loadError, onOpenMap, onSelect }: Props): JSX.Element {
+export function NodesPage({ items, selected, details, loading, loadError, onOpenMap, onSelect }: Props): JSX.Element {
   const [filter, setFilter] = useState('')
   const sections = details ? detailSections(details) : []
+  const neighbors = sortedNeighbors(details)
   const filteredItems = items.filter((item) => matchesFilter(item, filter))
 
   return (
@@ -190,8 +193,39 @@ export function NodesPage({ items, selected, details, loadError, onOpenMap, onSe
                 ))}
               </section>
             ))}
+            <section>
+              <h4>Neighbors</h4>
+              {neighbors.length > 0 ? (
+                <div className="node-neighbors-list" role="list">
+                  {neighbors.map((neighbor) => (
+                    <div className="node-neighbor-card" key={neighbor.node_id} role="listitem">
+                      <div className="node-neighbor-head">
+                        <strong>{neighbor.display_name}</strong>
+                        {neighbor.has_position && (
+                          <button
+                            type="button"
+                            className="node-section-map-link"
+                            aria-label={`Open ${neighbor.display_name} on map`}
+                            title="Open neighbor on map"
+                            onClick={() => onOpenMap(neighbor.node_id)}
+                          >
+                            <img className="node-section-map-icon" src={defaultMapMarkerIconURL} alt="" aria-hidden="true" />
+                          </button>
+                        )}
+                      </div>
+                      <p>ID: <code>{neighbor.node_id}</code></p>
+                      <p>Evidence: {topologyEvidenceLabel(neighbor)}</p>
+                      <p>Signal: {topologySignalLabel(neighbor)}</p>
+                      {neighborTimeLabel(neighbor.last_observed_at) && <p>Last observed: {neighborTimeLabel(neighbor.last_observed_at)}</p>}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="node-list-empty">No topology neighbors available.</p>
+              )}
+            </section>
           </>
-        ) : <p>Select node</p>}
+        ) : <p>{loading ? 'Loading node details...' : 'Select node'}</p>}
       </article>
     </section>
   )

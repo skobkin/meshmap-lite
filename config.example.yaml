@@ -57,6 +57,7 @@ web:
     clustering: false
     disconnected_threshold: 60m
     hide_position_after: 336h
+    topology_cache_ttl: 10m
     precision_circles_mode: selected
     default_view:
       latitude: 64.5

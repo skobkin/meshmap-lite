@@ -125,6 +125,7 @@ type MapConfig struct {
 	Clustering            bool                    `koanf:"clustering"`
 	DisconnectedThreshold time.Duration           `koanf:"disconnected_threshold"`
 	HidePositionAfter     time.Duration           `koanf:"hide_position_after"`
+	TopologyCacheTTL      time.Duration           `koanf:"topology_cache_ttl"`
 	PrecisionCirclesMode  MapPrecisionCirclesMode `koanf:"precision_circles_mode"`
 	DefaultView           DefaultViewConfig       `koanf:"default_view"`
 }

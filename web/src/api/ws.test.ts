@@ -237,6 +237,7 @@ describe('startWS', () => {
       map: {
         clustering: true,
         hide_position_after: '30m',
+        topology_cache_ttl: '10m',
         precision_circles_mode: 'selected',
         default_view: {
           latitude: 0,

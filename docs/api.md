@@ -20,7 +20,7 @@ This document is the source of truth for the public HTTP and WebSocket contract 
 
 - `GET /healthz`: returns `200 {"status":"ok"}`.
 - `GET /readyz`: returns `200 {"status":"ready"}` when the app is ready, otherwise `503 {"status":"not_ready"}`.
-- `GET /api/v1/meta`: returns UI/runtime metadata including `app_name`, `version`, `websocket_path`, chat defaults, log settings, and map defaults. The `map` object includes `clustering`, `hide_position_after`, `precision_circles_mode` (`none`, `selected`, `always`), and `default_view`.
+- `GET /api/v1/meta`: returns UI/runtime metadata including `app_name`, `version`, `websocket_path`, chat defaults, log settings, and map defaults. The `map` object includes `clustering`, `hide_position_after`, `topology_cache_ttl`, `precision_circles_mode` (`none`, `selected`, `always`), and `default_view`.
 - `GET /api/v1/channels`: returns configured channels as `{name, chat_enabled, is_primary}` items.
 - `GET /api/v1/map/nodes`: returns map snapshot items as `{node, position?}` for nodes whose latest position is newer than `meta.map.hide_position_after`.
 - `GET /api/v1/chat/messages`: returns chat history ordered newest-first. `channel` defaults to `meta.default_chat_channel`; `limit` defaults to `meta.show_recent_messages`; `before` paginates by chat row ID. Each item may include `node_display_name`, resolved with `long_name -> short_name -> node_id`.
@@ -37,7 +37,10 @@ This document is the source of truth for the public HTTP and WebSocket contract 
   - Each item includes `source_kind`, `channel_name`, `from_node_id`, `to_node_id`, `reported_by_node_id`, `inferred`, and timestamps. Neighbor-info rows may also include `snr`, `neighbor_last_rx_at`, and `neighbor_broadcast_interval_secs`.
   - `source_kind` values are `neighbor_info`, `routing_forward`, `routing_return`, `traceroute_forward`, and `traceroute_return`.
 - `GET /api/v1/nodes`: returns node list items for the Nodes view.
-- `GET /api/v1/nodes/{node_id}`: returns `{node, position?, telemetry?}` for one node, or `404 {"error":"not_found"}` if absent.
+- `GET /api/v1/nodes/{node_id}`: returns `{node, position?, telemetry?, neighbors?}` for one node, or `404 {"error":"not_found"}` if absent.
+  - `neighbors` is a collapsed per-peer topology view built from `neighbor_info`, `routing_forward`, and `routing_return` edges for that node.
+  - `traceroute_*` edges remain available via `/api/v1/topology/edges` but are excluded from `neighbors`.
+  - Each neighbor item includes identity fallback fields (`display_name`, `long_name`, `short_name`), `has_position`, evidence (`neighbor_info` or `inferred`), optional `snr`, source metadata, and `last_observed_at`.
 - `GET /api/v1/ws`: single WebSocket stream for live events.
 
 ## WebSocket events

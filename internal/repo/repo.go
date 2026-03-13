@@ -67,6 +67,24 @@ type NodeDetails struct {
 	Node      domain.Node                   `json:"node"`
 	Position  *domain.NodePosition          `json:"position,omitempty"`
 	Telemetry *domain.NodeTelemetrySnapshot `json:"telemetry,omitempty"`
+	Neighbors []NodeNeighbor                `json:"neighbors,omitempty"`
+}
+
+// NodeNeighbor is a collapsed topology view for one peer of the selected node.
+type NodeNeighbor struct {
+	NodeID                       string     `json:"node_id"`
+	DisplayName                  string     `json:"display_name"`
+	LongName                     string     `json:"long_name,omitempty"`
+	ShortName                    string     `json:"short_name,omitempty"`
+	HasPosition                  bool       `json:"has_position"`
+	EvidenceKind                 string     `json:"evidence_kind"`
+	SNR                          *float64   `json:"snr,omitempty"`
+	ChannelName                  string     `json:"channel_name,omitempty"`
+	ReportedByNodeID             string     `json:"reported_by_node_id,omitempty"`
+	NeighborLastRXAt             *time.Time `json:"neighbor_last_rx_at,omitempty"`
+	NeighborBroadcastIntervalSec *uint32    `json:"neighbor_broadcast_interval_secs,omitempty"`
+	LastObservedAt               time.Time  `json:"last_observed_at"`
+	LastReportedAt               *time.Time `json:"last_reported_at,omitempty"`
 }
 
 // TopologyEdgeQuery defines topology-edge list filters.
