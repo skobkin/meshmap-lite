@@ -159,6 +159,11 @@ func (s *Service) HandleMessage(ctx context.Context, topic string, payload []byt
 			s.persistLogEvent(ctx, lifecycleEvent)
 		}
 	}
+	if logAllowed {
+		if !s.persistTopologyEdges(ctx, evt, channel, now) {
+			return
+		}
+	}
 	if !s.allowEvent(channel, evt.Kind) {
 		s.log.Debug("skip packet by channel policy", "channel", channel, "kind", evt.Kind, "node_id", evt.NodeID)
 
@@ -168,9 +173,6 @@ func (s *Service) HandleMessage(ctx context.Context, topic string, payload []byt
 		return
 	}
 	if !s.upsertNodeEvidenceSet(ctx, evt, topicInfo, channel, now) {
-		return
-	}
-	if !s.persistTopologyEdges(ctx, evt, channel, now) {
 		return
 	}
 
@@ -790,6 +792,9 @@ func routingForwardPath(in *meshtastic.RoutingPayload) []string {
 	if in == nil {
 		return nil
 	}
+	if in.Variant == meshtastic.RoutingVariantError && len(in.Route) == 0 {
+		return nil
+	}
 
 	path := make([]string, 0, len(in.Route)+2)
 	if in.FromNodeID != "" {
@@ -805,6 +810,9 @@ func routingForwardPath(in *meshtastic.RoutingPayload) []string {
 
 func routingReturnPath(in *meshtastic.RoutingPayload) []string {
 	if in == nil {
+		return nil
+	}
+	if in.Variant == meshtastic.RoutingVariantError && len(in.RouteBack) == 0 {
 		return nil
 	}
 

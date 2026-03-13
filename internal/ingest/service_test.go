@@ -7,8 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/protobuf/proto"
+
+	"meshmap-lite/internal/dedup"
 	"meshmap-lite/internal/domain"
 	"meshmap-lite/internal/meshtastic"
+	generated "meshmap-lite/internal/meshtasticpb"
 	"meshmap-lite/internal/repo"
 	"meshmap-lite/internal/repo/testkit"
 )
@@ -207,7 +211,7 @@ func TestLogEventFromParsedRoutingKeepsTracerouteFailureSignal(t *testing.T) {
 		Kind:   meshtastic.ParsedRouting,
 		NodeID: "!9028d008",
 		Routing: &meshtastic.RoutingPayload{
-			Variant:       "error",
+			Variant:       meshtastic.RoutingVariantError,
 			RequestID:     321,
 			FromNodeID:    "!9028d008",
 			ToNodeID:      "!a55e5e56",
@@ -232,7 +236,7 @@ func TestLogEventFromParsedRoutingKeepsTracerouteFailureSignal(t *testing.T) {
 		Kind:   meshtastic.ParsedRouting,
 		NodeID: "!9028d008",
 		Routing: &meshtastic.RoutingPayload{
-			Variant:       "error",
+			Variant:       meshtastic.RoutingVariantError,
 			RequestID:     321,
 			ErrorReason:   "NONE",
 			TracerouteRef: true,
@@ -441,7 +445,7 @@ func TestUpsertNodeEvidenceSetDiscoversIndirectNodesFromTracerouteAndRouting(t *
 		Kind:   meshtastic.ParsedRouting,
 		NodeID: "!9028d008",
 		Routing: &meshtastic.RoutingPayload{
-			Variant:    "route_reply",
+			Variant:    meshtastic.RoutingVariantReply,
 			FromNodeID: "!9028d008",
 			ToNodeID:   "!abcdef01",
 			Route:      []string{"!22222222"},
@@ -538,6 +542,89 @@ func TestTopologyEdgesFromParsedTracerouteAndRoutingStayDistinct(t *testing.T) {
 	}
 	if routingEdges[2].SourceKind != domain.TopologySourceRoutingReturn || routingEdges[2].FromNodeID != "!abcdef01" || routingEdges[2].ToNodeID != "!33333333" {
 		t.Fatalf("unexpected routing return edge: %#v", routingEdges[2])
+	}
+}
+
+func TestTopologyEdgesFromParsedRoutingErrorWithoutRouteSkipsTopology(t *testing.T) {
+	now := time.Unix(1772296589, 0).UTC()
+
+	edges := topologyEdgesFromParsed(meshtastic.ParsedEvent{
+		Kind:   meshtastic.ParsedRouting,
+		NodeID: "!9028d008",
+		Routing: &meshtastic.RoutingPayload{
+			Variant:     meshtastic.RoutingVariantError,
+			FromNodeID:  "!9028d008",
+			ToNodeID:    "!abcdef01",
+			ErrorReason: "NO_ROUTE",
+		},
+	}, "LongFast", now)
+	if len(edges) != 0 {
+		t.Fatalf("expected no topology edges for routing error without route, got %#v", edges)
+	}
+}
+
+func TestHandleMessagePersistsTopologyEdgesForSecondaryChannel(t *testing.T) {
+	store := &testStore{}
+	now := time.Unix(1772296589, 0).UTC()
+	svc := &Service{
+		cfg: Config{
+			RootTopic: "msh/RU/ARKH",
+			MapReports: MapReportsConfig{
+				Enabled:     false,
+				TopicSuffix: "2/map",
+			},
+			Channels: map[string]ChannelConfig{
+				"LongFast": {Primary: true},
+				"LongSlow": {Primary: false},
+			},
+		},
+		store:   store,
+		dedup:   dedup.New(dedup.Options{Size: 32, TTL: time.Minute}),
+		emitter: testEmitter{},
+		log:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+		now: func() time.Time {
+			return now
+		},
+	}
+
+	neighborPayload, err := proto.Marshal(&generated.NeighborInfo{
+		NodeId: 0x49b5976c,
+		Neighbors: []*generated.Neighbor{
+			{NodeId: 0x11111111, Snr: 12.5},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	envelopePayload, err := proto.Marshal(&generated.ServiceEnvelope{
+		ChannelId: "LongSlow",
+		GatewayId: "gw",
+		Packet: &generated.MeshPacket{
+			From: 0x49b5976c,
+			Id:   42,
+			PayloadVariant: &generated.MeshPacket_Decoded{
+				Decoded: &generated.Data{
+					Portnum: generated.PortNum_NEIGHBORINFO_APP,
+					Payload: neighborPayload,
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	svc.HandleMessage(context.Background(), "msh/RU/ARKH/e/LongSlow/!9028d008", envelopePayload)
+
+	if len(store.topologySeen) != 1 {
+		t.Fatalf("expected topology edge to persist for secondary channel, got %#v", store.topologySeen)
+	}
+	if store.topologySeen[0].ChannelName != "LongSlow" {
+		t.Fatalf("unexpected topology channel: %#v", store.topologySeen[0])
+	}
+	if len(store.nodesSeen) != 0 {
+		t.Fatalf("secondary channel should still skip primary-gated node upserts, got %#v", store.nodesSeen)
 	}
 }
 

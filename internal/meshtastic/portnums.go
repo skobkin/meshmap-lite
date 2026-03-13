@@ -300,21 +300,21 @@ func decodeRoutingPayload(packet *generated.MeshPacket, data *generated.Data) (*
 		TracerouteRef: data.GetRequestId() > 0,
 	}
 	if req := routing.GetRouteRequest(); req != nil {
-		out.Variant = "route_request"
+		out.Variant = RoutingVariantRequest
 		out.Route = nodeIDsFromNums(req.GetRoute())
 		out.RouteBack = nodeIDsFromNums(req.GetRouteBack())
 
 		return out, nil
 	}
 	if reply := routing.GetRouteReply(); reply != nil {
-		out.Variant = "route_reply"
+		out.Variant = RoutingVariantReply
 		out.Route = nodeIDsFromNums(reply.GetRoute())
 		out.RouteBack = nodeIDsFromNums(reply.GetRouteBack())
 
 		return out, nil
 	}
 
-	out.Variant = "error"
+	out.Variant = RoutingVariantError
 	out.ErrorReason = routing.GetErrorReason().String()
 
 	return out, nil

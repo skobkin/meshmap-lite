@@ -164,6 +164,13 @@ type RoutingPayload struct {
 	TracerouteRef bool     `json:"traceroute_ref,omitempty"`
 }
 
+// Routing payload variants.
+const (
+	RoutingVariantRequest = "route_request"
+	RoutingVariantReply   = "route_reply"
+	RoutingVariantError   = "error"
+)
+
 // OtherPortnumPayload carries fallback details for known-but-unhandled app packets.
 type OtherPortnumPayload struct {
 	PortnumValue int32  `json:"portnum_value"`

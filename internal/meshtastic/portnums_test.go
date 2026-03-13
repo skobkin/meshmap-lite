@@ -141,7 +141,7 @@ func TestDecodeRoutingPayloadVariants(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if request.Variant != "route_request" || request.RequestID != 123 || len(request.Route) != 2 || len(request.RouteBack) != 2 {
+	if request.Variant != RoutingVariantRequest || request.RequestID != 123 || len(request.Route) != 2 || len(request.RouteBack) != 2 {
 		t.Fatalf("unexpected route request payload: %#v", request)
 	}
 
@@ -162,7 +162,7 @@ func TestDecodeRoutingPayloadVariants(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reply.Variant != "error" || reply.ErrorReason != generated.Routing_NO_ROUTE.String() || reply.RequestID != 456 || !reply.TracerouteRef {
+	if reply.Variant != RoutingVariantError || reply.ErrorReason != generated.Routing_NO_ROUTE.String() || reply.RequestID != 456 || !reply.TracerouteRef {
 		t.Fatalf("unexpected route error payload: %#v", reply)
 	}
 }
