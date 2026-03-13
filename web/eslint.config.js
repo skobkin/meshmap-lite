@@ -145,6 +145,7 @@ export default tseslint.config(
       '@typescript-eslint/use-unknown-in-catch-callback-variable': 'off',
       'import-x/first': 'error',
       'import-x/no-cycle': ['error', { ignoreExternal: true }],
+      'import-x/no-default-export': 'error',
       'import-x/newline-after-import': 'error',
       'import-x/no-duplicates': 'error',
       'import-x/no-named-as-default-member': 'error',
@@ -169,6 +170,12 @@ export default tseslint.config(
     },
     rules: {
       '@typescript-eslint/explicit-function-return-type': 'off'
+    }
+  },
+  {
+    files: ['vite.config.ts'],
+    rules: {
+      'import-x/no-default-export': 'off'
     }
   }
 )
