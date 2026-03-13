@@ -1,0 +1,2 @@
+This file keeps the embedded frontend asset directory present in source checkouts.
+Release builds replace this directory contents with the real frontend bundle before `go build`.

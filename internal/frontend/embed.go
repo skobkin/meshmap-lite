@@ -5,7 +5,7 @@ import (
 	"io/fs"
 )
 
-//go:embed all:assets/dist
+//go:embed assets/dist/**
 var embeddedFiles embed.FS
 
 func resolveEmbeddedAssets() (fs.FS, bool) {
