@@ -1,6 +1,8 @@
 import preact from '@preact/preset-vite'
 import { defineConfig } from 'vite'
 
+const outDir = process.env.MML_FRONTEND_DIST_DIR ?? '../internal/frontend/assets/dist'
+
 export default defineConfig({
   plugins: [preact()],
   resolve: {
@@ -18,7 +20,7 @@ export default defineConfig({
     }
   },
   build: {
-    outDir: 'dist',
+    outDir,
     emptyOutDir: true
   }
 })

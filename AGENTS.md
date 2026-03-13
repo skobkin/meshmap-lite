@@ -49,7 +49,7 @@
 - Keep Leaflet behind a thin adapter boundary.
 - Avoid heavy UI frameworks; prefer PicoCSS plus small helpers.
 - The UI must remain usable with stale snapshot data while WebSocket reconnect is in progress or fails.
-- Keep published binaries self-contained: release builds embed the built frontend from `internal/frontend/assets/dist`, while local runtime may fall back to `web/dist`.
+- Keep binaries self-contained: `npm run build` must refresh `internal/frontend/assets/dist`, and `go build` embeds that directory into the binary with no runtime fallback to `web/dist`.
 
 ## Testing Guidance
 
@@ -111,6 +111,7 @@ Before considering work finished, run the same baseline checks as CI, adjusted t
 - `cd web && npm run lint`
 - `cd web && npm run test`
 - `cd web && npm run build`
+- `go build ./cmd/server`
 
 ### Project hygiene
 

@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -116,7 +115,6 @@ func Run(configPath string) error {
 	mux.Handle("/healthz", apiMux)
 	mux.Handle("/readyz", apiMux)
 	mux.Handle("/", frontend.Handler(frontend.Options{
-		DistPath:         filepath.Join("web", "dist"),
 		MissingBuildHint: missingFrontendBuildHint,
 	}))
 

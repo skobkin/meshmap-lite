@@ -1,5 +1,5 @@
 // Package frontend serves compiled frontend assets with SPA fallback semantics.
 //
-// Published binaries embed the built SPA. Local development can still fall back
-// to a runtime build directory such as web/dist.
+// All builds embed the SPA assets from internal/frontend/assets/dist.
+// The frontend build must populate that directory before any Go build.
 package frontend

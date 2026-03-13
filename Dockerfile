@@ -14,7 +14,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 COPY cmd ./cmd
 COPY internal ./internal
-COPY --from=web-build /src/web/dist ./internal/frontend/assets/dist
+COPY --from=web-build /src/internal/frontend/assets/dist ./internal/frontend/assets/dist
 RUN go build -trimpath -ldflags="-s -w -X meshmap-lite/internal/buildinfo.Version=${VERSION}" -o /out/server ./cmd/server
 
 FROM alpine:3.23

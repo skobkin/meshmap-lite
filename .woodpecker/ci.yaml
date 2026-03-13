@@ -21,6 +21,8 @@ steps:
 
   backend-lint:
     image: golangci/golangci-lint:v2.8-alpine
+    depends_on:
+      - frontend-build
     environment:
       XDG_CACHE_HOME: /tmp/.cache
     commands:
@@ -28,6 +30,8 @@ steps:
 
   backend-vet:
     image: golang:1.25
+    depends_on:
+      - frontend-build
     environment:
       GOCACHE: /tmp/.gocache
     commands:
@@ -35,6 +39,8 @@ steps:
 
   backend-test:
     image: golang:1.25
+    depends_on:
+      - frontend-build
     environment:
       GOCACHE: /tmp/.gocache
     commands:
@@ -83,15 +89,13 @@ steps:
         cp -a web/. "$tmpdir/"
         cd "$tmpdir"
         npm ci
-        npm run build
-        test -f dist/index.html
-        rm -rf "$CI_WORKSPACE/internal/frontend/assets/dist"
-        mkdir -p "$CI_WORKSPACE/internal/frontend/assets/dist"
-        cp -a dist/. "$CI_WORKSPACE/internal/frontend/assets/dist/"
+        MML_FRONTEND_DIST_DIR="$CI_WORKSPACE/internal/frontend/assets/dist" npm run build
+        test -f "$CI_WORKSPACE/internal/frontend/assets/dist/index.html"
 
   backend-build:
     image: golang:1.25
     depends_on:
+      - frontend-build
       - backend-fmt
       - backend-lint
       - backend-vet

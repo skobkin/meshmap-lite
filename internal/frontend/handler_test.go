@@ -3,8 +3,6 @@ package frontend
 import (
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"testing"
 	"testing/fstest"
 )
@@ -93,13 +91,10 @@ func TestSPAFileServerClientRouteFallsBackToIndex(t *testing.T) {
 	}
 }
 
-func TestHandlerFallsBackWhenBuildDirectoryMissing(t *testing.T) {
+func TestHandlerUsesEmbeddedAssetsByDefault(t *testing.T) {
 	t.Parallel()
 
-	h := Handler(Options{
-		DistPath:         filepath.Join(t.TempDir(), "missing"),
-		MissingBuildHint: "frontend assets are not built",
-	})
+	h := Handler(Options{})
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
@@ -108,32 +103,7 @@ func TestHandlerFallsBackWhenBuildDirectoryMissing(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
-	if got := rec.Body.String(); got != "frontend assets are not built" {
-		t.Fatalf("unexpected body: %q", got)
-	}
-}
-
-func TestHandlerUsesDistPathWhenPresent(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<html>disk</html>"), 0o600); err != nil {
-		t.Fatalf("write index.html: %v", err)
-	}
-
-	h := Handler(Options{
-		DistPath:         dir,
-		MissingBuildHint: "frontend assets are not built",
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", rec.Code)
-	}
-	if got := rec.Body.String(); got != "<html>disk</html>" {
-		t.Fatalf("unexpected body: %q", got)
+	if got := rec.Body.String(); got == "" {
+		t.Fatal("expected embedded frontend response body")
 	}
 }

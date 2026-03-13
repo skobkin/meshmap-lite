@@ -46,8 +46,9 @@ Docker Compose [example](https://git.skobk.in/skobkin/docker-stacks/src/branch/m
 2. `npm install`
 3. `npm run dev`
 
-Published release binaries and containers embed the built frontend. Local `go run`
-and `go build` workflows can still serve a local `web/dist` build when present.
+For backend builds, `npm run build` writes the SPA bundle into
+`internal/frontend/assets/dist`, and `go build ./cmd/server` embeds that bundle
+into the binary. If those assets are missing, the Go build fails.
 
 ## Config
 
