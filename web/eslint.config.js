@@ -64,7 +64,10 @@ export default tseslint.config(
         ignoreMemberSort: false
       }],
       '@typescript-eslint/consistent-type-definitions': ['error', 'interface'],
-      '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports' }],
+      '@typescript-eslint/consistent-type-imports': ['error', {
+        prefer: 'type-imports',
+        fixStyle: 'separate-type-imports'
+      }],
       '@typescript-eslint/explicit-function-return-type': ['error', { allowExpressions: true }],
       '@typescript-eslint/no-confusing-void-expression': 'off',
       '@typescript-eslint/no-floating-promises': ['error', { ignoreVoid: true }],
