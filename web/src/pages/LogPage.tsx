@@ -3,6 +3,7 @@ import { useState } from 'preact/hooks'
 import { LogDetailsModal, hasLogDetails } from '../components/LogDetailsModal'
 
 import type { LogEvent } from '../api/types'
+import type { JSX } from 'preact'
 
 interface Props {
   channels: string[]
@@ -43,7 +44,7 @@ export function LogPage({
   onChangeKinds,
   onChangeChannel,
   onLoadMore
-}: Props) {
+}: Props): JSX.Element {
   const [selectedEvent, setSelectedEvent] = useState<LogEvent>()
 
   return (

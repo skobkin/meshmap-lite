@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { chatStorageKey } from './stores/chatState'
 
 import type { ChannelItem, ChatEvent, LogEvent, MapNode, Meta, NodeDetails, NodeSummary, WSState, WSStats } from './api/types'
+import type { JSX } from 'preact'
 
 type Selector<T, U> = (state: T) => U
 
@@ -172,7 +173,7 @@ let apiMock: {
 }
 let startWSMock: ReturnType<typeof vi.fn>
 
-async function renderApp() {
+async function renderApp(): Promise<ReturnType<typeof render>> {
   const appModule = await import('./App')
 
   return render(<appModule.App />)
@@ -261,7 +262,7 @@ function setupModuleMocks(): void {
     useWSStore: wsStore
   }))
   vi.doMock('./pages/MapPage', () => ({
-    MapPage: ({ channels }: { channels: string[] }) => (
+    MapPage: ({ channels }: { channels: string[] }): JSX.Element => (
       <section data-testid="map-page">
         <p>Map page</p>
         <p>Channels: {channels.join(',')}</p>
@@ -271,7 +272,7 @@ function setupModuleMocks(): void {
     )
   }))
   vi.doMock('./pages/NodesPage', () => ({
-    NodesPage: ({ items }: { items: NodeSummary[] }) => (
+    NodesPage: ({ items }: { items: NodeSummary[] }): JSX.Element => (
       <section data-testid="nodes-page">
         <p>Nodes page</p>
         <p>Node summaries: {items.length}</p>
@@ -291,7 +292,7 @@ function setupModuleMocks(): void {
       selectedChannel: string
       onChangeKinds: (kinds: number[]) => void
       onChangeChannel: (channel: string) => void
-    }) => (
+    }): JSX.Element => (
       <section data-testid="log-page">
         <p>Log page</p>
         <p>Log items: {items.length}</p>

@@ -28,7 +28,7 @@ function event(id: number, overrides: Partial<LogEvent> = {}): LogEvent {
   }
 }
 
-function renderPage(items: LogEvent[]) {
+function renderPage(items: LogEvent[]): ReturnType<typeof render> {
   return render(
     <LogPage
       channels={['mesh']}

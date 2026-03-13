@@ -12,6 +12,8 @@ import { useMetaStore } from './stores/meta'
 import { useNodeStore } from './stores/nodes'
 import { useWSStore } from './stores/ws'
 
+import type { JSX } from 'preact'
+
 const mapViewKey = 'meshmap-lite.map.view'
 const mapHashLatParam = 'lat'
 const mapHashLngParam = 'lng'
@@ -104,7 +106,7 @@ function readSavedMapView(): SavedMapView | null {
   }
 }
 
-export function App() {
+export function App(): JSX.Element {
   const [page, setPage] = useState<'map' | 'nodes' | 'log'>('map')
   const [mapFocusNodeId, setMapFocusNodeId] = useState<string>()
   const [bootstrapDone, setBootstrapDone] = useState(false)
@@ -307,19 +309,19 @@ export function App() {
     })
   }, [meta])
 
-  const onMapViewChange = useCallback((center: [number, number], zoom: number) => {
+  const onMapViewChange = useCallback((center: [number, number], zoom: number): void => {
     const next = { center, zoom }
     setMapView(next)
     localStorage.setItem(mapViewKey, JSON.stringify(next))
   }, [])
 
-  const openNodeDetails = useCallback((id: string) => {
+  const openNodeDetails = useCallback((id: string): void => {
     setPage('nodes')
     setMapFocusNodeId(undefined)
     setSelectedId(id)
   }, [setSelectedId])
 
-  const openNodeOnMap = useCallback((id: string) => {
+  const openNodeOnMap = useCallback((id: string): void => {
     setSelectedId(id)
     setMapFocusNodeId(id)
     setPage('map')

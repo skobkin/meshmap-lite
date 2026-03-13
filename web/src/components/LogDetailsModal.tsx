@@ -3,7 +3,7 @@ import { useEffect, useId } from 'preact/hooks'
 import { JsonDetailsView } from './JsonDetailsView'
 
 import type { LogEvent } from '../api/types'
-import type { ComponentChildren } from 'preact'
+import type { ComponentChildren, JSX } from 'preact'
 
 export interface LogDetailsRenderer {
   id: string
@@ -60,13 +60,13 @@ interface Props {
   renderers?: LogDetailsRenderer[]
 }
 
-export function LogDetailsModal({ event, onClose, renderers }: Props) {
+export function LogDetailsModal({ event, onClose, renderers }: Props): JSX.Element | null {
   const titleId = useId()
 
   useEffect(() => {
     if (!event) {return undefined}
 
-    const onKeyDown = (e: KeyboardEvent) => {
+    const onKeyDown = (e: KeyboardEvent): void => {
       if (e.key === 'Escape') {
         onClose()
       }

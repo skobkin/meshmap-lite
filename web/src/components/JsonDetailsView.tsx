@@ -1,6 +1,6 @@
 import { useState } from 'preact/hooks'
 
-import type { ComponentChildren } from 'preact'
+import type { ComponentChildren, JSX } from 'preact'
 
 interface JsonDetailsViewProps {
   value: unknown
@@ -31,7 +31,7 @@ const JsonLine = ({
   depth: number
   children: ComponentChildren
   trailingComma?: boolean
-}) => {
+}): JSX.Element => {
   return (
     <div className="json-line">
       <span
@@ -45,7 +45,7 @@ const JsonLine = ({
   )
 }
 
-function renderScalar(value: unknown) {
+function renderScalar(value: unknown): ComponentChildren {
   if (typeof value === 'string') {
     return <span className="json-string">{JSON.stringify(value)}</span>
   }
@@ -65,7 +65,7 @@ function renderScalar(value: unknown) {
   return <span className="json-string">{JSON.stringify(Object.prototype.toString.call(value))}</span>
 }
 
-function renderPrefix(keyPrefix?: string) {
+function renderPrefix(keyPrefix?: string): ComponentChildren {
   if (!keyPrefix) {return null}
 
   return (
@@ -92,7 +92,7 @@ const JsonToggle = ({
   expanded: boolean
   onToggle: () => void
   label: string
-}) => {
+}): JSX.Element => {
   return (
     <button
       aria-label={label}
@@ -107,7 +107,7 @@ const JsonToggle = ({
   )
 }
 
-const JsonNode = ({ depth, path, value, keyPrefix, trailingComma = false }: JsonNodeProps) => {
+const JsonNode = ({ depth, path, value, keyPrefix, trailingComma = false }: JsonNodeProps): JSX.Element => {
   if (Array.isArray(value)) {
     return (
       <JsonArrayNode
@@ -146,7 +146,7 @@ const JsonArrayNode = ({
   value,
   keyPrefix,
   trailingComma = false
-}: JsonCollectionNodeProps & { value: unknown[] }) => {
+}: JsonCollectionNodeProps & { value: unknown[] }): JSX.Element => {
   const [expanded, setExpanded] = useState(true)
   const prefix = renderPrefix(keyPrefix)
 
@@ -207,7 +207,7 @@ const JsonObjectNode = ({
   value,
   keyPrefix,
   trailingComma = false
-}: JsonCollectionNodeProps & { value: Record<string, unknown> }) => {
+}: JsonCollectionNodeProps & { value: Record<string, unknown> }): JSX.Element => {
   const [expanded, setExpanded] = useState(true)
   const prefix = renderPrefix(keyPrefix)
   const entries = Object.entries(value)
@@ -264,7 +264,7 @@ const JsonObjectNode = ({
   )
 }
 
-export function JsonDetailsView({ value }: JsonDetailsViewProps) {
+export function JsonDetailsView({ value }: JsonDetailsViewProps): JSX.Element {
   return (
     <div className="json-view">
       <JsonNode depth={0} path="$" value={value} />

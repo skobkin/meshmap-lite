@@ -8,6 +8,7 @@ import { chatNodeLabel } from '../utils/chat'
 import { dayKey, dayLabel, hhmm } from '../utils/time'
 
 import type { ChatEvent, MapPrecisionCirclesMode } from '../api/types'
+import type { JSX } from 'preact'
 
 interface Props {
   center: [number, number]
@@ -33,7 +34,7 @@ interface ChatTimelineOptions {
   systemText: (code?: string) => string
 }
 
-function renderChatTimeline(messages: ChatEvent[], { onSelectNode, systemText }: ChatTimelineOptions) {
+function renderChatTimeline(messages: ChatEvent[], { onSelectNode, systemText }: ChatTimelineOptions): JSX.Element[] {
   let previousDay = ''
 
   return messages.map((m) => {
@@ -77,7 +78,7 @@ export function MapPage({
   onFocusNodeHandled,
   onOpenNodeDetails,
   onViewChange
-}: Props) {
+}: Props): JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
   const adapterRef = useRef<LeafletMapAdapter | null>(null)
   const initialCenterRef = useRef(center)
@@ -90,7 +91,7 @@ export function MapPage({
   const setChannel = useChatStore((s) => s.setChannel)
   const [collapsed, setCollapsed] = useState<boolean>(() => readSidebarState())
 
-  const toggleCollapsed = () => {
+  const toggleCollapsed = (): void => {
     const next = !collapsed
     setCollapsed(next)
     localStorage.setItem(sidebarStateKey, next ? '1' : '0')
@@ -130,7 +131,7 @@ export function MapPage({
     onFocusNodeHandled()
   }, [focusNodeId, onFocusNodeHandled])
 
-  const focusNodeFromChat = (id: string) => {
+  const focusNodeFromChat = (id: string): void => {
     const mapNode = nodes.find((item) => item.node.node_id === id)
     if (mapNode?.position) {
       setSelectedId(id)

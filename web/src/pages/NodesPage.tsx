@@ -4,7 +4,7 @@ import { defaultMarkerDataUrl } from '../maps/markerIcons'
 import { relativeTime } from '../utils/time'
 
 import type { NodeDetails, NodeSummary } from '../api/types'
-import type { ComponentChildren } from 'preact'
+import type { ComponentChildren, JSX } from 'preact'
 
 interface Props {
   items: NodeSummary[]
@@ -131,7 +131,7 @@ function matchesFilter(item: NodeSummary, rawFilter: string): boolean {
   ].some((value) => value?.toLowerCase().includes(filter))
 }
 
-export function NodesPage({ items, selected, details, loadError, onOpenMap, onSelect }: Props) {
+export function NodesPage({ items, selected, details, loadError, onOpenMap, onSelect }: Props): JSX.Element {
   const [filter, setFilter] = useState('')
   const sections = details ? detailSections(details) : []
   const filteredItems = items.filter((item) => matchesFilter(item, filter))

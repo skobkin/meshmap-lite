@@ -1,6 +1,7 @@
 import { ConnectionStatus } from './ConnectionStatus'
 
 import type { WSState, WSStats } from '../api/types'
+import type { JSX } from 'preact'
 
 interface Props {
   appName: string
@@ -11,7 +12,7 @@ interface Props {
   onPage: (p: 'map' | 'nodes' | 'log') => void
 }
 
-export function Header({ appName, page, version, ws, wsStats, onPage }: Props) {
+export function Header({ appName, page, version, ws, wsStats, onPage }: Props): JSX.Element {
   const brandTitle = `${appName} ${version}`
 
   return (

@@ -1,4 +1,5 @@
 import type { WSState, WSStats } from '../api/types'
+import type { JSX } from 'preact'
 
 interface Props {
   ws: WSState
@@ -48,7 +49,7 @@ function wsStateMeta(
   return { title: lines.join('\n'), tone: 'disconnected', label: 'Disconnected' }
 }
 
-export function ConnectionStatus({ ws, wsStats }: Props) {
+export function ConnectionStatus({ ws, wsStats }: Props): JSX.Element {
   const status = wsStateMeta(ws, wsStats)
 
   return (

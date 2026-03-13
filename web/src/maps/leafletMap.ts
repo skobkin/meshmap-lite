@@ -237,7 +237,7 @@ export class LeafletMapAdapter {
       return
     }
 
-    const openMarker = () => {
+    const openMarker = (): void => {
       this.map.panTo(marker.getLatLng())
       marker.openPopup()
     }
