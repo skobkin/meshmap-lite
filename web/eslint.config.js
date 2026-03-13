@@ -115,7 +115,13 @@ export default tseslint.config(
           format: ['PascalCase']
         },
         {
-          selector: 'property',
+          selector: 'classProperty',
+          format: ['camelCase', 'PascalCase', 'UPPER_CASE'],
+          leadingUnderscore: 'allow'
+        },
+        {
+          selector: 'classProperty',
+          modifiers: ['requiresQuotes'],
           format: null
         },
         {
@@ -155,6 +161,9 @@ export default tseslint.config(
     files: ['src/**/*.test.{ts,tsx}', 'src/test/**/*.{ts,tsx}'],
     languageOptions: {
       globals: testGlobals
+    },
+    rules: {
+      '@typescript-eslint/explicit-function-return-type': 'off'
     }
   }
 )
