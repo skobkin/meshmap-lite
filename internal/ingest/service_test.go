@@ -16,6 +16,7 @@ import (
 type testStore struct {
 	testkit.FakeStore
 	lastNode      *domain.Node
+	nodesSeen     []domain.Node
 	lastPosition  *domain.NodePosition
 	lastLogEvent  *domain.LogEvent
 	logEventsSeen []domain.LogEvent
@@ -25,6 +26,7 @@ type testStore struct {
 func (s *testStore) UpsertNode(_ context.Context, node domain.Node) (bool, error) {
 	n := node
 	s.lastNode = &n
+	s.nodesSeen = append(s.nodesSeen, n)
 
 	return false, nil
 }
@@ -310,4 +312,166 @@ func TestPersistLogEvent_EmitsResolvedNodeDisplayName(t *testing.T) {
 	if view.NodeDisplay != "Alpha Base" {
 		t.Fatalf("expected resolved node display, got %q", view.NodeDisplay)
 	}
+}
+
+func TestCollectNodeEvidenceTracksMQTTGatewaySeparatelyFromSender(t *testing.T) {
+	evidences := collectNodeEvidence(meshtastic.ParsedEvent{
+		Kind:   meshtastic.ParsedTelemetry,
+		NodeID: "!a55e5e56",
+	}, meshtastic.TopicInfo{
+		Kind:       meshtastic.TopicKindChannel,
+		Channel:    "LongFast",
+		GatewayID:  "!9028d008",
+		IsFromMQTT: true,
+	})
+
+	if len(evidences) != 2 {
+		t.Fatalf("expected sender and gateway evidence, got %#v", evidences)
+	}
+	if evidences[0].NodeID != "!9028d008" || !evidences[0].MQTTConnected || !evidences[0].MQTTGatewayCapable {
+		t.Fatalf("unexpected gateway evidence: %#v", evidences[0])
+	}
+	if evidences[1].NodeID != "!a55e5e56" || evidences[1].MQTTConnected {
+		t.Fatalf("unexpected sender evidence: %#v", evidences[1])
+	}
+}
+
+func TestUpsertNodeEvidenceSetDiscoversIndirectNodesFromNeighborInfo(t *testing.T) {
+	store := &testStore{}
+	svc := &Service{
+		store:   store,
+		emitter: testEmitter{},
+		log:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+	now := time.Unix(1772296589, 0).UTC()
+	ok := svc.upsertNodeEvidenceSet(context.Background(), meshtastic.ParsedEvent{
+		Kind:   meshtastic.ParsedNeighborInfo,
+		NodeID: "!49b5976c",
+		Neighbor: &meshtastic.NeighborInfoPayload{
+			NodeID:         "!49b5976c",
+			NeighborsCount: 2,
+			Neighbors: []meshtastic.NeighborInfoNeighbor{
+				{NodeID: "!11111111", SNR: 12.5, LastRxTime: 100, NodeBroadcastIntervalSecs: 300},
+				{NodeID: "!22222222", SNR: 7.25},
+			},
+		},
+	}, meshtastic.TopicInfo{
+		Kind:       meshtastic.TopicKindChannel,
+		Channel:    "LongFast",
+		GatewayID:  "!9028d008",
+		IsFromMQTT: true,
+	}, "LongFast", now)
+	if !ok {
+		t.Fatalf("expected neighbor evidence upserts to succeed")
+	}
+
+	if len(store.nodesSeen) != 4 {
+		t.Fatalf("expected reporter, gateway, and two neighbors, got %#v", store.nodesSeen)
+	}
+	for _, nodeID := range []string{"!49b5976c", "!9028d008", "!11111111", "!22222222"} {
+		if !sawNode(store.nodesSeen, nodeID) {
+			t.Fatalf("expected node %s in evidence upserts: %#v", nodeID, store.nodesSeen)
+		}
+	}
+	if findNode(store.nodesSeen, "!11111111").LastSeenMQTTGatewayAt != nil {
+		t.Fatalf("indirect neighbor must not be marked MQTT-connected: %#v", findNode(store.nodesSeen, "!11111111"))
+	}
+}
+
+func TestLogEventFromParsedNeighborInfoIncludesNeighbors(t *testing.T) {
+	svc := &Service{}
+	now := time.Unix(1772296589, 0).UTC()
+
+	event, ok := svc.logEventFromParsed(meshtastic.ParsedEvent{
+		Kind:   meshtastic.ParsedNeighborInfo,
+		NodeID: "!49b5976c",
+		Neighbor: &meshtastic.NeighborInfoPayload{
+			NodeID:         "!49b5976c",
+			NeighborsCount: 2,
+			Neighbors: []meshtastic.NeighborInfoNeighbor{
+				{NodeID: "!11111111", SNR: 12.5},
+				{NodeID: "!22222222", SNR: 7.25},
+			},
+		},
+	}, "LongFast", now)
+	if !ok {
+		t.Fatalf("expected neighbor log event")
+	}
+	neighbors, ok := event.Details["neighbors"].([]meshtastic.NeighborInfoNeighbor)
+	if !ok || len(neighbors) != 2 {
+		t.Fatalf("expected neighbor list in details, got %#v", event.Details)
+	}
+}
+
+func TestUpsertNodeEvidenceSetDiscoversIndirectNodesFromTracerouteAndRouting(t *testing.T) {
+	store := &testStore{}
+	svc := &Service{
+		store:   store,
+		emitter: testEmitter{},
+		log:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+	now := time.Unix(1772296589, 0).UTC()
+	if !svc.upsertNodeEvidenceSet(context.Background(), meshtastic.ParsedEvent{
+		Kind:   meshtastic.ParsedTraceroute,
+		NodeID: "!9028d008",
+		Traceroute: &meshtastic.TraceroutePayload{
+			Role:        "reply",
+			Status:      "completed",
+			FromNodeID:  "!9028d008",
+			ToNodeID:    "!a55e5e56",
+			ForwardPath: []string{"!a55e5e56", "!01020304", "!9028d008"},
+			ReturnPath:  []string{"!9028d008", "!0a0b0c0d", "!a55e5e56"},
+		},
+	}, meshtastic.TopicInfo{
+		Kind:       meshtastic.TopicKindChannel,
+		Channel:    "LongFast",
+		GatewayID:  "!9028d008",
+		IsFromMQTT: true,
+	}, "LongFast", now) {
+		t.Fatalf("expected traceroute evidence upserts to succeed")
+	}
+	if !svc.upsertNodeEvidenceSet(context.Background(), meshtastic.ParsedEvent{
+		Kind:   meshtastic.ParsedRouting,
+		NodeID: "!9028d008",
+		Routing: &meshtastic.RoutingPayload{
+			Variant:    "route_reply",
+			FromNodeID: "!9028d008",
+			ToNodeID:   "!abcdef01",
+			Route:      []string{"!22222222"},
+			RouteBack:  []string{"!33333333"},
+		},
+	}, meshtastic.TopicInfo{
+		Kind:       meshtastic.TopicKindChannel,
+		Channel:    "LongFast",
+		GatewayID:  "!9028d008",
+		IsFromMQTT: true,
+	}, "LongFast", now) {
+		t.Fatalf("expected routing evidence upserts to succeed")
+	}
+
+	for _, nodeID := range []string{"!9028d008", "!a55e5e56", "!01020304", "!0a0b0c0d", "!abcdef01", "!22222222", "!33333333"} {
+		if !sawNode(store.nodesSeen, nodeID) {
+			t.Fatalf("expected node %s in indirect discovery set: %#v", nodeID, store.nodesSeen)
+		}
+	}
+}
+
+func sawNode(nodes []domain.Node, nodeID string) bool {
+	for _, node := range nodes {
+		if node.NodeID == nodeID {
+			return true
+		}
+	}
+
+	return false
+}
+
+func findNode(nodes []domain.Node, nodeID string) domain.Node {
+	for _, node := range nodes {
+		if node.NodeID == nodeID {
+			return node
+		}
+	}
+
+	return domain.Node{}
 }

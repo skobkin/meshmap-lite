@@ -40,7 +40,7 @@ This document is the source of truth for the public HTTP and WebSocket contract 
 - `node.upsert`: full node payload for identity/liveness updates.
 - `node.position`: node position payload for map updates.
 - `log.event`: log event payload matching `GET /api/v1/log/events`.
-- `stats`: runtime counters `{known_nodes_count, online_nodes_count, ws_clients_count, last_ingest_at?}` emitted on `web.ws.stats_interval`.
+- `stats`: runtime counters `{known_nodes_count, online_nodes_count, ws_clients_count, last_ingest_at?}` emitted on `web.ws.stats_interval`. `online_nodes_count` is the count of nodes recently confirmed as MQTT gateways, derived from `last_seen_mqtt_gateway_at`.
 - `ws.heartbeat`: heartbeat payload `{"status":"ok"}` emitted on the heartbeat interval.
 
 ## Log event kind values

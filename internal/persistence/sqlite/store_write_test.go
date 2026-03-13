@@ -242,6 +242,51 @@ func TestGetMapNodes_HidesStaleAndMissingPositions(t *testing.T) {
 	}
 }
 
+func TestUpsertNode_MinimalEvidenceDoesNotClearStructuredFields(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, config.SQLConfig{URL: "file::memory:?cache=shared", AutoMigrate: true}, nil)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	firstSeen := time.Now().UTC().Truncate(time.Microsecond)
+	mqttCapable := true
+	if _, err := s.UpsertNode(ctx, domain.Node{
+		NodeID:                "!aaaa1111",
+		LongName:              "Alpha",
+		ShortName:             "A",
+		MQTTGatewayCapable:    &mqttCapable,
+		FirstSeenAt:           firstSeen,
+		LastSeenAnyEventAt:    firstSeen,
+		LastSeenMQTTGatewayAt: &firstSeen,
+		UpdatedAt:             firstSeen,
+	}); err != nil {
+		t.Fatalf("initial upsert node: %v", err)
+	}
+
+	observed := firstSeen.Add(30 * time.Second)
+	if _, err := s.UpsertNode(ctx, domain.Node{
+		NodeID:             "!aaaa1111",
+		FirstSeenAt:        observed,
+		LastSeenAnyEventAt: observed,
+		UpdatedAt:          observed,
+	}); err != nil {
+		t.Fatalf("minimal evidence upsert node: %v", err)
+	}
+
+	details, err := s.GetNodeDetails(ctx, "!aaaa1111")
+	if err != nil {
+		t.Fatalf("get node details: %v", err)
+	}
+	if details.Node.LongName != "Alpha" || details.Node.ShortName != "A" {
+		t.Fatalf("minimal evidence cleared identity fields: %#v", details.Node)
+	}
+	if details.Node.MQTTGatewayCapable == nil || !*details.Node.MQTTGatewayCapable {
+		t.Fatalf("minimal evidence cleared mqtt capability: %#v", details.Node.MQTTGatewayCapable)
+	}
+}
+
 func ptrFloat64(v float64) *float64 {
 	return &v
 }

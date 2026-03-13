@@ -138,9 +138,18 @@ type TraceroutePayload struct {
 
 // NeighborInfoPayload contains compact NEIGHBORINFO_APP details.
 type NeighborInfoPayload struct {
-	NodeID            string `json:"node_id,omitempty"`
-	NeighborsCount    int    `json:"neighbors_count"`
-	BroadcastInterval uint32 `json:"broadcast_interval_secs,omitempty"`
+	NodeID            string                 `json:"node_id,omitempty"`
+	NeighborsCount    int                    `json:"neighbors_count"`
+	BroadcastInterval uint32                 `json:"broadcast_interval_secs,omitempty"`
+	Neighbors         []NeighborInfoNeighbor `json:"neighbors,omitempty"`
+}
+
+// NeighborInfoNeighbor stores one neighbor entry reported by a node.
+type NeighborInfoNeighbor struct {
+	NodeID                    string  `json:"node_id,omitempty"`
+	SNR                       float32 `json:"snr"`
+	LastRxTime                uint32  `json:"last_rx_time,omitempty"`
+	NodeBroadcastIntervalSecs uint32  `json:"node_broadcast_interval_secs,omitempty"`
 }
 
 // RoutingPayload contains compact ROUTING_APP details.

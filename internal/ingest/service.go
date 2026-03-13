@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -29,6 +30,14 @@ type Service struct {
 	log     *slog.Logger
 	tracker *tracerouteTracker
 	now     func() time.Time
+}
+
+type nodeEvidence struct {
+	NodeID             string
+	MQTTConnected      bool
+	MQTTGatewayCapable bool
+	EmitSystemEvent    bool
+	Reason             string
 }
 
 // Config contains the subset of app config required by the ingest service.
@@ -158,18 +167,8 @@ func (s *Service) HandleMessage(ctx context.Context, topic string, payload []byt
 	if evt.NodeID == "" {
 		return
 	}
-
-	node := domain.Node{NodeID: evt.NodeID, FirstSeenAt: now, LastSeenAnyEventAt: now, UpdatedAt: now}
-	if topicInfo.IsFromMQTT {
-		node.LastSeenMQTTGatewayAt = &now
-	}
-	if created, err := s.store.UpsertNode(ctx, node); err != nil {
-		s.log.Error("upsert node failed", "node_id", evt.NodeID, "err", err)
-
+	if !s.upsertNodeEvidenceSet(ctx, evt, topicInfo, channel, now) {
 		return
-	} else if created {
-		s.log.Info("new node discovered", "node_id", evt.NodeID, "channel", channel)
-		s.emitSystemNodeDiscovered(ctx, evt.NodeID, channel, now)
 	}
 
 	switch evt.Kind {
@@ -426,6 +425,9 @@ func (s *Service) logEventFromParsed(evt meshtastic.ParsedEvent, channel string,
 			if evt.Neighbor.NodeID != "" {
 				e.Details["neighbor_node_id"] = evt.Neighbor.NodeID
 			}
+			if len(evt.Neighbor.Neighbors) > 0 {
+				e.Details["neighbors"] = evt.Neighbor.Neighbors
+			}
 		}
 
 		return e, true
@@ -558,6 +560,147 @@ func (s *Service) allowEvent(channel string, kind meshtastic.ParsedKind) bool {
 	}
 
 	return ch.Primary
+}
+
+func (s *Service) upsertNodeEvidenceSet(ctx context.Context, evt meshtastic.ParsedEvent, topicInfo meshtastic.TopicInfo, channel string, now time.Time) bool {
+	evidences := collectNodeEvidence(evt, topicInfo)
+	for _, evidence := range evidences {
+		if !s.upsertNodeEvidence(ctx, evidence, channel, now) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func collectNodeEvidence(evt meshtastic.ParsedEvent, topicInfo meshtastic.TopicInfo) []nodeEvidence {
+	byID := make(map[string]nodeEvidence)
+	add := func(e nodeEvidence) {
+		id := strings.TrimSpace(e.NodeID)
+		if id == "" {
+			return
+		}
+		current, ok := byID[id]
+		if !ok {
+			e.NodeID = id
+			byID[id] = e
+
+			return
+		}
+		current.MQTTConnected = current.MQTTConnected || e.MQTTConnected
+		current.MQTTGatewayCapable = current.MQTTGatewayCapable || e.MQTTGatewayCapable
+		current.EmitSystemEvent = current.EmitSystemEvent || e.EmitSystemEvent
+		if current.Reason == "" {
+			current.Reason = e.Reason
+		}
+		byID[id] = current
+	}
+
+	add(nodeEvidence{NodeID: evt.NodeID, EmitSystemEvent: true, Reason: "packet_sender"})
+
+	gatewayID := strings.TrimSpace(topicInfo.GatewayID)
+	if topicInfo.IsFromMQTT && gatewayID != "" {
+		add(nodeEvidence{
+			NodeID:             gatewayID,
+			MQTTConnected:      true,
+			MQTTGatewayCapable: true,
+			Reason:             "mqtt_gateway",
+		})
+	}
+
+	for _, id := range indirectNodeIDs(evt) {
+		add(nodeEvidence{NodeID: id, Reason: "indirect_reference"})
+	}
+
+	out := make([]nodeEvidence, 0, len(byID))
+	for _, evidence := range byID {
+		out = append(out, evidence)
+	}
+	slices.SortFunc(out, func(a, b nodeEvidence) int {
+		return strings.Compare(a.NodeID, b.NodeID)
+	})
+
+	return out
+}
+
+func indirectNodeIDs(evt meshtastic.ParsedEvent) []string {
+	seen := make(map[string]struct{})
+	out := make([]string, 0)
+	add := func(ids ...string) {
+		for _, id := range ids {
+			id = strings.TrimSpace(id)
+			if id == "" || id == evt.NodeID {
+				continue
+			}
+			if _, ok := seen[id]; ok {
+				continue
+			}
+			seen[id] = struct{}{}
+			out = append(out, id)
+		}
+	}
+
+	switch evt.Kind {
+	case meshtastic.ParsedNeighborInfo:
+		if evt.Neighbor != nil {
+			add(evt.Neighbor.NodeID)
+			for _, neighbor := range evt.Neighbor.Neighbors {
+				add(neighbor.NodeID)
+			}
+		}
+	case meshtastic.ParsedTraceroute:
+		if evt.Traceroute != nil {
+			add(evt.Traceroute.FromNodeID, evt.Traceroute.ToNodeID)
+			add(evt.Traceroute.Route...)
+			add(evt.Traceroute.RouteBack...)
+			add(evt.Traceroute.ForwardPath...)
+			add(evt.Traceroute.ReturnPath...)
+		}
+	case meshtastic.ParsedRouting:
+		if evt.Routing != nil {
+			add(evt.Routing.FromNodeID, evt.Routing.ToNodeID)
+			add(evt.Routing.Route...)
+			add(evt.Routing.RouteBack...)
+		}
+	}
+
+	return out
+}
+
+func (s *Service) upsertNodeEvidence(ctx context.Context, evidence nodeEvidence, channel string, now time.Time) bool {
+	node := domain.Node{
+		NodeID:             evidence.NodeID,
+		FirstSeenAt:        now,
+		LastSeenAnyEventAt: now,
+		UpdatedAt:          now,
+	}
+	if evidence.MQTTConnected {
+		node.LastSeenMQTTGatewayAt = &now
+	}
+	if evidence.MQTTGatewayCapable {
+		node.MQTTGatewayCapable = boolPtr(true)
+	}
+
+	created, err := s.store.UpsertNode(ctx, node)
+	if err != nil {
+		s.log.Error("upsert node failed", "node_id", evidence.NodeID, "reason", evidence.Reason, "err", err)
+
+		return false
+	}
+	if !created {
+		return true
+	}
+
+	if evidence.EmitSystemEvent {
+		s.log.Info("new node discovered", "node_id", evidence.NodeID, "channel", channel)
+		s.emitSystemNodeDiscovered(ctx, evidence.NodeID, channel, now)
+
+		return true
+	}
+
+	s.log.Debug("discovered node from indirect evidence", "node_id", evidence.NodeID, "channel", channel, "reason", evidence.Reason)
+
+	return true
 }
 
 func (s *Service) handleChat(ctx context.Context, evt meshtastic.ParsedEvent, channel string, now time.Time) bool {

@@ -266,10 +266,24 @@ func decodeNeighborInfoPayload(payload []byte) (*NeighborInfoPayload, error) {
 		return nil, fmt.Errorf("decode neighbor info: %w", err)
 	}
 
+	neighbors := make([]NeighborInfoNeighbor, 0, len(info.GetNeighbors()))
+	for _, item := range info.GetNeighbors() {
+		if item == nil {
+			continue
+		}
+		neighbors = append(neighbors, NeighborInfoNeighbor{
+			NodeID:                    nodeIDFromNum(item.GetNodeId()),
+			SNR:                       item.GetSnr(),
+			LastRxTime:                item.GetLastRxTime(),
+			NodeBroadcastIntervalSecs: item.GetNodeBroadcastIntervalSecs(),
+		})
+	}
+
 	return &NeighborInfoPayload{
 		NodeID:            nodeIDFromNum(info.GetNodeId()),
-		NeighborsCount:    len(info.GetNeighbors()),
+		NeighborsCount:    len(neighbors),
 		BroadcastInterval: info.GetNodeBroadcastIntervalSecs(),
+		Neighbors:         neighbors,
 	}, nil
 }
 

@@ -167,6 +167,45 @@ func TestDecodeRoutingPayloadVariants(t *testing.T) {
 	}
 }
 
+func TestDecodeNeighborInfoPayloadPreservesNeighbors(t *testing.T) {
+	payload, err := proto.Marshal(&generated.NeighborInfo{
+		NodeId:                    0x49b5976c,
+		NodeBroadcastIntervalSecs: 14400,
+		Neighbors: []*generated.Neighbor{
+			{
+				NodeId:                    0x11111111,
+				Snr:                       12.5,
+				LastRxTime:                100,
+				NodeBroadcastIntervalSecs: 300,
+			},
+			{
+				NodeId: 0x22222222,
+				Snr:    7.25,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := decodeNeighborInfoPayload(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.NodeID != "!49b5976c" {
+		t.Fatalf("unexpected reporter node id: %#v", info)
+	}
+	if info.NeighborsCount != 2 || len(info.Neighbors) != 2 {
+		t.Fatalf("unexpected neighbors payload: %#v", info)
+	}
+	if info.Neighbors[0].NodeID != "!11111111" || info.Neighbors[0].LastRxTime != 100 || info.Neighbors[0].NodeBroadcastIntervalSecs != 300 {
+		t.Fatalf("unexpected first neighbor: %#v", info.Neighbors[0])
+	}
+	if info.Neighbors[1].NodeID != "!22222222" {
+		t.Fatalf("unexpected second neighbor: %#v", info.Neighbors[1])
+	}
+}
+
 func TestDecodeTraceroutePayloadClassifiesRequest(t *testing.T) {
 	payload, err := proto.Marshal(&generated.RouteDiscovery{})
 	if err != nil {
