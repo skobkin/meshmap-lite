@@ -119,7 +119,10 @@ Notes:
 
 ## API
 
-Detailed HTTP and WebSocket contract documentation lives in [`docs/api.md`](docs/api.md).
+The canonical API contract lives in [`docs/openapi.yaml`](docs/openapi.yaml).
+
+- Interactive docs: [`https://mesh.skobk.in/api/`](https://mesh.skobk.in/api/)
+- Local docs UI: `http://localhost:8080/api/`
 
 ## Notes
 

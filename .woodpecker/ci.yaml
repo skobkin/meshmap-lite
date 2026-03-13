@@ -40,6 +40,11 @@ steps:
     commands:
       - go test ./...
 
+  api-spec-lint:
+    image: node:22-alpine
+    commands:
+      - npm exec --yes @redocly/cli@2.21.1 -- lint docs/openapi.yaml
+
   frontend-lint:
     image: node:22-alpine
     commands:
@@ -91,6 +96,7 @@ steps:
       - backend-lint
       - backend-vet
       - backend-test
+      - api-spec-lint
     environment:
       GOCACHE: /tmp/.gocache
     commands:
@@ -104,6 +110,7 @@ steps:
       - backend-lint
       - backend-vet
       - backend-test
+      - api-spec-lint
       - frontend-lint
       - frontend-typecheck
       - frontend-test
@@ -127,6 +134,7 @@ steps:
       - backend-lint
       - backend-vet
       - backend-test
+      - api-spec-lint
       - frontend-lint
       - frontend-typecheck
       - frontend-test

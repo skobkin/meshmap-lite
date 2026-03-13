@@ -1,0 +1,853 @@
+openapi: 3.2.0
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+info:
+  title: MeshMap Lite API
+  version: v1
+  summary: Public HTTP and realtime contract for MeshMap Lite.
+  license:
+    name: MIT
+  description: |
+    This document is the source of truth for the public MeshMap Lite API.
+
+    The HTTP surface is versioned under `/api/v1`. Realtime updates are emitted
+    through a single broadcast-only WebSocket stream at `/api/v1/ws`.
+servers:
+  - url: /
+security: []
+tags:
+  - name: Health
+    description: Process health and readiness checks.
+  - name: Meta
+    description: UI bootstrap and runtime metadata.
+  - name: Channels
+    description: Configured channel metadata.
+  - name: Map
+    description: Map snapshot endpoints.
+  - name: Chat
+    description: Chat history endpoints.
+  - name: Log
+    description: Non-chat activity log endpoints.
+  - name: Topology
+    description: Topology edge and neighbor evidence endpoints.
+  - name: Nodes
+    description: Node list and node details endpoints.
+  - name: Realtime
+    description: Broadcast-only WebSocket event stream.
+paths:
+  /healthz:
+    get:
+      tags: [Health]
+      summary: Health check
+      operationId: healthz
+      responses:
+        '200':
+          description: Process is alive.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+              example:
+                status: ok
+  /readyz:
+    get:
+      tags: [Health]
+      summary: Readiness check
+      operationId: readyz
+      responses:
+        '200':
+          description: Application is ready.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+              example:
+                status: ready
+        '503':
+          description: Application is not ready yet.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+              example:
+                status: not_ready
+  /api/v1/meta:
+    get:
+      tags: [Meta]
+      summary: Fetch UI and runtime metadata
+      operationId: getMeta
+      responses:
+        '200':
+          description: |
+            Returns runtime metadata used to bootstrap the UI, including app
+            identity, websocket path, chat defaults, log settings, and map defaults.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Meta'
+  /api/v1/channels:
+    get:
+      tags: [Channels]
+      summary: List configured channels
+      operationId: listChannels
+      responses:
+        '200':
+          description: Configured channels as `{name, chat_enabled, is_primary}` items.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChannelItem'
+  /api/v1/map/nodes:
+    get:
+      tags: [Map]
+      summary: Fetch the map snapshot
+      operationId: listMapNodes
+      responses:
+        '200':
+          description: |
+            Returns `{node, position?}` items for nodes whose latest position is
+            newer than `meta.map.hide_position_after`.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MapNode'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/chat/messages:
+    get:
+      tags: [Chat]
+      summary: List chat history
+      operationId: listChatMessages
+      parameters:
+        - name: channel
+          in: query
+          required: false
+          description: Defaults to `meta.default_chat_channel`.
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          description: Defaults to `meta.show_recent_messages`.
+          schema:
+            type: integer
+            minimum: 1
+        - name: before
+          in: query
+          required: false
+          description: Pagination cursor. Returns rows with IDs older than this chat row ID.
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: |
+            Chat history ordered newest-first. `node_display_name` is resolved as
+            `long_name -> short_name -> node_id`.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChatEvent'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/log/events:
+    get:
+      tags: [Log]
+      summary: List non-chat activity log rows
+      operationId: listLogEvents
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Defaults to `meta.log_page_size_default`.
+          schema:
+            type: integer
+            minimum: 1
+        - name: before
+          in: query
+          required: false
+          description: Pagination cursor. Returns rows with IDs older than this log row ID.
+          schema:
+            type: integer
+            minimum: 1
+        - name: channel
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: event_kind
+          in: query
+          required: false
+          description: |
+            Filter by event kind. The API accepts repeated `event_kind` keys or a
+            comma-separated value. `event_kinds` is accepted as a compatibility alias.
+          schema:
+            oneOf:
+              - type: integer
+              - type: string
+      responses:
+        '200':
+          description: |
+            Log rows ordered newest-first. `details` is event-specific JSON.
+
+            Traceroute lifecycle rows use semantic fields such as `role`, `status`,
+            `request_id`, `from`, `to`, `forward_path`, `return_path`,
+            `forward_snr`, `return_snr`, and `inferred_*` markers. Correlated
+            traceroute lifecycle rows are emitted with `details.scope="lifecycle"`
+            and may include lifecycle status values such as `partial`, `completed`,
+            `failed`, or `timed_out`, plus `started_at`, `updated_at`,
+            `completed_at`, `source_packets`, and `steps`.
+
+            Unmatched traceroute replies or routing packets remain visible as raw
+            packet rows. Routing rows may also include `request_id`, route arrays,
+            and `traceroute_status="failed"` when a routing error packet refers to
+            a traceroute request and `error_reason != "NONE"`.
+
+            MQTT-derived traceroute paths can be partial; missing reply-side data
+            must be treated as absent rather than fabricated.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LogEvent'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/topology/edges:
+    get:
+      tags: [Topology]
+      summary: List topology edge snapshots
+      operationId: listTopologyEdges
+      parameters:
+        - name: node_id
+          in: query
+          required: false
+          description: Matches edges where the node is either `from_node_id` or `to_node_id`.
+          schema:
+            type: string
+        - name: channel
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: source_kind
+          in: query
+          required: false
+          description: |
+            Filter by source kind. The API accepts repeated `source_kind` keys or a
+            comma-separated value. `source_kinds` is accepted as a compatibility alias.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: |
+            Edge snapshots ordered newest-first. Neighbor-info rows may include
+            `snr`, `neighbor_last_rx_at`, and `neighbor_broadcast_interval_secs`.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TopologyEdge'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/nodes:
+    get:
+      tags: [Nodes]
+      summary: List nodes for the Nodes view
+      operationId: listNodes
+      responses:
+        '200':
+          description: Node list items for the Nodes view.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NodeSummary'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/nodes/{node_id}:
+    get:
+      tags: [Nodes]
+      summary: Fetch one node
+      operationId: getNode
+      parameters:
+        - name: node_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: |
+            Returns `{node, position?, telemetry?, neighbors?}`.
+
+            `neighbors` is a collapsed per-peer topology view built from
+            `neighbor_info`, `routing_forward`, and `routing_return` edges for the
+            selected node. `traceroute_*` edges remain available from
+            `/api/v1/topology/edges` but are excluded from `neighbors`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NodeDetails'
+        '404':
+          description: Node not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: not_found
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/ws:
+    get:
+      tags: [Realtime]
+      summary: Connect to the realtime stream
+      operationId: connectRealtime
+      description: |
+        Broadcast-only WebSocket stream for live events.
+
+        Event envelope shape:
+        - `type`: event type string
+        - `ts`: server-side event timestamp in RFC3339 format
+        - `payload`: event-specific JSON payload
+
+        The stream emits `chat.message`, `chat.system`, `node.upsert`,
+        `node.position`, `node.telemetry`, `log.event`, `stats`, and `ws.heartbeat`.
+      responses:
+        '101':
+          description: WebSocket upgrade accepted.
+        '400':
+          description: WebSocket upgrade failed.
+      x-websocket:
+        eventEnvelope:
+          $ref: '#/components/schemas/RealtimeEvent'
+        events:
+          - type: chat.message
+            payload:
+              $ref: '#/components/schemas/ChatEvent'
+          - type: chat.system
+            payload:
+              $ref: '#/components/schemas/ChatEvent'
+          - type: node.upsert
+            payload:
+              $ref: '#/components/schemas/Node'
+          - type: node.position
+            payload:
+              $ref: '#/components/schemas/NodePosition'
+          - type: node.telemetry
+            payload:
+              $ref: '#/components/schemas/NodeTelemetry'
+          - type: log.event
+            payload:
+              $ref: '#/components/schemas/LogEvent'
+          - type: stats
+            payload:
+              $ref: '#/components/schemas/Stats'
+          - type: ws.heartbeat
+            payload:
+              $ref: '#/components/schemas/Heartbeat'
+components:
+  responses:
+    InternalError:
+      description: Unexpected server-side failure.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: internal_error
+  schemas:
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok, ready, not_ready]
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    Heartbeat:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          const: ok
+    Meta:
+      type: object
+      required:
+        - app_name
+        - version
+        - websocket_path
+        - chat_enabled
+        - default_chat_channel
+        - show_recent_messages
+        - log_live_updates
+        - log_page_size_default
+        - disconnected_threshold
+        - map
+      properties:
+        app_name:
+          type: string
+        version:
+          type: string
+        websocket_path:
+          type: string
+          const: /api/v1/ws
+        chat_enabled:
+          type: boolean
+        default_chat_channel:
+          type: string
+        show_recent_messages:
+          type: integer
+        log_live_updates:
+          type: boolean
+        log_page_size_default:
+          type: integer
+        disconnected_threshold:
+          type: string
+          description: Go duration string.
+        map:
+          $ref: '#/components/schemas/MetaMap'
+    MetaMap:
+      type: object
+      required:
+        - clustering
+        - hide_position_after
+        - topology_cache_ttl
+        - precision_circles_mode
+        - default_view
+      properties:
+        clustering:
+          type: boolean
+        hide_position_after:
+          type: string
+          description: Go duration string.
+        topology_cache_ttl:
+          type: string
+          description: Go duration string.
+        precision_circles_mode:
+          type: string
+          enum: [none, selected, always]
+        default_view:
+          $ref: '#/components/schemas/MetaDefaultView'
+    MetaDefaultView:
+      type: object
+      required: [latitude, longitude, zoom]
+      properties:
+        latitude:
+          type: number
+        longitude:
+          type: number
+        zoom:
+          type: integer
+    ChannelItem:
+      type: object
+      required: [name, chat_enabled, is_primary]
+      properties:
+        name:
+          type: string
+        chat_enabled:
+          type: boolean
+        is_primary:
+          type: boolean
+    Node:
+      type: object
+      required: [node_id, last_seen_any_event_at, first_seen_at, updated_at]
+      properties:
+        node_id:
+          type: string
+        node_num:
+          type: integer
+          minimum: 0
+        long_name:
+          type: string
+        short_name:
+          type: string
+        role:
+          type: string
+        board_model:
+          type: string
+        firmware_version:
+          type: string
+        lora_region:
+          type: string
+        lora_frequency_desc:
+          type: string
+        modem_preset:
+          type: string
+        has_default_channel:
+          type: boolean
+        has_opted_report_location:
+          type: boolean
+        neighbor_nodes_count:
+          type: integer
+        mqtt_gateway_capable:
+          type: boolean
+        first_seen_at:
+          type: string
+          format: date-time
+        last_seen_any_event_at:
+          type: string
+          format: date-time
+        last_seen_mqtt_gateway_at:
+          type: string
+          format: date-time
+        last_seen_position_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    NodePosition:
+      type: object
+      required:
+        - node_id
+        - latitude
+        - longitude
+        - source_kind
+        - observed_at
+        - updated_at
+      properties:
+        node_id:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        altitude_m:
+          type: number
+        position_precision:
+          type: integer
+          minimum: 0
+        source_kind:
+          type: string
+          enum: [channel_position, map_report]
+        source_channel:
+          type: string
+        reported_at:
+          type: string
+          format: date-time
+        observed_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    MapNode:
+      type: object
+      required: [node]
+      properties:
+        node:
+          $ref: '#/components/schemas/Node'
+        position:
+          $ref: '#/components/schemas/NodePosition'
+    ChatEvent:
+      type: object
+      required: [id, event_type, observed_at]
+      properties:
+        id:
+          type: integer
+        event_type:
+          type: string
+          enum: [message, system]
+        channel_name:
+          type: string
+        node_id:
+          type: string
+        node_display_name:
+          type: string
+          description: Resolved as `long_name -> short_name -> node_id`.
+        system_code:
+          type: string
+          enum: [node_discovered]
+        message_text:
+          type: string
+        message_time:
+          type: string
+          format: date-time
+        reported_at:
+          type: string
+          format: date-time
+        observed_at:
+          type: string
+          format: date-time
+        packet_id:
+          type: integer
+          minimum: 0
+        created_at:
+          type: string
+          format: date-time
+    LogEvent:
+      type: object
+      required:
+        - id
+        - observed_at
+        - event_kind_value
+        - event_kind_title
+        - encrypted
+        - channel_name
+      properties:
+        id:
+          type: integer
+        observed_at:
+          type: string
+          format: date-time
+        node_id:
+          type: string
+        node_display_name:
+          type: string
+          description: Resolved display fallback for the node when available.
+        event_kind_value:
+          type: integer
+          enum: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+          description: |
+            `1` Map report, `2` Node info, `3` Position, `4` Telemetry,
+            `5` Traceroute, `6` Neighbor info, `7` Routing,
+            `8` Other app packet, `9` Encrypted (undecryptable).
+        event_kind_title:
+          type: string
+        encrypted:
+          type: boolean
+        channel_name:
+          type:
+            - string
+            - 'null'
+        details:
+          type: object
+          description: Event-specific JSON payload.
+          additionalProperties: true
+    TopologyEdge:
+      type: object
+      required:
+        - source_kind
+        - from_node_id
+        - to_node_id
+        - first_observed_at
+        - last_observed_at
+        - updated_at
+      properties:
+        source_kind:
+          type: string
+          enum:
+            - neighbor_info
+            - routing_forward
+            - routing_return
+            - traceroute_forward
+            - traceroute_return
+        channel_name:
+          type: string
+        from_node_id:
+          type: string
+        to_node_id:
+          type: string
+        reported_by_node_id:
+          type: string
+        inferred:
+          type: boolean
+        snr:
+          type: number
+        neighbor_last_rx_at:
+          type: string
+          format: date-time
+        neighbor_broadcast_interval_secs:
+          type: integer
+          minimum: 0
+        first_observed_at:
+          type: string
+          format: date-time
+        last_observed_at:
+          type: string
+          format: date-time
+        last_reported_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    NodeSummary:
+      type: object
+      required:
+        - node_id
+        - display_name
+        - last_seen_any_event_at
+        - has_position
+      properties:
+        node_id:
+          type: string
+        display_name:
+          type: string
+        long_name:
+          type: string
+        short_name:
+          type: string
+        last_seen_any_event_at:
+          type: string
+          format: date-time
+        last_seen_position_at:
+          type: string
+          format: date-time
+        last_seen_mqtt_gateway_at:
+          type: string
+          format: date-time
+        has_position:
+          type: boolean
+        role:
+          type: string
+        board_model:
+          type: string
+    NodeTelemetry:
+      type: object
+      required: [node_id, power, environment, air_quality, observed_at, updated_at]
+      properties:
+        node_id:
+          type: string
+        power:
+          $ref: '#/components/schemas/TelemetryPower'
+        environment:
+          $ref: '#/components/schemas/TelemetryEnvironment'
+        air_quality:
+          $ref: '#/components/schemas/TelemetryAirQuality'
+        source_channel:
+          type: string
+        reported_at:
+          type: string
+          format: date-time
+        observed_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    TelemetryPower:
+      type: object
+      properties:
+        voltage:
+          type: number
+        battery_level:
+          type: number
+    TelemetryEnvironment:
+      type: object
+      properties:
+        temperature_c:
+          type: number
+        humidity:
+          type: number
+        pressure_hpa:
+          type: number
+    TelemetryAirQuality:
+      type: object
+      properties:
+        pm25:
+          type: number
+        pm10:
+          type: number
+        co2:
+          type: number
+        iaq:
+          type: number
+    NodeNeighbor:
+      type: object
+      required: [node_id, display_name, has_position, evidence_kind, last_observed_at]
+      properties:
+        node_id:
+          type: string
+        display_name:
+          type: string
+        long_name:
+          type: string
+        short_name:
+          type: string
+        has_position:
+          type: boolean
+        evidence_kind:
+          type: string
+          enum: [neighbor_info, inferred]
+        snr:
+          type: number
+        channel_name:
+          type: string
+        reported_by_node_id:
+          type: string
+        neighbor_last_rx_at:
+          type: string
+          format: date-time
+        neighbor_broadcast_interval_secs:
+          type: integer
+          minimum: 0
+        last_observed_at:
+          type: string
+          format: date-time
+        last_reported_at:
+          type: string
+          format: date-time
+    NodeDetails:
+      type: object
+      required: [node]
+      properties:
+        node:
+          $ref: '#/components/schemas/Node'
+        position:
+          $ref: '#/components/schemas/NodePosition'
+        telemetry:
+          $ref: '#/components/schemas/NodeTelemetry'
+        neighbors:
+          type: array
+          items:
+            $ref: '#/components/schemas/NodeNeighbor'
+    Stats:
+      type: object
+      required: [known_nodes_count, online_nodes_count, ws_clients_count]
+      properties:
+        known_nodes_count:
+          type: integer
+        online_nodes_count:
+          type: integer
+          description: |
+            Count of nodes recently confirmed as MQTT gateways, derived from
+            `last_seen_mqtt_gateway_at`.
+        ws_clients_count:
+          type: integer
+        last_ingest_at:
+          type: string
+          format: date-time
+    RealtimeEvent:
+      type: object
+      required: [type, ts, payload]
+      properties:
+        type:
+          type: string
+          enum:
+            - chat.message
+            - chat.system
+            - node.upsert
+            - node.position
+            - node.telemetry
+            - log.event
+            - stats
+            - ws.heartbeat
+        ts:
+          type: string
+          format: date-time
+        payload:
+          description: Event-specific JSON payload. See the `/api/v1/ws` event catalog.
+          oneOf:
+            - $ref: '#/components/schemas/ChatEvent'
+            - $ref: '#/components/schemas/Node'
+            - $ref: '#/components/schemas/NodePosition'
+            - $ref: '#/components/schemas/NodeTelemetry'
+            - $ref: '#/components/schemas/LogEvent'
+            - $ref: '#/components/schemas/Stats'
+            - $ref: '#/components/schemas/Heartbeat'

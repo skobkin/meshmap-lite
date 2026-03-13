@@ -1,66 +1,9 @@
 # API Reference
 
-This document is the source of truth for the public HTTP and WebSocket contract exposed by MeshMap Lite.
+The canonical API contract now lives in [`docs/openapi.yaml`](openapi.yaml).
 
-## HTTP endpoints
+- Interactive documentation: `https://mesh.skobk.in/api/`
+- Local documentation UI: `http://localhost:8080/api/`
+- Raw specification: `/api/openapi.yaml`
 
-- `GET /healthz`
-- `GET /readyz`
-- `GET /api/v1/meta`
-- `GET /api/v1/channels`
-- `GET /api/v1/map/nodes`
-- `GET /api/v1/chat/messages?channel=<name>&limit=<n>&before=<cursor>`
-- `GET /api/v1/log/events?limit=<n>&before=<id>&channel=<name>&event_kind=<kind>`
-- `GET /api/v1/topology/edges?node_id=<id>&channel=<name>&source_kind=<kind>`
-- `GET /api/v1/nodes`
-- `GET /api/v1/nodes/{node_id}`
-- `GET /api/v1/ws`
-
-## Endpoint notes
-
-- `GET /healthz`: returns `200 {"status":"ok"}`.
-- `GET /readyz`: returns `200 {"status":"ready"}` when the app is ready, otherwise `503 {"status":"not_ready"}`.
-- `GET /api/v1/meta`: returns UI/runtime metadata including `app_name`, `version`, `websocket_path`, chat defaults, log settings, and map defaults. The `map` object includes `clustering`, `hide_position_after`, `topology_cache_ttl`, `precision_circles_mode` (`none`, `selected`, `always`), and `default_view`.
-- `GET /api/v1/channels`: returns configured channels as `{name, chat_enabled, is_primary}` items.
-- `GET /api/v1/map/nodes`: returns map snapshot items as `{node, position?}` for nodes whose latest position is newer than `meta.map.hide_position_after`.
-- `GET /api/v1/chat/messages`: returns chat history ordered newest-first. `channel` defaults to `meta.default_chat_channel`; `limit` defaults to `meta.show_recent_messages`; `before` paginates by chat row ID. Each item may include `node_display_name`, resolved with `long_name -> short_name -> node_id`.
-- `GET /api/v1/log/events`: returns non-chat activity log rows ordered newest-first. `limit` defaults to `meta.log_page_size_default`; `before` paginates by log row ID; `channel` filters by channel name; `event_kind` may be repeated or passed as a comma-separated list. `event_kinds` is also accepted as an alias for compatibility.
-  - `details` is event-specific JSON. New traceroute rows use semantic fields such as `role`, `status`, `request_id`, `from`, `to`, `forward_path`, `return_path`, `forward_snr`, `return_snr`, and `inferred_*` markers instead of only hop counts.
-  - Correlated traceroute lifecycle rows are emitted as traceroute log events with `details.scope="lifecycle"`. For matched runs, the app stores terminal lifecycle rows instead of separate raw traceroute/routing packet rows. These rows may include lifecycle `status` values such as `partial`, `completed`, `failed`, or `timed_out`, plus `started_at`, `updated_at`, `completed_at`, `source_packets`, and `steps` with intermediate event types/timestamps/packet IDs.
-  - Unmatched traceroute replies or routing packets remain visible as raw packet rows when they cannot be correlated to a tracked request.
-  - Routing rows may include `request_id`, route arrays, and `traceroute_status="failed"` when a `ROUTING_APP` error packet refers to a traceroute request and `error_reason != "NONE"`.
-  - MQTT-derived traceroute paths can be partial compared to a directly connected radio client; missing reply-side data must be treated as absent rather than fabricated.
-- `GET /api/v1/topology/edges`: returns current topology-edge snapshots ordered newest-first. Optional filters:
-  - `node_id`: matches edges where the node is either `from_node_id` or `to_node_id`
-  - `channel`: filters by channel name
-  - `source_kind`: may be repeated or passed as a comma-separated list. `source_kinds` is also accepted as an alias for compatibility.
-  - Each item includes `source_kind`, `channel_name`, `from_node_id`, `to_node_id`, `reported_by_node_id`, `inferred`, and timestamps. Neighbor-info rows may also include `snr`, `neighbor_last_rx_at`, and `neighbor_broadcast_interval_secs`.
-  - `source_kind` values are `neighbor_info`, `routing_forward`, `routing_return`, `traceroute_forward`, and `traceroute_return`.
-- `GET /api/v1/nodes`: returns node list items for the Nodes view.
-- `GET /api/v1/nodes/{node_id}`: returns `{node, position?, telemetry?, neighbors?}` for one node, or `404 {"error":"not_found"}` if absent.
-  - `neighbors` is a collapsed per-peer topology view built from `neighbor_info`, `routing_forward`, and `routing_return` edges for that node.
-  - `traceroute_*` edges remain available via `/api/v1/topology/edges` but are excluded from `neighbors`.
-  - Each neighbor item includes identity fallback fields (`display_name`, `long_name`, `short_name`), `has_position`, evidence (`neighbor_info` or `inferred`), optional `snr`, source metadata, and `last_observed_at`.
-- `GET /api/v1/ws`: single WebSocket stream for live events.
-
-## WebSocket events
-
-- `chat.message`: chat message payload matching the chat history item shape, including optional `node_display_name`.
-- `chat.system`: system chat payload matching the chat history item shape, including optional `node_display_name`.
-- `node.upsert`: full node payload for identity/liveness updates.
-- `node.position`: node position payload for map updates.
-- `log.event`: log event payload matching `GET /api/v1/log/events`.
-- `stats`: runtime counters `{known_nodes_count, online_nodes_count, ws_clients_count, last_ingest_at?}` emitted on `web.ws.stats_interval`. `online_nodes_count` is the count of nodes recently confirmed as MQTT gateways, derived from `last_seen_mqtt_gateway_at`.
-- `ws.heartbeat`: heartbeat payload `{"status":"ok"}` emitted on the heartbeat interval.
-
-## Log event kind values
-
-- `1`: Map report
-- `2`: Node info
-- `3`: Position
-- `4`: Telemetry
-- `5`: Traceroute
-- `6`: Neighbor info
-- `7`: Routing
-- `8`: Other app packet
-- `9`: Encrypted (undecryptable)
+Keep this file as a pointer only. Do not duplicate contract details here.

@@ -3,10 +3,14 @@ package httpapi
 import "net/http"
 
 // Routes returns the API route multiplexer wrapped with request logging.
-func (s *Server) Routes(wsHandler http.Handler) http.Handler {
+func (s *Server) Routes(wsHandler, docsHandler http.Handler) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("/healthz", http.HandlerFunc(s.healthz))
 	mux.Handle("/readyz", http.HandlerFunc(s.readyz))
+	if docsHandler != nil {
+		mux.Handle("/api/openapi.yaml", docsHandler)
+		mux.Handle("/api/", docsHandler)
+	}
 	mux.Handle("/api/v1/meta", http.HandlerFunc(s.meta))
 	mux.Handle("/api/v1/channels", http.HandlerFunc(s.channels))
 	mux.Handle("/api/v1/map/nodes", http.HandlerFunc(s.mapNodes))

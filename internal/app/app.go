@@ -13,6 +13,7 @@ import (
 
 	httpapi "meshmap-lite/internal/api/http"
 	"meshmap-lite/internal/api/ws"
+	"meshmap-lite/internal/apidocs"
 	"meshmap-lite/internal/buildinfo"
 	"meshmap-lite/internal/config"
 	"meshmap-lite/internal/dedup"
@@ -106,7 +107,11 @@ func Run(configPath string) error {
 		Web:      cfg.Web,
 		Channels: cfg.Channels,
 	}, store, logMgr.Logger("internal/api/http"), mqttReady.Load, hub.ClientCount)
-	apiMux := api.Routes(hub)
+	apiMux := api.Routes(hub, apidocs.Handler(apidocs.Options{
+		SpecPath: filepath.Join("docs", "openapi.yaml"),
+		SpecURL:  "/api/openapi.yaml",
+		Title:    buildinfo.AppName + " API",
+	}))
 	mux := http.NewServeMux()
 	mux.Handle("/api/", apiMux)
 	mux.Handle("/healthz", apiMux)
