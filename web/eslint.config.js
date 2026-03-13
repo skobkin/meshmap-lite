@@ -77,6 +77,53 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       '@typescript-eslint/explicit-member-accessibility': ['error', { accessibility: 'explicit' }],
       '@typescript-eslint/member-ordering': 'error',
+      '@typescript-eslint/naming-convention': ['error',
+        {
+          selector: 'default',
+          format: ['camelCase'],
+          leadingUnderscore: 'allow'
+        },
+        {
+          selector: 'import',
+          format: ['camelCase', 'PascalCase']
+        },
+        {
+          selector: 'variable',
+          format: ['camelCase', 'PascalCase', 'UPPER_CASE'],
+          leadingUnderscore: 'allow',
+          trailingUnderscore: 'allow'
+        },
+        {
+          selector: 'function',
+          format: ['camelCase', 'PascalCase']
+        },
+        {
+          selector: 'parameter',
+          format: ['camelCase'],
+          leadingUnderscore: 'allow'
+        },
+        {
+          selector: 'method',
+          format: ['camelCase', 'PascalCase'],
+          leadingUnderscore: 'allow'
+        },
+        {
+          selector: 'typeLike',
+          format: ['PascalCase']
+        },
+        {
+          selector: 'property',
+          format: null
+        },
+        {
+          selector: 'objectLiteralProperty',
+          format: null
+        },
+        {
+          selector: 'typeProperty',
+          format: null
+        }
+      ],
       '@typescript-eslint/no-unnecessary-condition': 'error',
       '@typescript-eslint/prefer-nullish-coalescing': ['error', {
         ignoreConditionalTests: true,

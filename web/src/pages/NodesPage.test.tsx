@@ -7,10 +7,10 @@ import { NodesPage } from './NodesPage'
 
 import type { NodeDetails, NodeSummary } from '../api/types'
 
-function summary(node_id: string, overrides: Partial<NodeSummary> = {}): NodeSummary {
+function summary(nodeId: string, overrides: Partial<NodeSummary> = {}): NodeSummary {
   return {
-    node_id,
-    display_name: overrides.display_name ?? node_id,
+    node_id: nodeId,
+    display_name: overrides.display_name ?? nodeId,
     last_seen_any_event_at: '2026-03-11T12:00:00Z',
     has_position: true,
     ...overrides
