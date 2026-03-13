@@ -41,9 +41,9 @@ steps:
       - go test ./...
 
   api-spec-lint:
-    image: node:22-alpine
+    image: redocly/cli
     commands:
-      - npm exec --yes @redocly/cli@2.21.1 -- lint docs/openapi.yaml
+      - redocly lint internal/apidocs/assets/openapi.yaml
 
   frontend-lint:
     image: node:22-alpine

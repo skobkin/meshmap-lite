@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -15,16 +13,12 @@ var assets embed.FS
 
 // Options configures API docs serving.
 type Options struct {
-	SpecPath string
-	SpecURL  string
-	Title    string
+	SpecURL string
+	Title   string
 }
 
 // Handler serves the OpenAPI specification and a lightweight interactive viewer.
 func Handler(opts Options) http.Handler {
-	if opts.SpecPath == "" {
-		opts.SpecPath = filepath.Join("docs", "openapi.yaml")
-	}
 	if opts.SpecURL == "" {
 		opts.SpecURL = "/api/openapi.yaml"
 	}
@@ -33,6 +27,10 @@ func Handler(opts Options) http.Handler {
 	}
 
 	assetRoot, err := fs.Sub(assets, "assets")
+	if err != nil {
+		panic(err)
+	}
+	specBody, err := fs.ReadFile(assetRoot, "openapi.yaml")
 	if err != nil {
 		panic(err)
 	}
@@ -47,15 +45,9 @@ func Handler(opts Options) http.Handler {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			_, _ = fmt.Fprintf(w, indexHTML, opts.Title, opts.Title, opts.SpecURL, opts.SpecURL)
 		case r.URL.Path == opts.SpecURL:
-			body, readErr := os.ReadFile(opts.SpecPath)
-			if readErr != nil {
-				http.Error(w, "openapi specification is unavailable", http.StatusInternalServerError)
-
-				return
-			}
 			w.Header().Set("Content-Type", "application/yaml; charset=utf-8")
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write(body)
+			_, _ = w.Write(specBody)
 		case strings.HasPrefix(r.URL.Path, "/api/assets/"):
 			files.ServeHTTP(w, r)
 		default:

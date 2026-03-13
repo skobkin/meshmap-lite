@@ -13,9 +13,7 @@ ARG VERSION=dev
 COPY go.mod go.sum ./
 RUN go mod download
 COPY cmd ./cmd
-COPY docs ./docs
 COPY internal ./internal
-COPY --from=web-build /src/web/dist ./web/dist
 RUN go build -trimpath -ldflags="-s -w -X meshmap-lite/internal/buildinfo.Version=${VERSION}" -o /out/server ./cmd/server
 
 FROM alpine:3.23
@@ -23,7 +21,6 @@ LABEL org.opencontainers.image.source="https://github.com/skobkin/meshmap-lite"
 WORKDIR /app
 RUN addgroup -S app && adduser -S app -G app
 COPY --from=go-build /out/server /usr/local/bin/server
-COPY docs ./docs
 COPY --from=web-build /src/web/dist ./web/dist
 EXPOSE 8080
 USER app

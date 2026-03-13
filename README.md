@@ -119,10 +119,12 @@ Notes:
 
 ## API
 
-The canonical API contract lives in [`docs/openapi.yaml`](docs/openapi.yaml).
+The canonical API contract source lives in [`internal/apidocs/assets/openapi.yaml`](internal/apidocs/assets/openapi.yaml).
 
 - Interactive docs: [`https://mesh.skobk.in/api/`](https://mesh.skobk.in/api/)
+- Raw spec: [`https://mesh.skobk.in/api/openapi.yaml`](https://mesh.skobk.in/api/openapi.yaml)
 - Local docs UI: `http://localhost:8080/api/`
+- Local raw spec: `http://localhost:8080/api/openapi.yaml`
 
 ## Notes
 

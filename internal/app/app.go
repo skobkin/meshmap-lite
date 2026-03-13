@@ -108,9 +108,8 @@ func Run(configPath string) error {
 		Channels: cfg.Channels,
 	}, store, logMgr.Logger("internal/api/http"), mqttReady.Load, hub.ClientCount)
 	apiMux := api.Routes(hub, apidocs.Handler(apidocs.Options{
-		SpecPath: filepath.Join("docs", "openapi.yaml"),
-		SpecURL:  "/api/openapi.yaml",
-		Title:    buildinfo.AppName + " API",
+		SpecURL: "/api/openapi.yaml",
+		Title:   buildinfo.AppName + " API",
 	}))
 	mux := http.NewServeMux()
 	mux.Handle("/api/", apiMux)

@@ -3,8 +3,6 @@ package apidocs
 import (
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -12,7 +10,7 @@ import (
 func TestHandlerServesIndex(t *testing.T) {
 	t.Parallel()
 
-	h := Handler(Options{SpecPath: writeSpecFile(t)})
+	h := Handler(Options{})
 	req := httptest.NewRequest(http.MethodGet, "/api/", nil)
 	rec := httptest.NewRecorder()
 
@@ -29,8 +27,7 @@ func TestHandlerServesIndex(t *testing.T) {
 func TestHandlerServesSpec(t *testing.T) {
 	t.Parallel()
 
-	specPath := writeSpecFile(t)
-	h := Handler(Options{SpecPath: specPath})
+	h := Handler(Options{})
 	req := httptest.NewRequest(http.MethodGet, "/api/openapi.yaml", nil)
 	rec := httptest.NewRecorder()
 
@@ -50,7 +47,7 @@ func TestHandlerServesSpec(t *testing.T) {
 func TestHandlerServesAssets(t *testing.T) {
 	t.Parallel()
 
-	h := Handler(Options{SpecPath: writeSpecFile(t)})
+	h := Handler(Options{})
 	req := httptest.NewRequest(http.MethodGet, "/api/assets/rapidoc-min.js", nil)
 	rec := httptest.NewRecorder()
 
@@ -70,7 +67,7 @@ func TestHandlerServesAssets(t *testing.T) {
 func TestHandlerRedirectsSlashlessIndex(t *testing.T) {
 	t.Parallel()
 
-	h := Handler(Options{SpecPath: writeSpecFile(t)})
+	h := Handler(Options{})
 	req := httptest.NewRequest(http.MethodGet, "/api", nil)
 	rec := httptest.NewRecorder()
 
@@ -82,15 +79,4 @@ func TestHandlerRedirectsSlashlessIndex(t *testing.T) {
 	if got := rec.Header().Get("Location"); got != "/api/" {
 		t.Fatalf("unexpected redirect target: %q", got)
 	}
-}
-
-func writeSpecFile(t *testing.T) string {
-	t.Helper()
-
-	path := filepath.Join(t.TempDir(), "openapi.yaml")
-	if err := os.WriteFile(path, []byte("openapi: 3.2.0\ninfo:\n  title: test\n  version: test\npaths: {}\n"), 0o600); err != nil {
-		t.Fatalf("write spec: %v", err)
-	}
-
-	return path
 }

@@ -64,7 +64,7 @@
 
 - Keep REST and WebSocket payloads explicit and versioned under `/api/v1`.
 - Do not change payload shapes ad hoc without updating typed frontend DTOs.
-- Keep `docs/openapi.yaml` in sync with handler behavior, query params, payload shapes, and event types.
+- Keep `internal/apidocs/assets/openapi.yaml` in sync with handler behavior, query params, payload shapes, and event types.
 - Keep the served API docs at `/api/` working when the API contract or docs assets change.
 - Use one WebSocket stream for live events (`chat.*`, `node.*`, `stats`, heartbeat).
 - Preserve backwards compatibility within a change unless the break is intentional and documented.
@@ -117,7 +117,7 @@ Before considering work finished, run the same baseline checks as CI, adjusted t
 - When working through a `PLAN.md` checklist, mark completed items as you finish each step.
 - Do not claim work is done if required checks fail.
 - If API/WS payloads changed, update backend and frontend together.
-- If API routes, query params, WebSocket events, or payload shapes changed, update `docs/openapi.yaml` in the same change.
+- If API routes, query params, WebSocket events, or payload shapes changed, update `internal/apidocs/assets/openapi.yaml` in the same change.
 
 ## Commits
 
