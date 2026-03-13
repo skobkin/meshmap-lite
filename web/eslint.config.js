@@ -64,6 +64,7 @@ export default tseslint.config(
         ignoreMemberSort: false
       }],
       '@typescript-eslint/consistent-type-definitions': ['error', 'interface'],
+      '@typescript-eslint/consistent-type-exports': 'error',
       '@typescript-eslint/consistent-type-imports': ['error', {
         prefer: 'type-imports',
         fixStyle: 'separate-type-imports'
@@ -145,11 +146,14 @@ export default tseslint.config(
       'import-x/no-cycle': ['error', { ignoreExternal: true }],
       'import-x/newline-after-import': 'error',
       'import-x/no-duplicates': 'error',
+      'import-x/no-named-as-default-member': 'error',
+      'import-x/no-useless-path-segments': 'error',
       'import-x/order': ['error', {
         alphabetize: { order: 'asc', orderImportKind: 'asc' },
         groups: ['builtin', 'external', 'internal', 'parent', 'sibling', 'index', 'type'],
         'newlines-between': 'always'
       }],
+      'react-hooks/set-state-in-effect': 'error',
       'padding-line-between-statements': [
         'error',
         { blankLine: 'always', prev: '*', next: 'return' },
