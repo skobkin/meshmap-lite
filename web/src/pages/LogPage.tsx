@@ -13,6 +13,7 @@ interface Props {
   selectedChannel: string
   onChangeKinds: (kinds: number[]) => void
   onChangeChannel: (channel: string) => void
+  onOpenNodeDetails: (id: string) => void
   onLoadMore: () => void
 }
 
@@ -43,6 +44,7 @@ export function LogPage({
   selectedChannel,
   onChangeKinds,
   onChangeChannel,
+  onOpenNodeDetails,
   onLoadMore
 }: Props): JSX.Element {
   const [selectedEvent, setSelectedEvent] = useState<LogEvent>()
@@ -92,27 +94,43 @@ export function LogPage({
             </tr>
           </thead>
           <tbody>
-            {items.map((row) => (
-              <tr key={row.id}>
-                <td>{formatTime(row.observed_at)}</td>
-                <td><code>{row.node_display_name ?? row.node_id ?? '-'}</code></td>
-                <td>{row.event_kind_title}</td>
-                <td>{row.encrypted ? 'yes' : 'no'}</td>
-                <td>{row.channel_name ?? '-'}</td>
-                <td>
-                  {hasLogDetails(row.details) ? (
+            {items.map((row) => {
+              const nodeId = row.node_id
+
+              return (
+                <tr key={row.id}>
+                  <td>{formatTime(row.observed_at)}</td>
+                  <td>
+                    {nodeId ? (
                     <button
                       type="button"
-                      className="secondary log-details-trigger"
-                      aria-label={`View details for ${row.event_kind_title}`}
-                      onClick={() => setSelectedEvent(row)}
+                      className="chat-node-link"
+                      onClick={() => onOpenNodeDetails(nodeId)}
                     >
-                      View
+                      <code>{row.node_display_name ?? nodeId}</code>
                     </button>
-                  ) : '-'}
-                </td>
-              </tr>
-            ))}
+                  ) : (
+                    <code>{row.node_display_name ?? '-'}</code>
+                  )}
+                  </td>
+                  <td>{row.event_kind_title}</td>
+                  <td>{row.encrypted ? 'yes' : 'no'}</td>
+                  <td>{row.channel_name ?? '-'}</td>
+                  <td>
+                    {hasLogDetails(row.details) ? (
+                      <button
+                        type="button"
+                        className="secondary log-details-trigger"
+                        aria-label={`View details for ${row.event_kind_title}`}
+                        onClick={() => setSelectedEvent(row)}
+                      >
+                        View
+                      </button>
+                    ) : '-'}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
         <button type="button" className="secondary" onClick={onLoadMore}>Load more</button>

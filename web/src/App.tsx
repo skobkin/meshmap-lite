@@ -490,6 +490,7 @@ export function App(): JSX.Element {
           onChangeChannel={(filterChannel) => {
             setLogFilters({ ...logFilters, channel: filterChannel })
           }}
+          onOpenNodeDetails={openNodeDetails}
           onLoadMore={loadMoreLogs}
         />
       )}

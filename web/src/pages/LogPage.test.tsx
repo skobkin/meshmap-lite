@@ -2,7 +2,7 @@
 
 import { render, screen } from '@testing-library/preact'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { LogPage } from './LogPage'
 
@@ -38,6 +38,7 @@ function renderPage(items: LogEvent[]): ReturnType<typeof render> {
       selectedChannel=""
       onChangeKinds={() => undefined}
       onChangeChannel={() => undefined}
+      onOpenNodeDetails={() => undefined}
       onLoadMore={() => undefined}
     />
   )
@@ -82,5 +83,31 @@ describe('LogPage', () => {
     await user.click(screen.getByRole('button', { name: 'Close details' }))
 
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('renders the node cell as an in-app navigation control when a node id is available', async () => {
+    const user = userEvent.setup()
+    const onOpenNodeDetails = vi.fn()
+
+    render(
+      <LogPage
+        channels={['mesh']}
+        items={[event(1)]}
+        loadError=""
+        selectedKinds={[]}
+        selectedChannel=""
+        onChangeKinds={() => undefined}
+        onChangeChannel={() => undefined}
+        onOpenNodeDetails={onOpenNodeDetails}
+        onLoadMore={() => undefined}
+      />
+    )
+
+    const control = screen.getByRole('button', { name: 'Alpha Node' })
+    expect(control).toBeTruthy()
+
+    await user.click(control)
+
+    expect(onOpenNodeDetails).toHaveBeenCalledWith('!abc')
   })
 })
