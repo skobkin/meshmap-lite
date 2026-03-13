@@ -33,7 +33,7 @@ beforeEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
 
-  if (typeof localStorage === 'undefined') {
+  if (typeof localStorage === 'undefined' || typeof localStorage.clear !== 'function') {
     vi.stubGlobal('localStorage', new MemoryStorage())
   } else {
     localStorage.clear()
