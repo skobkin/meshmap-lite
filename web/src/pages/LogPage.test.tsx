@@ -45,6 +45,29 @@ function renderPage(items: LogEvent[]): ReturnType<typeof render> {
 }
 
 describe('LogPage', () => {
+  it('renders day separators and time-only cells for grouped events', () => {
+    renderPage([
+      event(1, { observed_at: '2026-03-11T12:00:00' }),
+      event(2, { observed_at: '2026-03-11T12:05:10' }),
+      event(3, { observed_at: '2026-03-12T09:15:20' })
+    ])
+
+    expect(screen.getByText('11.03.2026')).toBeTruthy()
+    expect(screen.getByText('12.03.2026')).toBeTruthy()
+    expect(screen.getAllByText('12:00:00')).toHaveLength(1)
+    expect(screen.getAllByText('12:05:10')).toHaveLength(1)
+    expect(screen.getAllByText('09:15:20')).toHaveLength(1)
+    expect(screen.queryByText('11.03.2026, 12:00:00')).toBeNull()
+  })
+
+  it('falls back to the raw timestamp string when parsing fails', () => {
+    renderPage([
+      event(1, { observed_at: 'not-a-time' })
+    ])
+
+    expect(screen.getAllByText('not-a-time')).toHaveLength(2)
+  })
+
   it('shows a View button for rows with details and a placeholder for rows without them', () => {
     renderPage([
       event(1),

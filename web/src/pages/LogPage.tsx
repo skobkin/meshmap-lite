@@ -1,6 +1,8 @@
+import { Fragment } from 'preact'
 import { useState } from 'preact/hooks'
 
 import { LogDetailsModal, hasLogDetails } from '../components/LogDetailsModal'
+import { dayKey, dayLabel, fullDateTime, hhmmss } from '../utils/time'
 
 import type { LogEvent } from '../api/types'
 import type { JSX } from 'preact'
@@ -29,13 +31,6 @@ const eventKinds = [
   { value: 9, label: 'Encrypted (undecryptable)' }
 ]
 
-function formatTime(value: string): string {
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) {return value}
-
-  return d.toLocaleString()
-}
-
 export function LogPage({
   channels,
   items,
@@ -48,6 +43,7 @@ export function LogPage({
   onLoadMore
 }: Props): JSX.Element {
   const [selectedEvent, setSelectedEvent] = useState<LogEvent>()
+  let previousDay = ''
 
   return (
     <section className="log-layout container-fluid">
@@ -96,39 +92,52 @@ export function LogPage({
           <tbody>
             {items.map((row) => {
               const nodeId = row.node_id
+              const currentDay = dayKey(row.observed_at)
+              const needsSeparator = currentDay !== previousDay
+              previousDay = currentDay
+              const fullTimestamp = fullDateTime(row.observed_at)
 
               return (
-                <tr key={row.id}>
-                  <td>{formatTime(row.observed_at)}</td>
-                  <td>
-                    {nodeId ? (
-                    <button
-                      type="button"
-                      className="chat-node-link"
-                      onClick={() => onOpenNodeDetails(nodeId)}
-                    >
-                      <code>{row.node_display_name ?? nodeId}</code>
-                    </button>
-                  ) : (
-                    <code>{row.node_display_name ?? '-'}</code>
+                <Fragment key={row.id}>
+                  {needsSeparator && (
+                    <tr className="log-day-separator" aria-label={dayLabel(row.observed_at)}>
+                      <td colSpan={6}>{dayLabel(row.observed_at)}</td>
+                    </tr>
                   )}
-                  </td>
-                  <td>{row.event_kind_title}</td>
-                  <td>{row.encrypted ? 'yes' : 'no'}</td>
-                  <td>{row.channel_name ?? '-'}</td>
-                  <td>
-                    {hasLogDetails(row.details) ? (
-                      <button
-                        type="button"
-                        className="secondary log-details-trigger"
-                        aria-label={`View details for ${row.event_kind_title}`}
-                        onClick={() => setSelectedEvent(row)}
-                      >
-                        View
-                      </button>
-                    ) : '-'}
-                  </td>
-                </tr>
+                  <tr>
+                    <td className="log-time-cell" title={fullTimestamp} aria-label={fullTimestamp}>
+                      <span className="log-time-value">{hhmmss(row.observed_at)}</span>
+                    </td>
+                    <td>
+                      {nodeId ? (
+                        <button
+                          type="button"
+                          className="chat-node-link"
+                          onClick={() => onOpenNodeDetails(nodeId)}
+                        >
+                          <code>{row.node_display_name ?? nodeId}</code>
+                        </button>
+                      ) : (
+                        <code>{row.node_display_name ?? '-'}</code>
+                      )}
+                    </td>
+                    <td>{row.event_kind_title}</td>
+                    <td>{row.encrypted ? 'yes' : 'no'}</td>
+                    <td>{row.channel_name ?? '-'}</td>
+                    <td>
+                      {hasLogDetails(row.details) ? (
+                        <button
+                          type="button"
+                          className="secondary log-details-trigger"
+                          aria-label={`View details for ${row.event_kind_title}`}
+                          onClick={() => setSelectedEvent(row)}
+                        >
+                          View
+                        </button>
+                      ) : '-'}
+                    </td>
+                  </tr>
+                </Fragment>
               )
             })}
           </tbody>

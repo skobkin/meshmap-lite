@@ -1,3 +1,12 @@
+function parseDate(iso: string): Date | null {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) {
+    return null
+  }
+
+  return d
+}
+
 export function relativeTime(iso?: string): string {
   if (!iso) {
     return 'n/a'
@@ -12,13 +21,28 @@ export function relativeTime(iso?: string): string {
 }
 
 export function hhmm(iso: string): string {
-  const d = new Date(iso)
+  const d = parseDate(iso)
+  if (!d) {
+    return iso
+  }
 
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
+export function hhmmss(iso: string): string {
+  const d = parseDate(iso)
+  if (!d) {
+    return iso
+  }
+
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })
+}
+
 export function dayKey(iso: string): string {
-  const d = new Date(iso)
+  const d = parseDate(iso)
+  if (!d) {
+    return iso
+  }
   const year = d.getFullYear()
   const month = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
@@ -27,10 +51,22 @@ export function dayKey(iso: string): string {
 }
 
 export function dayLabel(iso: string): string {
-  const d = new Date(iso)
+  const d = parseDate(iso)
+  if (!d) {
+    return iso
+  }
   const year = d.getFullYear()
   const month = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
 
   return `${day}.${month}.${year}`
+}
+
+export function fullDateTime(iso: string): string {
+  const d = parseDate(iso)
+  if (!d) {
+    return iso
+  }
+
+  return d.toLocaleString()
 }
