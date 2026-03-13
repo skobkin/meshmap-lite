@@ -42,6 +42,14 @@ func parseLogQuery(values url.Values, logConfig config.LogConfig) domain.LogEven
 	}
 }
 
+func parseTopologyEdgeQuery(values url.Values) repo.TopologyEdgeQuery {
+	return repo.TopologyEdgeQuery{
+		NodeID:      values.Get("node_id"),
+		Channel:     values.Get("channel"),
+		SourceKinds: parseTopologySourceKinds(values),
+	}
+}
+
 func parseInt(v string, d int) int {
 	if v == "" {
 		return d
@@ -75,6 +83,35 @@ func parseEventKinds(values url.Values) []domain.LogEventKind {
 			}
 			kind, ok := domain.LogEventKindFromInt(n)
 			if !ok || slices.Contains(out, kind) {
+				continue
+			}
+			out = append(out, kind)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+
+	return out
+}
+
+func parseTopologySourceKinds(values url.Values) []domain.TopologySourceKind {
+	raw := make([]string, 0)
+	if kinds, ok := values["source_kind"]; ok {
+		raw = append(raw, kinds...)
+	}
+	if kinds, ok := values["source_kinds"]; ok {
+		raw = append(raw, kinds...)
+	}
+	if len(raw) == 0 {
+		return nil
+	}
+
+	out := make([]domain.TopologySourceKind, 0, len(raw))
+	for _, row := range raw {
+		for _, part := range strings.Split(row, ",") {
+			kind := domain.TopologySourceKind(strings.TrimSpace(part))
+			if !kind.Valid() || slices.Contains(out, kind) {
 				continue
 			}
 			out = append(out, kind)

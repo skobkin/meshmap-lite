@@ -39,6 +39,25 @@ describe('api client', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/v1/nodes/!ab%2Fcd', { signal: undefined })
   })
 
+  it('builds topology edge query strings from optional filters', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => []
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await api.topologyEdges({
+      nodeID: '!ab/cd',
+      channel: 'ops room',
+      sourceKinds: ['neighbor_info', 'routing_return']
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/topology/edges?node_id=%21ab%2Fcd&channel=ops+room&source_kind=neighbor_info&source_kind=routing_return',
+      { signal: undefined }
+    )
+  })
+
   it('throws a status-based error when a request fails', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: false,

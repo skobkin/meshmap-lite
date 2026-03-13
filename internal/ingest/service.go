@@ -170,6 +170,9 @@ func (s *Service) HandleMessage(ctx context.Context, topic string, payload []byt
 	if !s.upsertNodeEvidenceSet(ctx, evt, topicInfo, channel, now) {
 		return
 	}
+	if !s.persistTopologyEdges(ctx, evt, channel, now) {
+		return
+	}
 
 	switch evt.Kind {
 	case meshtastic.ParsedChat:
@@ -665,6 +668,156 @@ func indirectNodeIDs(evt meshtastic.ParsedEvent) []string {
 	}
 
 	return out
+}
+
+func (s *Service) persistTopologyEdges(ctx context.Context, evt meshtastic.ParsedEvent, channel string, now time.Time) bool {
+	edges := topologyEdgesFromParsed(evt, channel, now)
+	if len(edges) == 0 {
+		return true
+	}
+	if err := s.store.UpsertTopologyEdges(ctx, edges); err != nil {
+		s.log.Error("upsert topology edges failed", "node_id", evt.NodeID, "kind", evt.Kind, "channel", channel, "err", err)
+
+		return false
+	}
+
+	return true
+}
+
+func topologyEdgesFromParsed(evt meshtastic.ParsedEvent, channel string, now time.Time) []domain.TopologyEdge {
+	seen := make(map[string]struct{})
+	out := make([]domain.TopologyEdge, 0)
+	add := func(edge domain.TopologyEdge) {
+		edge.ChannelName = strings.TrimSpace(edge.ChannelName)
+		edge.FromNodeID = strings.TrimSpace(edge.FromNodeID)
+		edge.ToNodeID = strings.TrimSpace(edge.ToNodeID)
+		edge.ReportedByNodeID = strings.TrimSpace(edge.ReportedByNodeID)
+		if !edge.SourceKind.Valid() || edge.FromNodeID == "" || edge.ToNodeID == "" || edge.FromNodeID == edge.ToNodeID {
+			return
+		}
+		key := strings.Join([]string{string(edge.SourceKind), edge.ChannelName, edge.FromNodeID, edge.ToNodeID}, "\x00")
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		out = append(out, edge)
+	}
+
+	switch evt.Kind {
+	case meshtastic.ParsedNeighborInfo:
+		if evt.Neighbor == nil {
+			return nil
+		}
+		reporterID := strings.TrimSpace(evt.Neighbor.NodeID)
+		if reporterID == "" {
+			reporterID = strings.TrimSpace(evt.NodeID)
+		}
+		reportedByID := strings.TrimSpace(evt.NodeID)
+		for _, neighbor := range evt.Neighbor.Neighbors {
+			edge := domain.TopologyEdge{
+				SourceKind:       domain.TopologySourceNeighborInfo,
+				ChannelName:      channel,
+				FromNodeID:       reporterID,
+				ToNodeID:         neighbor.NodeID,
+				ReportedByNodeID: reportedByID,
+				FirstObservedAt:  now,
+				LastObservedAt:   now,
+				LastReportedAt:   evt.Timestamp,
+				UpdatedAt:        now,
+			}
+			snr := float64(neighbor.SNR)
+			edge.SNR = &snr
+			if neighbor.LastRxTime > 0 {
+				t := time.Unix(int64(neighbor.LastRxTime), 0).UTC()
+				edge.NeighborLastRXAt = &t
+			}
+			if neighbor.NodeBroadcastIntervalSecs > 0 {
+				v := neighbor.NodeBroadcastIntervalSecs
+				edge.NeighborBroadcastIntervalSec = &v
+			}
+			add(edge)
+		}
+	case meshtastic.ParsedTraceroute:
+		if evt.Traceroute == nil {
+			return nil
+		}
+		for _, edge := range topologyEdgesFromPath(domain.TopologySourceTracerouteForward, channel, evt.NodeID, evt.Traceroute.ForwardPath, evt.Traceroute.InferredForwardPath, evt.Timestamp, now) {
+			add(edge)
+		}
+		for _, edge := range topologyEdgesFromPath(domain.TopologySourceTracerouteReturn, channel, evt.NodeID, evt.Traceroute.ReturnPath, evt.Traceroute.InferredReturnPath, evt.Timestamp, now) {
+			add(edge)
+		}
+	case meshtastic.ParsedRouting:
+		if evt.Routing == nil {
+			return nil
+		}
+		for _, edge := range topologyEdgesFromPath(domain.TopologySourceRoutingForward, channel, evt.NodeID, routingForwardPath(evt.Routing), false, evt.Timestamp, now) {
+			add(edge)
+		}
+		for _, edge := range topologyEdgesFromPath(domain.TopologySourceRoutingReturn, channel, evt.NodeID, routingReturnPath(evt.Routing), false, evt.Timestamp, now) {
+			add(edge)
+		}
+	}
+
+	return out
+}
+
+func topologyEdgesFromPath(sourceKind domain.TopologySourceKind, channel, reportedBy string, path []string, inferred bool, reportedAt *time.Time, now time.Time) []domain.TopologyEdge {
+	if len(path) < 2 {
+		return nil
+	}
+
+	out := make([]domain.TopologyEdge, 0, len(path)-1)
+	for i := 0; i < len(path)-1; i++ {
+		out = append(out, domain.TopologyEdge{
+			SourceKind:       sourceKind,
+			ChannelName:      channel,
+			FromNodeID:       path[i],
+			ToNodeID:         path[i+1],
+			ReportedByNodeID: reportedBy,
+			Inferred:         inferred,
+			FirstObservedAt:  now,
+			LastObservedAt:   now,
+			LastReportedAt:   reportedAt,
+			UpdatedAt:        now,
+		})
+	}
+
+	return out
+}
+
+func routingForwardPath(in *meshtastic.RoutingPayload) []string {
+	if in == nil {
+		return nil
+	}
+
+	path := make([]string, 0, len(in.Route)+2)
+	if in.FromNodeID != "" {
+		path = append(path, in.FromNodeID)
+	}
+	path = append(path, in.Route...)
+	if in.ToNodeID != "" {
+		path = append(path, in.ToNodeID)
+	}
+
+	return path
+}
+
+func routingReturnPath(in *meshtastic.RoutingPayload) []string {
+	if in == nil {
+		return nil
+	}
+
+	path := make([]string, 0, len(in.RouteBack)+2)
+	if in.ToNodeID != "" {
+		path = append(path, in.ToNodeID)
+	}
+	path = append(path, in.RouteBack...)
+	if in.FromNodeID != "" {
+		path = append(path, in.FromNodeID)
+	}
+
+	return path
 }
 
 func (s *Service) upsertNodeEvidence(ctx context.Context, evidence nodeEvidence, channel string, now time.Time) bool {

@@ -118,6 +118,23 @@ func (s *Server) nodes(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, items)
 }
 
+func (s *Server) topologyEdges(w http.ResponseWriter, r *http.Request) {
+	query := parseTopologyEdgeQuery(r.URL.Query())
+	items, err := s.store.ListTopologyEdges(r.Context(), query)
+	if err != nil {
+		if isRequestCanceled(err) {
+			s.log.Debug("list topology edges canceled", "err", err)
+
+			return
+		}
+		s.log.Error("list topology edges", "err", err)
+		writeError(w, http.StatusInternalServerError, "internal_error")
+
+		return
+	}
+	writeJSON(w, http.StatusOK, items)
+}
+
 func (s *Server) nodeByID(w http.ResponseWriter, r *http.Request) {
 	nodeID, ok := nodeIDFromPath(r.URL.Path)
 	if !ok {

@@ -12,6 +12,7 @@ func (s *Server) Routes(wsHandler http.Handler) http.Handler {
 	mux.Handle("/api/v1/map/nodes", http.HandlerFunc(s.mapNodes))
 	mux.Handle("/api/v1/chat/messages", http.HandlerFunc(s.chatMessages))
 	mux.Handle("/api/v1/log/events", http.HandlerFunc(s.logEvents))
+	mux.Handle("/api/v1/topology/edges", http.HandlerFunc(s.topologyEdges))
 	mux.Handle("/api/v1/nodes", http.HandlerFunc(s.nodes))
 	mux.Handle("/api/v1/nodes/", http.HandlerFunc(s.nodeByID))
 	mux.Handle("/api/v1/ws", wsHandler)

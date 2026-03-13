@@ -83,6 +83,22 @@ export interface NodeDetails {
   telemetry?: NodeTelemetry
 }
 
+export interface TopologyEdge {
+  source_kind: 'neighbor_info' | 'routing_forward' | 'routing_return' | 'traceroute_forward' | 'traceroute_return'
+  channel_name?: string
+  from_node_id: string
+  to_node_id: string
+  reported_by_node_id?: string
+  inferred?: boolean
+  snr?: number
+  neighbor_last_rx_at?: string
+  neighbor_broadcast_interval_secs?: number
+  first_observed_at: string
+  last_observed_at: string
+  last_reported_at?: string
+  updated_at: string
+}
+
 export interface NodeTelemetry {
   node_id: string
   power: {

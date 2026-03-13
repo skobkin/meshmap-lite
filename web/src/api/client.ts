@@ -1,4 +1,4 @@
-import type { ChannelItem, ChatEvent, LogEvent, MapNode, Meta, NodeDetails, NodeSummary } from './types'
+import type { ChannelItem, ChatEvent, LogEvent, MapNode, Meta, NodeDetails, NodeSummary, TopologyEdge } from './types'
 
 interface RequestOptions {
   signal?: AbortSignal
@@ -29,6 +29,17 @@ export const api = {
     const suffix = q.toString()
 
     return request<LogEvent[]>(`/api/v1/log/events${suffix ? `?${suffix}` : ''}`, options)
+  },
+  topologyEdges: (params: { nodeID?: string; channel?: string; sourceKinds?: TopologyEdge['source_kind'][] }, options?: RequestOptions) => {
+    const q = new URLSearchParams()
+    if (params.nodeID) {q.set('node_id', params.nodeID)}
+    if (params.channel) {q.set('channel', params.channel)}
+    for (const kind of params.sourceKinds ?? []) {
+      q.append('source_kind', kind)
+    }
+    const suffix = q.toString()
+
+    return request<TopologyEdge[]>(`/api/v1/topology/edges${suffix ? `?${suffix}` : ''}`, options)
   },
   nodes: (options?: RequestOptions) => request<NodeSummary[]>('/api/v1/nodes', options),
   node: (id: string, options?: RequestOptions) => request<NodeDetails>(`/api/v1/nodes/${encodeURIComponent(id)}`, options)

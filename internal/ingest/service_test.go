@@ -20,6 +20,7 @@ type testStore struct {
 	lastPosition  *domain.NodePosition
 	lastLogEvent  *domain.LogEvent
 	logEventsSeen []domain.LogEvent
+	topologySeen  []domain.TopologyEdge
 	nodeDisplay   string
 }
 
@@ -39,6 +40,12 @@ func (s *testStore) UpsertPosition(_ context.Context, pos domain.NodePosition) e
 }
 
 func (*testStore) MergeTelemetry(context.Context, domain.NodeTelemetrySnapshot) error {
+	return nil
+}
+
+func (s *testStore) UpsertTopologyEdges(_ context.Context, edges []domain.TopologyEdge) error {
+	s.topologySeen = append(s.topologySeen, edges...)
+
 	return nil
 }
 
@@ -453,6 +460,84 @@ func TestUpsertNodeEvidenceSetDiscoversIndirectNodesFromTracerouteAndRouting(t *
 		if !sawNode(store.nodesSeen, nodeID) {
 			t.Fatalf("expected node %s in indirect discovery set: %#v", nodeID, store.nodesSeen)
 		}
+	}
+}
+
+func TestTopologyEdgesFromParsedNeighborInfo(t *testing.T) {
+	now := time.Unix(1772296589, 0).UTC()
+	reportedAt := now.Add(-30 * time.Second)
+
+	edges := topologyEdgesFromParsed(meshtastic.ParsedEvent{
+		Kind:   meshtastic.ParsedNeighborInfo,
+		NodeID: "!49b5976c",
+		Neighbor: &meshtastic.NeighborInfoPayload{
+			NodeID: "!49b5976c",
+			Neighbors: []meshtastic.NeighborInfoNeighbor{
+				{NodeID: "!11111111", SNR: 0, LastRxTime: 1772296500, NodeBroadcastIntervalSecs: 14400},
+				{NodeID: "!11111111", SNR: 0, LastRxTime: 1772296500, NodeBroadcastIntervalSecs: 14400},
+				{NodeID: "!22222222", SNR: 7.25},
+			},
+		},
+		Timestamp: &reportedAt,
+	}, "LongFast", now)
+
+	if len(edges) != 2 {
+		t.Fatalf("expected 2 deduplicated neighbor edges, got %#v", edges)
+	}
+	if edges[0].SourceKind != domain.TopologySourceNeighborInfo || edges[0].FromNodeID != "!49b5976c" || edges[0].ToNodeID != "!11111111" {
+		t.Fatalf("unexpected first neighbor edge: %#v", edges[0])
+	}
+	if edges[0].SNR == nil || *edges[0].SNR != 0 {
+		t.Fatalf("expected zero SNR to be preserved, got %#v", edges[0].SNR)
+	}
+	if edges[0].NeighborLastRXAt == nil || edges[0].NeighborLastRXAt.UTC().Unix() != 1772296500 {
+		t.Fatalf("unexpected last rx time: %#v", edges[0].NeighborLastRXAt)
+	}
+	if edges[0].NeighborBroadcastIntervalSec == nil || *edges[0].NeighborBroadcastIntervalSec != 14400 {
+		t.Fatalf("unexpected broadcast interval: %#v", edges[0].NeighborBroadcastIntervalSec)
+	}
+}
+
+func TestTopologyEdgesFromParsedTracerouteAndRoutingStayDistinct(t *testing.T) {
+	now := time.Unix(1772296589, 0).UTC()
+
+	tracerouteEdges := topologyEdgesFromParsed(meshtastic.ParsedEvent{
+		Kind:   meshtastic.ParsedTraceroute,
+		NodeID: "!9028d008",
+		Traceroute: &meshtastic.TraceroutePayload{
+			ForwardPath:         []string{"!a55e5e56", "!01020304", "!9028d008"},
+			ReturnPath:          []string{"!9028d008", "!0a0b0c0d", "!a55e5e56"},
+			InferredForwardPath: true,
+		},
+	}, "LongFast", now)
+	if len(tracerouteEdges) != 4 {
+		t.Fatalf("expected 4 traceroute edges, got %#v", tracerouteEdges)
+	}
+	if tracerouteEdges[0].SourceKind != domain.TopologySourceTracerouteForward || !tracerouteEdges[0].Inferred {
+		t.Fatalf("unexpected traceroute forward edge: %#v", tracerouteEdges[0])
+	}
+	if tracerouteEdges[2].SourceKind != domain.TopologySourceTracerouteReturn || tracerouteEdges[2].Inferred {
+		t.Fatalf("unexpected traceroute return edge: %#v", tracerouteEdges[2])
+	}
+
+	routingEdges := topologyEdgesFromParsed(meshtastic.ParsedEvent{
+		Kind:   meshtastic.ParsedRouting,
+		NodeID: "!9028d008",
+		Routing: &meshtastic.RoutingPayload{
+			FromNodeID: "!9028d008",
+			ToNodeID:   "!abcdef01",
+			Route:      []string{"!22222222"},
+			RouteBack:  []string{"!33333333"},
+		},
+	}, "LongFast", now)
+	if len(routingEdges) != 4 {
+		t.Fatalf("expected 4 routing edges, got %#v", routingEdges)
+	}
+	if routingEdges[0].SourceKind != domain.TopologySourceRoutingForward || routingEdges[0].FromNodeID != "!9028d008" || routingEdges[0].ToNodeID != "!22222222" {
+		t.Fatalf("unexpected routing forward edge: %#v", routingEdges[0])
+	}
+	if routingEdges[2].SourceKind != domain.TopologySourceRoutingReturn || routingEdges[2].FromNodeID != "!abcdef01" || routingEdges[2].ToNodeID != "!33333333" {
+		t.Fatalf("unexpected routing return edge: %#v", routingEdges[2])
 	}
 }
 

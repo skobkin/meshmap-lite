@@ -11,6 +11,7 @@ This document is the source of truth for the public HTTP and WebSocket contract 
 - `GET /api/v1/map/nodes`
 - `GET /api/v1/chat/messages?channel=<name>&limit=<n>&before=<cursor>`
 - `GET /api/v1/log/events?limit=<n>&before=<id>&channel=<name>&event_kind=<kind>`
+- `GET /api/v1/topology/edges?node_id=<id>&channel=<name>&source_kind=<kind>`
 - `GET /api/v1/nodes`
 - `GET /api/v1/nodes/{node_id}`
 - `GET /api/v1/ws`
@@ -29,6 +30,12 @@ This document is the source of truth for the public HTTP and WebSocket contract 
   - Unmatched traceroute replies or routing packets remain visible as raw packet rows when they cannot be correlated to a tracked request.
   - Routing rows may include `request_id`, route arrays, and `traceroute_status="failed"` when a `ROUTING_APP` error packet refers to a traceroute request and `error_reason != "NONE"`.
   - MQTT-derived traceroute paths can be partial compared to a directly connected radio client; missing reply-side data must be treated as absent rather than fabricated.
+- `GET /api/v1/topology/edges`: returns current topology-edge snapshots ordered newest-first. Optional filters:
+  - `node_id`: matches edges where the node is either `from_node_id` or `to_node_id`
+  - `channel`: filters by channel name
+  - `source_kind`: may be repeated or passed as a comma-separated list. `source_kinds` is also accepted as an alias for compatibility.
+  - Each item includes `source_kind`, `channel_name`, `from_node_id`, `to_node_id`, `reported_by_node_id`, `inferred`, and timestamps. Neighbor-info rows may also include `snr`, `neighbor_last_rx_at`, and `neighbor_broadcast_interval_secs`.
+  - `source_kind` values are `neighbor_info`, `routing_forward`, `routing_return`, `traceroute_forward`, and `traceroute_return`.
 - `GET /api/v1/nodes`: returns node list items for the Nodes view.
 - `GET /api/v1/nodes/{node_id}`: returns `{node, position?, telemetry?}` for one node, or `404 {"error":"not_found"}` if absent.
 - `GET /api/v1/ws`: single WebSocket stream for live events.

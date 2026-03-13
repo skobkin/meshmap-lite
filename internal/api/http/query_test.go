@@ -39,3 +39,23 @@ func TestNodeIDFromPath(t *testing.T) {
 		t.Fatalf("expected nested node path to fail")
 	}
 }
+
+func TestParseTopologyEdgeQueryDeduplicatesKinds(t *testing.T) {
+	values := url.Values{
+		"node_id":      []string{"!49b5976c"},
+		"channel":      []string{"LongFast"},
+		"source_kind":  []string{"neighbor_info,traceroute_forward"},
+		"source_kinds": []string{"traceroute_forward,invalid,routing_return"},
+	}
+
+	got := parseTopologyEdgeQuery(values)
+	if got.NodeID != "!49b5976c" || got.Channel != "LongFast" {
+		t.Fatalf("unexpected parsed topology query: %+v", got)
+	}
+	if len(got.SourceKinds) != 3 ||
+		got.SourceKinds[0] != domain.TopologySourceNeighborInfo ||
+		got.SourceKinds[1] != domain.TopologySourceTracerouteForward ||
+		got.SourceKinds[2] != domain.TopologySourceRoutingReturn {
+		t.Fatalf("unexpected topology source kinds: %+v", got.SourceKinds)
+	}
+}

@@ -10,19 +10,21 @@ import (
 
 // FakeStore is a lightweight configurable fake for repository-facing tests.
 type FakeStore struct {
-	UpsertNodeFn         func(context.Context, domain.Node) (bool, error)
-	UpsertPositionFn     func(context.Context, domain.NodePosition) error
-	MergeTelemetryFn     func(context.Context, domain.NodeTelemetrySnapshot) error
-	InsertChatEventFn    func(context.Context, domain.ChatEvent) (int64, error)
-	InsertLogEventFn     func(context.Context, domain.LogEvent) (int64, error)
-	ResolveNodeDisplayFn func(context.Context, string) (string, error)
+	UpsertNodeFn          func(context.Context, domain.Node) (bool, error)
+	UpsertPositionFn      func(context.Context, domain.NodePosition) error
+	MergeTelemetryFn      func(context.Context, domain.NodeTelemetrySnapshot) error
+	UpsertTopologyEdgesFn func(context.Context, []domain.TopologyEdge) error
+	InsertChatEventFn     func(context.Context, domain.ChatEvent) (int64, error)
+	InsertLogEventFn      func(context.Context, domain.LogEvent) (int64, error)
+	ResolveNodeDisplayFn  func(context.Context, string) (string, error)
 
-	GetMapNodesFn    func(context.Context, time.Duration) ([]repo.MapNode, error)
-	ListNodesFn      func(context.Context) ([]repo.NodeSummary, error)
-	GetNodeDetailsFn func(context.Context, string) (repo.NodeDetails, error)
-	ListChatEventsFn func(context.Context, repo.ChatEventQuery) ([]domain.ChatEvent, error)
-	ListLogEventsFn  func(context.Context, domain.LogEventQuery) ([]domain.LogEventView, error)
-	StatsFn          func(context.Context, time.Duration) (domain.Stats, error)
+	GetMapNodesFn       func(context.Context, time.Duration) ([]repo.MapNode, error)
+	ListNodesFn         func(context.Context) ([]repo.NodeSummary, error)
+	GetNodeDetailsFn    func(context.Context, string) (repo.NodeDetails, error)
+	ListTopologyEdgesFn func(context.Context, repo.TopologyEdgeQuery) ([]domain.TopologyEdge, error)
+	ListChatEventsFn    func(context.Context, repo.ChatEventQuery) ([]domain.ChatEvent, error)
+	ListLogEventsFn     func(context.Context, domain.LogEventQuery) ([]domain.LogEventView, error)
+	StatsFn             func(context.Context, time.Duration) (domain.Stats, error)
 }
 
 // UpsertNode implements repo.WriteStore.
@@ -47,6 +49,15 @@ func (f *FakeStore) UpsertPosition(ctx context.Context, pos domain.NodePosition)
 func (f *FakeStore) MergeTelemetry(ctx context.Context, snapshot domain.NodeTelemetrySnapshot) error {
 	if f.MergeTelemetryFn != nil {
 		return f.MergeTelemetryFn(ctx, snapshot)
+	}
+
+	return nil
+}
+
+// UpsertTopologyEdges implements repo.WriteStore.
+func (f *FakeStore) UpsertTopologyEdges(ctx context.Context, edges []domain.TopologyEdge) error {
+	if f.UpsertTopologyEdgesFn != nil {
+		return f.UpsertTopologyEdgesFn(ctx, edges)
 	}
 
 	return nil
@@ -104,6 +115,15 @@ func (f *FakeStore) GetNodeDetails(ctx context.Context, nodeID string) (repo.Nod
 	}
 
 	return repo.NodeDetails{}, nil
+}
+
+// ListTopologyEdges implements repo.ReadStore.
+func (f *FakeStore) ListTopologyEdges(ctx context.Context, q repo.TopologyEdgeQuery) ([]domain.TopologyEdge, error) {
+	if f.ListTopologyEdgesFn != nil {
+		return f.ListTopologyEdgesFn(ctx, q)
+	}
+
+	return nil, nil
 }
 
 // ListChatEvents implements repo.ReadStore.

@@ -122,6 +122,94 @@ type Stats struct {
 	LastIngestAt     time.Time `json:"last_ingest_at,omitempty"`
 }
 
+// TopologySourceKind identifies the evidence source of a persisted mesh edge.
+type TopologySourceKind string
+
+// Topology edge source values persisted from mesh evidence.
+const (
+	TopologySourceNeighborInfo      TopologySourceKind = "neighbor_info"
+	TopologySourceRoutingForward    TopologySourceKind = "routing_forward"
+	TopologySourceRoutingReturn     TopologySourceKind = "routing_return"
+	TopologySourceTracerouteForward TopologySourceKind = "traceroute_forward"
+	TopologySourceTracerouteReturn  TopologySourceKind = "traceroute_return"
+)
+
+// Compact persisted topology source values.
+const (
+	TopologySourceNeighborInfoValue      = 1
+	TopologySourceRoutingForwardValue    = 2
+	TopologySourceRoutingReturnValue     = 3
+	TopologySourceTracerouteForwardValue = 4
+	TopologySourceTracerouteReturnValue  = 5
+)
+
+// Valid reports whether the topology source kind is supported.
+func (k TopologySourceKind) Valid() bool {
+	switch k {
+	case TopologySourceNeighborInfo,
+		TopologySourceRoutingForward,
+		TopologySourceRoutingReturn,
+		TopologySourceTracerouteForward,
+		TopologySourceTracerouteReturn:
+		return true
+	default:
+		return false
+	}
+}
+
+// TopologySourceKindValue returns the compact integer value used in storage.
+func TopologySourceKindValue(kind TopologySourceKind) (int, bool) {
+	switch kind {
+	case TopologySourceNeighborInfo:
+		return TopologySourceNeighborInfoValue, true
+	case TopologySourceRoutingForward:
+		return TopologySourceRoutingForwardValue, true
+	case TopologySourceRoutingReturn:
+		return TopologySourceRoutingReturnValue, true
+	case TopologySourceTracerouteForward:
+		return TopologySourceTracerouteForwardValue, true
+	case TopologySourceTracerouteReturn:
+		return TopologySourceTracerouteReturnValue, true
+	default:
+		return 0, false
+	}
+}
+
+// TopologySourceKindFromInt parses a persisted integer value to a known topology source.
+func TopologySourceKindFromInt(v int) (TopologySourceKind, bool) {
+	switch v {
+	case TopologySourceNeighborInfoValue:
+		return TopologySourceNeighborInfo, true
+	case TopologySourceRoutingForwardValue:
+		return TopologySourceRoutingForward, true
+	case TopologySourceRoutingReturnValue:
+		return TopologySourceRoutingReturn, true
+	case TopologySourceTracerouteForwardValue:
+		return TopologySourceTracerouteForward, true
+	case TopologySourceTracerouteReturnValue:
+		return TopologySourceTracerouteReturn, true
+	default:
+		return "", false
+	}
+}
+
+// TopologyEdge stores the latest observed directional link between two nodes.
+type TopologyEdge struct {
+	SourceKind                   TopologySourceKind `json:"source_kind"`
+	ChannelName                  string             `json:"channel_name,omitempty"`
+	FromNodeID                   string             `json:"from_node_id"`
+	ToNodeID                     string             `json:"to_node_id"`
+	ReportedByNodeID             string             `json:"reported_by_node_id,omitempty"`
+	Inferred                     bool               `json:"inferred,omitempty"`
+	SNR                          *float64           `json:"snr,omitempty"`
+	NeighborLastRXAt             *time.Time         `json:"neighbor_last_rx_at,omitempty"`
+	NeighborBroadcastIntervalSec *uint32            `json:"neighbor_broadcast_interval_secs,omitempty"`
+	FirstObservedAt              time.Time          `json:"first_observed_at"`
+	LastObservedAt               time.Time          `json:"last_observed_at"`
+	LastReportedAt               *time.Time         `json:"last_reported_at,omitempty"`
+	UpdatedAt                    time.Time          `json:"updated_at"`
+}
+
 // LogEventKind is a compact numeric identifier of a non-chat mesh activity event.
 type LogEventKind uint8
 
