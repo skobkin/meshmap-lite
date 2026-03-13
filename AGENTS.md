@@ -49,6 +49,7 @@
 - Keep Leaflet behind a thin adapter boundary.
 - Avoid heavy UI frameworks; prefer PicoCSS plus small helpers.
 - The UI must remain usable with stale snapshot data while WebSocket reconnect is in progress or fails.
+- Keep published binaries self-contained: release builds embed the built frontend from `internal/frontend/assets/dist`, while local runtime may fall back to `web/dist`.
 
 ## Testing Guidance
 

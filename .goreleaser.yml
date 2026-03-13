@@ -9,7 +9,7 @@ gitea_urls:
 before:
   hooks:
     - go mod tidy
-    - test -f web/dist/index.html
+    - test -f internal/frontend/assets/dist/index.html
 
 builds:
   - id: server
@@ -30,8 +30,6 @@ archives:
   - formats:
       - tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    files:
-      - web/dist/**
 
 checksum:
   name_template: "checksums.txt"

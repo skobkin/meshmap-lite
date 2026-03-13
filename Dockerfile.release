@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 
 # Release CI uses this Dockerfile after frontend assets were already built by
-# the dedicated `frontend-build` Woodpecker step and placed into `web/dist`.
-# Keeping frontend work out of the image build makes `release-docker` faster.
+# the dedicated `frontend-build` Woodpecker step and placed into
+# `internal/frontend/assets/dist` for embedding into the binary.
 FROM golang:1.25-alpine AS go-build
 WORKDIR /src
 ARG VERSION=dev
@@ -17,8 +17,6 @@ LABEL org.opencontainers.image.source="https://github.com/skobkin/meshmap-lite"
 WORKDIR /app
 RUN addgroup -S app && adduser -S app -G app
 COPY --from=go-build /out/server /usr/local/bin/server
-# `web/dist` must exist in the CI workspace before this image build starts.
-COPY web/dist ./web/dist
 EXPOSE 8080
 USER app
 ENTRYPOINT ["server"]

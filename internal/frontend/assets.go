@@ -9,6 +9,9 @@ func resolveAssets(opts Options) (fs.FS, bool) {
 	if opts.AssetsFS != nil {
 		return opts.AssetsFS, true
 	}
+	if assets, ok := resolveEmbeddedAssets(); ok {
+		return assets, true
+	}
 	if opts.DistPath == "" {
 		return nil, false
 	}

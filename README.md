@@ -46,6 +46,9 @@ Docker Compose [example](https://git.skobk.in/skobkin/docker-stacks/src/branch/m
 2. `npm install`
 3. `npm run dev`
 
+Published release binaries and containers embed the built frontend. Local `go run`
+and `go build` workflows can still serve a local `web/dist` build when present.
+
 ## Config
 
 YAML and `MML_` environment variables are supported. ENV keys use `__` as nesting separator.

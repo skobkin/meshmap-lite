@@ -85,9 +85,9 @@ steps:
         npm ci
         npm run build
         test -f dist/index.html
-        rm -rf "$CI_WORKSPACE/web/dist"
-        mkdir -p "$CI_WORKSPACE/web/dist"
-        cp -a dist/. "$CI_WORKSPACE/web/dist/"
+        rm -rf "$CI_WORKSPACE/internal/frontend/assets/dist"
+        mkdir -p "$CI_WORKSPACE/internal/frontend/assets/dist"
+        cp -a dist/. "$CI_WORKSPACE/internal/frontend/assets/dist/"
 
   backend-build:
     image: golang:1.25
