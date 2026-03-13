@@ -58,6 +58,8 @@ export function markerDataUrl(iconKey: MarkerIconKey, freshness: MarkerFreshness
 
 export function markerIconKeyForRole(role?: string): MarkerIconKey {
   switch (role) {
+    case undefined:
+      return MARKER_ICON_KEY.default
     case 'ROUTER':
       return MARKER_ICON_KEY.router
     case 'ROUTER_LATE':

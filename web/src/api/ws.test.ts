@@ -67,35 +67,35 @@ vi.mock('../stores/ws', () => ({
 }))
 
 class MockWebSocket {
-  static instances: MockWebSocket[] = []
+  public static instances: MockWebSocket[] = []
 
-  onopen: (() => void) | null = null
-  onmessage: ((event: MessageEvent<string>) => void) | null = null
-  onerror: (() => void) | null = null
-  onclose: (() => void) | null = null
+  public onopen: (() => void) | null = null
+  public onmessage: ((event: MessageEvent<string>) => void) | null = null
+  public onerror: (() => void) | null = null
+  public onclose: (() => void) | null = null
 
-  constructor(readonly url: string) {
+  public constructor(public readonly url: string) {
     MockWebSocket.instances.push(this)
   }
 
-  emitOpen(): void {
+  public static reset(): void {
+    MockWebSocket.instances = []
+  }
+
+  public emitOpen(): void {
     this.onopen?.()
   }
 
-  emitMessage(payload: unknown): void {
+  public emitMessage(payload: unknown): void {
     this.onmessage?.({ data: JSON.stringify(payload) } as MessageEvent<string>)
   }
 
-  emitClose(): void {
+  public emitClose(): void {
     this.onclose?.()
   }
 
-  close(): void {
+  public close(): void {
     this.emitClose()
-  }
-
-  static reset(): void {
-    MockWebSocket.instances = []
   }
 }
 

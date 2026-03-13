@@ -143,6 +143,8 @@ export function MapPage({
 
   const systemText = (code?: string): string => {
     switch (code) {
+      case undefined:
+        return 'System event'
       case 'node_discovered':
         return 'New node discovered'
       default:

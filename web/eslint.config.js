@@ -74,11 +74,14 @@ export default tseslint.config(
       '@typescript-eslint/require-await': 'off',
       '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      '@typescript-eslint/explicit-member-accessibility': ['error', { accessibility: 'explicit' }],
+      '@typescript-eslint/member-ordering': 'error',
       '@typescript-eslint/prefer-nullish-coalescing': ['error', {
         ignoreConditionalTests: true,
         ignoreMixedLogicalExpressions: false
       }],
       '@typescript-eslint/prefer-optional-chain': 'error',
+      '@typescript-eslint/switch-exhaustiveness-check': 'error',
       '@typescript-eslint/use-unknown-in-catch-callback-variable': 'off',
       'import-x/first': 'error',
       'import-x/no-cycle': ['error', { ignoreExternal: true }],

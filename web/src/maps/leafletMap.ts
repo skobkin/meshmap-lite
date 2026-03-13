@@ -60,7 +60,7 @@ export class LeafletMapAdapter {
   private readonly onOpenNodeDetails?: (id: string) => void
   private readonly onSelectNode?: (id?: string) => void
 
-  constructor(el: HTMLElement, center: [number, number], zoom: number, opts: LeafletMapOptions = {}) {
+  public constructor(el: HTMLElement, center: [number, number], zoom: number, opts: LeafletMapOptions = {}) {
     this.onOpenNodeDetails = opts.onOpenNodeDetails
     this.onSelectNode = opts.onSelectNode
     this.precisionCirclesMode = opts.precisionCirclesMode ?? 'none'
@@ -86,7 +86,7 @@ export class LeafletMapAdapter {
     }
   }
 
-  setView(center: [number, number], zoom: number): void {
+  public setView(center: [number, number], zoom: number): void {
     const current = this.map.getCenter()
     if (this.map.getZoom() === zoom && Math.abs(current.lat - center[0]) < 1e-8 && Math.abs(current.lng - center[1]) < 1e-8) {
       return
@@ -94,7 +94,7 @@ export class LeafletMapAdapter {
     this.map.setView(center, zoom)
   }
 
-  render(nodes: MapNode[], disconnectedThreshold?: string): void {
+  public render(nodes: MapNode[], disconnectedThreshold?: string): void {
     this.lastDisconnectedThreshold = disconnectedThreshold
     this.mapNodesByID = new globalThis.Map(nodes.map((node) => [node.node.node_id, node]))
     const visibleNodeIDs = new Set<string>()
@@ -211,7 +211,7 @@ export class LeafletMapAdapter {
     }
   }
 
-  setSelectedNode(id?: string): void {
+  public setSelectedNode(id?: string): void {
     if (id === this.selectedID) {return}
     if (!id) {
       this.selectedID = undefined
@@ -231,7 +231,7 @@ export class LeafletMapAdapter {
     marker.openPopup()
   }
 
-  focusNode(id: string): void {
+  public focusNode(id: string): void {
     const marker = this.markers[id]
     if (!marker) {
       return
@@ -251,7 +251,7 @@ export class LeafletMapAdapter {
     openMarker()
   }
 
-  destroy(): void {
+  public destroy(): void {
     for (const marker of Object.values(this.markers)) {
       const popupEl = marker.getPopup()?.getElement()
       popupEl?.removeEventListener('click', this.handlePopupClick)
