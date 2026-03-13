@@ -12,21 +12,21 @@ interface EventEnvelope {
 }
 
 function isEventEnvelope(payload: unknown): payload is EventEnvelope {
-  if (!payload || typeof payload !== 'object') return false
+  if (!payload || typeof payload !== 'object') {return false}
   const event = payload as Record<string, unknown>
 
   return typeof event.type === 'string' && 'payload' in event
 }
 
 function isNodePayload(payload: unknown): payload is Node {
-  if (!payload || typeof payload !== 'object') return false
+  if (!payload || typeof payload !== 'object') {return false}
   const node = payload as Record<string, unknown>
 
   return typeof node.node_id === 'string' && typeof node.last_seen_any_event_at === 'string'
 }
 
 function isNodePositionPayload(payload: unknown): payload is NodePosition {
-  if (!payload || typeof payload !== 'object') return false
+  if (!payload || typeof payload !== 'object') {return false}
   const p = payload as Record<string, unknown>
 
   return typeof p.node_id === 'string' &&
@@ -37,7 +37,7 @@ function isNodePositionPayload(payload: unknown): payload is NodePosition {
 }
 
 function isStatsPayload(payload: unknown): payload is WSStats {
-  if (!payload || typeof payload !== 'object') return false
+  if (!payload || typeof payload !== 'object') {return false}
   const stats = payload as Record<string, unknown>
 
   return typeof stats.known_nodes_count === 'number' &&
@@ -46,7 +46,7 @@ function isStatsPayload(payload: unknown): payload is WSStats {
 }
 
 function isLogEventPayload(payload: unknown): payload is LogEvent {
-  if (!payload || typeof payload !== 'object') return false
+  if (!payload || typeof payload !== 'object') {return false}
   const row = payload as Record<string, unknown>
 
   return typeof row.id === 'number' &&
@@ -63,7 +63,7 @@ export function startWS(path: string): () => void {
   const maxRetries = 10
 
   const connect = (): void => {
-    if (stop) return
+    if (stop) {return}
     useWSStore.getState().setState(retries === 0 ? 'connecting' : 'reconnecting')
     const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}${path}`)
 
@@ -113,7 +113,7 @@ export function startWS(path: string): () => void {
     }
 
     ws.onclose = () => {
-      if (stop) return
+      if (stop) {return}
       retries++
       if (retries > maxRetries) {
         useWSStore.getState().setState('disconnected')
@@ -130,6 +130,6 @@ export function startWS(path: string): () => void {
 
   return () => {
     stop = true
-    if (timer) window.clearTimeout(timer)
+    if (timer) {window.clearTimeout(timer)}
   }
 }

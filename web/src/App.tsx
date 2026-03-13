@@ -29,25 +29,25 @@ function isAbortError(err: unknown): boolean {
 }
 
 function parseURLNumber(raw: string | null): number | null {
-  if (raw === null) return null
+  if (raw === null) {return null}
   const n = Number(raw)
-  if (!Number.isFinite(n)) return null
+  if (!Number.isFinite(n)) {return null}
 
   return n
 }
 
 function readHashMapView(): SavedMapView | null {
   const rawHash = window.location.hash
-  if (!rawHash || rawHash.length < 2) return null
+  if (!rawHash || rawHash.length < 2) {return null}
   const hash = rawHash.startsWith('#') ? rawHash.slice(1) : rawHash
   const params = new URLSearchParams(hash)
   const lat = parseURLNumber(params.get(mapHashLatParam))
   const lng = parseURLNumber(params.get(mapHashLngParam))
   const zoom = parseURLNumber(params.get(mapHashZoomParam))
-  if (lat === null || lng === null || zoom === null) return null
-  if (lat < -90 || lat > 90) return null
-  if (lng < -180 || lng > 180) return null
-  if (zoom < 0 || zoom > 24) return null
+  if (lat === null || lng === null || zoom === null) {return null}
+  if (lat < -90 || lat > 90) {return null}
+  if (lng < -180 || lng > 180) {return null}
+  if (zoom < 0 || zoom > 24) {return null}
 
   return { center: [lat, lng], zoom }
 }
@@ -74,9 +74,9 @@ function writeHashMapView(view: SavedMapView): void {
 
 function canonicalChannelName(channels: string[], value: string | undefined): string {
   const needle = value?.trim()
-  if (!needle) return ''
+  if (!needle) {return ''}
   const exact = channels.find((c) => c === needle)
-  if (exact) return exact
+  if (exact) {return exact}
   const folded = channels.find((c) => c.toLowerCase() === needle.toLowerCase())
 
   return folded ?? needle
@@ -84,7 +84,7 @@ function canonicalChannelName(channels: string[], value: string | undefined): st
 
 function readSavedMapView(): SavedMapView | null {
   const raw = localStorage.getItem(mapViewKey)
-  if (!raw) return null
+  if (!raw) {return null}
   try {
     const parsed = JSON.parse(raw) as { center?: [number, number]; zoom?: number }
     const center = parsed.center
@@ -167,18 +167,18 @@ export function App() {
 
       if (channelsResult.status === 'fulfilled') {
         nextChannels = channelsResult.value.map((x) => x.name)
-        if (mounted) setChannels(nextChannels)
+        if (mounted) {setChannels(nextChannels)}
       } else if (!isAbortError(channelsResult.reason)) {
         errors.push('Failed to load channels list. Stored/default channel will be used.')
       }
 
       if (mapNodesResult.status === 'fulfilled') {
-        if (mounted) setMapNodes(mapNodesResult.value)
+        if (mounted) {setMapNodes(mapNodesResult.value)}
       } else if (!isAbortError(mapNodesResult.reason)) {
         errors.push('Failed to load map nodes snapshot.')
       }
 
-      if (!mounted) return
+      if (!mounted) {return}
 
       const preferredChannel = initialChannelRef.current.trim().length > 0
         ? initialChannelRef.current
@@ -200,9 +200,9 @@ export function App() {
   }, [setChannel, setMapNodes, setMeta])
 
   useEffect(() => {
-    if (!bootstrapDone) return
-    if (!channel) return
-    if (loadedMessagesFor.current === channel) return
+    if (!bootstrapDone) {return}
+    if (!channel) {return}
+    if (loadedMessagesFor.current === channel) {return}
     const controller = new AbortController()
     void api.chatMessages(channel, meta?.show_recent_messages ?? 50, { signal: controller.signal })
       .then((items) => {
@@ -210,7 +210,7 @@ export function App() {
         loadedMessagesFor.current = channel
       })
       .catch((err) => {
-        if (isAbortError(err)) return
+        if (isAbortError(err)) {return}
         setBootstrapErrors((prev) => [...prev, `Failed to load chat history for channel "${channel}".`])
       })
 
@@ -218,8 +218,8 @@ export function App() {
   }, [bootstrapDone, channel, meta?.show_recent_messages, setMessages])
 
   useEffect(() => {
-    if (page !== 'nodes') return
-    if (nodesLoadedOnce) return
+    if (page !== 'nodes') {return}
+    if (nodesLoadedOnce) {return}
     const controller = new AbortController()
     void api.nodes({ signal: controller.signal })
       .then((items) => {
@@ -228,7 +228,7 @@ export function App() {
         setNodesLoadError('')
       })
       .catch((err) => {
-        if (isAbortError(err)) return
+        if (isAbortError(err)) {return}
         setNodesLoadError('Failed to load node list.')
       })
 
@@ -236,12 +236,12 @@ export function App() {
   }, [page, nodesLoadedOnce, setSummaries])
 
   useEffect(() => {
-    if (!selectedId) return
+    if (!selectedId) {return}
     const controller = new AbortController()
     void api.node(selectedId, { signal: controller.signal })
       .then(setDetails)
       .catch((err) => {
-        if (isAbortError(err)) return
+        if (isAbortError(err)) {return}
         setBootstrapErrors((prev) => [...prev, `Failed to load details for node "${selectedId}".`])
       })
 
@@ -249,15 +249,15 @@ export function App() {
   }, [selectedId, setDetails])
 
   useEffect(() => {
-    if (page !== 'log') return
-    if (!bootstrapDone) return
+    if (page !== 'log') {return}
+    if (!bootstrapDone) {return}
 
     const requestKey = JSON.stringify({
       limit: meta?.log_page_size_default ?? 100,
       eventKinds: logFilters.eventKinds,
       channel: logFilters.channel
     })
-    if (logLoadedOnce && lastLoadedLogKey.current === requestKey) return
+    if (logLoadedOnce && lastLoadedLogKey.current === requestKey) {return}
 
     const requestID = activeLogRequest.current + 1
     activeLogRequest.current = requestID
@@ -269,14 +269,14 @@ export function App() {
       channel: logFilters.channel
     }, { signal: controller.signal })
       .then((items) => {
-        if (activeLogRequest.current !== requestID) return
+        if (activeLogRequest.current !== requestID) {return}
         lastLoadedLogKey.current = requestKey
         setLogInitial(items)
         setLogLoadError('')
       })
       .catch((err) => {
-        if (activeLogRequest.current !== requestID) return
-        if (isAbortError(err)) return
+        if (activeLogRequest.current !== requestID) {return}
+        if (isAbortError(err)) {return}
         setLogLoadError('Failed to load log events.')
       })
       .finally(() => {
@@ -289,15 +289,15 @@ export function App() {
   }, [page, bootstrapDone, logLoadedOnce, logFilters.eventKinds, logFilters.channel, meta?.log_page_size_default, setLogInitial, setLogLoadError])
 
   useEffect(() => {
-    if (!channels.length || !channel) return
+    if (!channels.length || !channel) {return}
     const canonical = canonicalChannelName(channels, channel)
-    if (canonical !== channel) setChannel(canonical)
+    if (canonical !== channel) {setChannel(canonical)}
   }, [channels, channel, setChannel])
 
   useEffect(() => {
-    if (!meta) return
-    if (readHashMapView()) return
-    if (readSavedMapView()) return
+    if (!meta) {return}
+    if (readHashMapView()) {return}
+    if (readSavedMapView()) {return}
     setMapView({
       center: [meta.map.default_view.latitude, meta.map.default_view.longitude],
       zoom: meta.map.default_view.zoom
@@ -327,9 +327,9 @@ export function App() {
   }, [mapCenter, mapView.zoom])
 
   const loadMoreLogs = useCallback(() => {
-    if (logsLoading) return
+    if (logsLoading) {return}
     const before = logItems[logItems.length - 1]?.id
-    if (!before) return
+    if (!before) {return}
     setLogsLoading(true)
     void api.logEvents({
       limit: meta?.log_page_size_default ?? 100,
@@ -342,7 +342,7 @@ export function App() {
         setLogLoadError('')
       })
       .catch((err) => {
-        if (isAbortError(err)) return
+        if (isAbortError(err)) {return}
         setLogLoadError('Failed to load older log events.')
       })
       .finally(() => setLogsLoading(false))

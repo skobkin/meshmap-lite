@@ -37,7 +37,7 @@ export function hasLogDetails(details?: Record<string, unknown>): boolean {
 
 function formatTime(value: string): string {
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
+  if (Number.isNaN(date.getTime())) {return value}
 
   return date.toLocaleString()
 }
@@ -64,7 +64,7 @@ export function LogDetailsModal({ event, onClose, renderers }: Props) {
   const titleId = useId()
 
   useEffect(() => {
-    if (!event) return undefined
+    if (!event) {return undefined}
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -77,7 +77,7 @@ export function LogDetailsModal({ event, onClose, renderers }: Props) {
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [event, onClose])
 
-  if (!event) return null
+  if (!event) {return null}
 
   const renderer = resolveLogDetailsRenderer(event, renderers)
   const content = renderer

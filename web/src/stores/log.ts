@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-import { prependLiveLogItem, type LogFilters } from './logState'
+import { type LogFilters, prependLiveLogItem } from './logState'
 
 import type { LogEvent } from '../api/types'
 

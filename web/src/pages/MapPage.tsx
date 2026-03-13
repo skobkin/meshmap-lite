@@ -97,7 +97,7 @@ export function MapPage({
   }
 
   useEffect(() => {
-    if (!ref.current) return
+    if (!ref.current) {return}
     adapterRef.current = new LeafletMapAdapter(ref.current, initialCenterRef.current, initialZoomRef.current, {
       clustering,
       precisionCirclesMode,
@@ -125,7 +125,7 @@ export function MapPage({
   }, [selectedId])
 
   useEffect(() => {
-    if (!focusNodeId) return
+    if (!focusNodeId) {return}
     adapterRef.current?.focusNode(focusNodeId)
     onFocusNodeHandled()
   }, [focusNodeId, onFocusNodeHandled])

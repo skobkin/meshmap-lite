@@ -68,7 +68,7 @@ function renderScalar(value: unknown) {
 }
 
 function renderPrefix(keyPrefix?: string) {
-  if (!keyPrefix) return null
+  if (!keyPrefix) {return null}
 
   return (
     <>

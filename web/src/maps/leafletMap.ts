@@ -4,16 +4,16 @@ import 'leaflet.markercluster'
 import { relativeTime } from '../utils/time'
 
 import {
-  MARKER_ICON_ANCHOR,
   MARKER_FRESHNESS,
+  MARKER_ICON_ANCHOR,
   MARKER_ICON_SIZE,
   MARKER_POPUP_ANCHOR,
   MARKER_TOOLTIP_ANCHOR,
+  type MarkerFreshness,
+  type MarkerIconKey,
   SELECTED_MARKER_SCALE,
   markerDataUrl,
-  markerIconKeyForRole,
-  type MarkerFreshness,
-  type MarkerIconKey
+  markerIconKeyForRole
 } from './markerIcons'
 
 import type { MapNode, MapPrecisionCirclesMode } from '../api/types'
@@ -100,7 +100,7 @@ export class LeafletMapAdapter {
     const visibleNodeIDs = new Set<string>()
     const visibleCircleIDs = new Set<string>()
     for (const n of nodes) {
-      if (!n.position) continue
+      if (!n.position) {continue}
       const id = n.node.node_id
       visibleNodeIDs.add(id)
       const mqtt = mqttStatus(n.node.last_seen_mqtt_gateway_at, disconnectedThreshold)
@@ -154,7 +154,7 @@ export class LeafletMapAdapter {
         marker.on('popupclose', () => {
           const popupEl = marker.getPopup()?.getElement()
           popupEl?.removeEventListener('click', this.handlePopupClick)
-          if (this.selectedID !== id) return
+          if (this.selectedID !== id) {return}
           marker.setIcon(buildMarkerIcon(markerIconKey, markerFreshness, false))
           this.selectedID = undefined
           this.render(Array.from(this.mapNodesByID.values()), this.lastDisconnectedThreshold)
@@ -196,7 +196,7 @@ export class LeafletMapAdapter {
     }
 
     for (const [id, marker] of Object.entries(this.markers)) {
-      if (visibleNodeIDs.has(id)) continue
+      if (visibleNodeIDs.has(id)) {continue}
       if (this.selectedID === id) {
         marker.closePopup()
       }
@@ -205,14 +205,14 @@ export class LeafletMapAdapter {
     }
 
     for (const [id, circle] of this.precisionCircles.entries()) {
-      if (visibleCircleIDs.has(id)) continue
+      if (visibleCircleIDs.has(id)) {continue}
       this.precisionCircleLayer.removeLayer(circle)
       this.precisionCircles.delete(id)
     }
   }
 
   setSelectedNode(id?: string): void {
-    if (id === this.selectedID) return
+    if (id === this.selectedID) {return}
     if (!id) {
       this.selectedID = undefined
       this.map.closePopup()
@@ -298,7 +298,7 @@ export class LeafletMapAdapter {
 }
 
 function parseDurationMs(raw?: string): number | undefined {
-  if (!raw) return undefined
+  if (!raw) {return undefined}
   const token = /([0-9]+(?:\.[0-9]+)?)(ns|us|µs|ms|s|m|h)/g
   let total = 0
   let found = false
@@ -306,15 +306,15 @@ function parseDurationMs(raw?: string): number | undefined {
     found = true
     const n = Number(match[1])
     const unit = match[2]
-    if (!Number.isFinite(n)) continue
-    if (unit === 'h') total += n * 3600000
-    if (unit === 'm') total += n * 60000
-    if (unit === 's') total += n * 1000
-    if (unit === 'ms') total += n
-    if (unit === 'us' || unit === 'µs') total += n / 1000
-    if (unit === 'ns') total += n / 1000000
+    if (!Number.isFinite(n)) {continue}
+    if (unit === 'h') {total += n * 3600000}
+    if (unit === 'm') {total += n * 60000}
+    if (unit === 's') {total += n * 1000}
+    if (unit === 'ms') {total += n}
+    if (unit === 'us' || unit === 'µs') {total += n / 1000}
+    if (unit === 'ns') {total += n / 1000000}
   }
-  if (!found) return undefined
+  if (!found) {return undefined}
 
   return Math.max(0, Math.floor(total))
 }
@@ -326,13 +326,13 @@ function scalePoint(value: L.PointExpression, scale: number): [number, number] {
 }
 
 function mqttStatus(lastSeen?: string, disconnectedThreshold?: string): { status: 'Connected' | 'Disconnected'; age?: string } {
-  if (!lastSeen) return { status: 'Disconnected' }
+  if (!lastSeen) {return { status: 'Disconnected' }}
   const t = new Date(lastSeen)
-  if (Number.isNaN(t.getTime())) return { status: 'Disconnected' }
+  if (Number.isNaN(t.getTime())) {return { status: 'Disconnected' }}
   const thresholdMs = parseDurationMs(disconnectedThreshold)
   const ageMs = Date.now() - t.getTime()
   const age = relativeTime(lastSeen)
-  if (typeof thresholdMs !== 'number') return { status: 'Connected', age }
+  if (typeof thresholdMs !== 'number') {return { status: 'Connected', age }}
 
   return ageMs <= thresholdMs ? { status: 'Connected', age } : { status: 'Disconnected', age }
 }
@@ -361,9 +361,9 @@ function markerFreshnessState(node: MapNode, disconnectedThreshold?: string): Ma
 }
 
 function parseTimestampMs(raw?: string): number | undefined {
-  if (!raw) return undefined
+  if (!raw) {return undefined}
   const value = new Date(raw).getTime()
-  if (Number.isNaN(value)) return undefined
+  if (Number.isNaN(value)) {return undefined}
 
   return value
 }
@@ -410,8 +410,8 @@ function precisionBitsToRadiusMeters(bits?: number): number | undefined {
 }
 
 function displayValue(v: string | number | boolean | undefined): string | null {
-  if (typeof v === 'boolean') return v ? 'yes' : 'no'
-  if (typeof v === 'number') return String(v)
+  if (typeof v === 'boolean') {return v ? 'yes' : 'no'}
+  if (typeof v === 'number') {return String(v)}
 
   return v && v.length > 0 ? v : null
 }
