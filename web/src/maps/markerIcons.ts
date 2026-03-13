@@ -83,7 +83,7 @@ function markerSvg(
   iconKey: MarkerIconKey,
   { fill, stroke, width, height }: { fill: string; stroke: string; width: number; height: number }
 ): string {
-  const template = markerSvgTemplates[iconKey] ?? markerSvgTemplates[MARKER_ICON_KEY.default]
+  const template = markerSvgTemplates[iconKey]
 
   return template
     .replaceAll('__MARKER_FILL__', fill)

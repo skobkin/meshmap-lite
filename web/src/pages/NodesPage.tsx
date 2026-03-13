@@ -97,15 +97,15 @@ function detailSections(details: NodeDetails): DetailSection[] {
     {
       title: 'Telemetry',
       rows: compactRows([
-        row('Voltage', displayValue(details.telemetry?.power?.voltage)),
-        row('Battery level', displayValue(details.telemetry?.power?.battery_level)),
-        row('Temperature (C)', displayValue(details.telemetry?.environment?.temperature_c)),
-        row('Humidity', displayValue(details.telemetry?.environment?.humidity)),
-        row('Pressure (hPa)', displayValue(details.telemetry?.environment?.pressure_hpa)),
-        row('PM2.5', displayValue(details.telemetry?.air_quality?.pm25)),
-        row('PM10', displayValue(details.telemetry?.air_quality?.pm10)),
-        row('CO2', displayValue(details.telemetry?.air_quality?.co2)),
-        row('IAQ', displayValue(details.telemetry?.air_quality?.iaq))
+        row('Voltage', displayValue(details.telemetry?.power.voltage)),
+        row('Battery level', displayValue(details.telemetry?.power.battery_level)),
+        row('Temperature (C)', displayValue(details.telemetry?.environment.temperature_c)),
+        row('Humidity', displayValue(details.telemetry?.environment.humidity)),
+        row('Pressure (hPa)', displayValue(details.telemetry?.environment.pressure_hpa)),
+        row('PM2.5', displayValue(details.telemetry?.air_quality.pm25)),
+        row('PM10', displayValue(details.telemetry?.air_quality.pm10)),
+        row('CO2', displayValue(details.telemetry?.air_quality.co2)),
+        row('IAQ', displayValue(details.telemetry?.air_quality.iaq))
       ])
     },
     {

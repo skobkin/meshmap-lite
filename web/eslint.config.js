@@ -76,6 +76,7 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       '@typescript-eslint/explicit-member-accessibility': ['error', { accessibility: 'explicit' }],
       '@typescript-eslint/member-ordering': 'error',
+      '@typescript-eslint/no-unnecessary-condition': 'error',
       '@typescript-eslint/prefer-nullish-coalescing': ['error', {
         ignoreConditionalTests: true,
         ignoreMixedLogicalExpressions: false

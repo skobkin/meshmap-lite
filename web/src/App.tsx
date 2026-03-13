@@ -24,6 +24,15 @@ interface SavedMapView {
   zoom: number
 }
 
+function isSavedMapView(value: unknown): value is SavedMapView {
+  if (typeof value !== 'object' || value === null) {return false}
+  const { center, zoom } = value as { center?: unknown; zoom?: unknown }
+  if (!Array.isArray(center) || center.length !== 2) {return false}
+  if (typeof center[0] !== 'number' || typeof center[1] !== 'number') {return false}
+
+  return typeof zoom === 'number'
+}
+
 function isAbortError(err: unknown): boolean {
   return err instanceof DOMException && err.name === 'AbortError'
 }
@@ -86,14 +95,10 @@ function readSavedMapView(): SavedMapView | null {
   const raw = localStorage.getItem(mapViewKey)
   if (!raw) {return null}
   try {
-    const parsed = JSON.parse(raw) as { center?: [number, number]; zoom?: number }
-    const center = parsed.center
-    const zoom = parsed.zoom
-    if (!Array.isArray(center) || center.length !== 2 || typeof center[0] !== 'number' || typeof center[1] !== 'number' || typeof zoom !== 'number') {
-      return null
-    }
+    const parsed: unknown = JSON.parse(raw)
+    if (!isSavedMapView(parsed)) {return null}
 
-    return { center, zoom }
+    return parsed
   } catch {
     return null
   }
@@ -140,7 +145,6 @@ export function App() {
   useEffect(() => {
     let stopWS: (() => void) | undefined
     const controller = new AbortController()
-    let mounted = true
 
     void (async () => {
       const errors: string[] = []
@@ -155,7 +159,7 @@ export function App() {
 
       if (metaResult.status === 'fulfilled') {
         nextMeta = metaResult.value
-        if (mounted) {
+        if (!controller.signal.aborted) {
           setMeta(nextMeta)
           if (nextMeta.websocket_path) {
             stopWS = startWS(nextMeta.websocket_path)
@@ -167,18 +171,18 @@ export function App() {
 
       if (channelsResult.status === 'fulfilled') {
         nextChannels = channelsResult.value.map((x) => x.name)
-        if (mounted) {setChannels(nextChannels)}
+        if (!controller.signal.aborted) {setChannels(nextChannels)}
       } else if (!isAbortError(channelsResult.reason)) {
         errors.push('Failed to load channels list. Stored/default channel will be used.')
       }
 
       if (mapNodesResult.status === 'fulfilled') {
-        if (mounted) {setMapNodes(mapNodesResult.value)}
+        if (!controller.signal.aborted) {setMapNodes(mapNodesResult.value)}
       } else if (!isAbortError(mapNodesResult.reason)) {
         errors.push('Failed to load map nodes snapshot.')
       }
 
-      if (!mounted) {return}
+      if (controller.signal.aborted) {return}
 
       const preferredChannel = initialChannelRef.current.trim().length > 0
         ? initialChannelRef.current
@@ -193,7 +197,6 @@ export function App() {
     })()
 
     return () => {
-      mounted = false
       controller.abort()
       stopWS?.()
     }

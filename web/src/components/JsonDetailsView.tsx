@@ -62,9 +62,7 @@ function renderScalar(value: unknown) {
     return <span className="json-null">null</span>
   }
 
-  const fallback = JSON.stringify(value) ?? JSON.stringify(Object.prototype.toString.call(value))
-
-  return <span className="json-string">{fallback}</span>
+  return <span className="json-string">{JSON.stringify(Object.prototype.toString.call(value))}</span>
 }
 
 function renderPrefix(keyPrefix?: string) {
