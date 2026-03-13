@@ -113,6 +113,7 @@ Before considering work finished, run the same baseline checks as CI, adjusted t
 ### Project hygiene
 
 - If `PLAN.md` exists and is relevant to the task, update it before finishing.
+- When working through a `PLAN.md` checklist, mark completed items as you finish each step.
 - Do not claim work is done if required checks fail.
 - If API/WS payloads changed, update backend and frontend together.
 - If API routes, query params, WebSocket events, or payload shapes changed, update `docs/api.md` in the same change.
