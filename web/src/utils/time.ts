@@ -7,11 +7,13 @@ export function relativeTime(iso?: string): string {
   if (sec < 60) return `${sec}s ago`
   if (sec < 3600) return `${Math.floor(sec / 60)}m ago`
   if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`
+
   return `${Math.floor(sec / 86400)}d ago`
 }
 
 export function hhmm(iso: string): string {
   const d = new Date(iso)
+
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })
 }
 
@@ -20,6 +22,7 @@ export function dayKey(iso: string): string {
   const year = d.getFullYear()
   const month = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
+
   return `${year}-${month}-${day}`
 }
 
@@ -28,5 +31,6 @@ export function dayLabel(iso: string): string {
   const year = d.getFullYear()
   const month = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
+
   return `${day}.${month}.${year}`
 }

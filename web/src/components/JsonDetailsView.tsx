@@ -63,6 +63,7 @@ function renderScalar(value: unknown) {
   }
 
   const fallback = JSON.stringify(value) ?? JSON.stringify(Object.prototype.toString.call(value))
+
   return <span className="json-string">{fallback}</span>
 }
 

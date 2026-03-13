@@ -40,11 +40,13 @@ function createStoreHook<T extends object>(
 
   const subscribe = (listener: () => void): (() => void) => {
     listeners.add(listener)
+
     return () => listeners.delete(listener)
   }
 
   const hook = (function <U>(selector?: Selector<T, U>) {
     const snapshot = useSyncExternalStore(subscribe, get)
+
     return selector ? selector(snapshot) : snapshot
   }) as StoreHook<T>
 
@@ -172,6 +174,7 @@ let startWSMock: ReturnType<typeof vi.fn>
 
 async function renderApp() {
   const appModule = await import('./App')
+
   return render(<appModule.App />)
 }
 

@@ -9,6 +9,7 @@ async function request<T>(path: string, options?: RequestOptions): Promise<T> {
   if (!r.ok) {
     throw new Error(`request failed: ${r.status}`)
   }
+
   return await r.json() as T
 }
 
@@ -26,6 +27,7 @@ export const api = {
       q.append('event_kind', String(kind))
     }
     const suffix = q.toString()
+
     return request<LogEvent[]>(`/api/v1/log/events${suffix ? `?${suffix}` : ''}`, options)
   },
   nodes: (options?: RequestOptions) => request<NodeSummary[]>('/api/v1/nodes', options),

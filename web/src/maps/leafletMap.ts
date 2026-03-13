@@ -217,6 +217,7 @@ export class LeafletMapAdapter {
       this.selectedID = undefined
       this.map.closePopup()
       this.render(Array.from(this.mapNodesByID.values()), this.lastDisconnectedThreshold)
+
       return
     }
     const marker = this.markers[id]
@@ -224,6 +225,7 @@ export class LeafletMapAdapter {
       this.selectedID = undefined
       this.map.closePopup()
       this.render(Array.from(this.mapNodesByID.values()), this.lastDisconnectedThreshold)
+
       return
     }
     marker.openPopup()
@@ -242,6 +244,7 @@ export class LeafletMapAdapter {
 
     if (this.markerLayer instanceof L.MarkerClusterGroup) {
       this.markerLayer.zoomToShowLayer(marker, openMarker)
+
       return
     }
 
@@ -312,11 +315,13 @@ function parseDurationMs(raw?: string): number | undefined {
     if (unit === 'ns') total += n / 1000000
   }
   if (!found) return undefined
+
   return Math.max(0, Math.floor(total))
 }
 
 function scalePoint(value: L.PointExpression, scale: number): [number, number] {
   const [x, y] = Array.isArray(value) ? value : [value.x, value.y]
+
   return [Math.round(x * scale), Math.round(y * scale)]
 }
 
@@ -328,6 +333,7 @@ function mqttStatus(lastSeen?: string, disconnectedThreshold?: string): { status
   const ageMs = Date.now() - t.getTime()
   const age = relativeTime(lastSeen)
   if (typeof thresholdMs !== 'number') return { status: 'Connected', age }
+
   return ageMs <= thresholdMs ? { status: 'Connected', age } : { status: 'Disconnected', age }
 }
 
@@ -350,6 +356,7 @@ function markerFreshnessState(node: MapNode, disconnectedThreshold?: string): Ma
   if (ageMs < COLD_NODE_AGE_MS) {
     return MARKER_FRESHNESS.stale
   }
+
   return MARKER_FRESHNESS.cold
 }
 
@@ -357,6 +364,7 @@ function parseTimestampMs(raw?: string): number | undefined {
   if (!raw) return undefined
   const value = new Date(raw).getTime()
   if (Number.isNaN(value)) return undefined
+
   return value
 }
 
@@ -386,6 +394,7 @@ function buildMarkerIcon(iconKey: MarkerIconKey, freshness: MarkerFreshness, sel
     className: selected ? 'map-node-marker-selected' : 'map-node-marker'
   })
   markerIconCache.set(cacheKey, icon)
+
   return icon
 }
 
@@ -403,6 +412,7 @@ function precisionBitsToRadiusMeters(bits?: number): number | undefined {
 function displayValue(v: string | number | boolean | undefined): string | null {
   if (typeof v === 'boolean') return v ? 'yes' : 'no'
   if (typeof v === 'number') return String(v)
+
   return v && v.length > 0 ? v : null
 }
 

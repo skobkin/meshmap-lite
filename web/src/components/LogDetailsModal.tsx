@@ -38,6 +38,7 @@ export function hasLogDetails(details?: Record<string, unknown>): boolean {
 function formatTime(value: string): string {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
+
   return date.toLocaleString()
 }
 
@@ -72,6 +73,7 @@ export function LogDetailsModal({ event, onClose, renderers }: Props) {
     }
 
     document.addEventListener('keydown', onKeyDown)
+
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [event, onClose])
 

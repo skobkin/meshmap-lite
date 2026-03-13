@@ -30,6 +30,7 @@ const defaultMapMarkerIconURL = defaultMarkerDataUrl()
 function displayValue(v: string | number | boolean | undefined): string | null {
   if (typeof v === 'boolean') return v ? 'yes' : 'no'
   if (typeof v === 'number') return String(v)
+
   return v && v.length > 0 ? v : null
 }
 

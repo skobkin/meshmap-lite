@@ -12,5 +12,6 @@ export function prependLiveLogItem(items: LogEvent[], filters: LogFilters, item:
   if (filters.eventKinds.length > 0 && !filters.eventKinds.includes(item.event_kind_value)) {
     return items
   }
+
   return [item, ...items].slice(0, 1000)
 }

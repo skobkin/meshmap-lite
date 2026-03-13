@@ -32,6 +32,7 @@ function parseURLNumber(raw: string | null): number | null {
   if (raw === null) return null
   const n = Number(raw)
   if (!Number.isFinite(n)) return null
+
   return n
 }
 
@@ -47,6 +48,7 @@ function readHashMapView(): SavedMapView | null {
   if (lat < -90 || lat > 90) return null
   if (lng < -180 || lng > 180) return null
   if (zoom < 0 || zoom > 24) return null
+
   return { center: [lat, lng], zoom }
 }
 
@@ -76,6 +78,7 @@ function canonicalChannelName(channels: string[], value: string | undefined): st
   const exact = channels.find((c) => c === needle)
   if (exact) return exact
   const folded = channels.find((c) => c.toLowerCase() === needle.toLowerCase())
+
   return folded ?? needle
 }
 
@@ -89,6 +92,7 @@ function readSavedMapView(): SavedMapView | null {
     if (!Array.isArray(center) || center.length !== 2 || typeof center[0] !== 'number' || typeof center[1] !== 'number' || typeof zoom !== 'number') {
       return null
     }
+
     return { center, zoom }
   } catch {
     return null

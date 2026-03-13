@@ -66,7 +66,12 @@ export default tseslint.config(
         alphabetize: { order: 'asc', orderImportKind: 'asc' },
         groups: ['builtin', 'external', 'internal', 'parent', 'sibling', 'index', 'type'],
         'newlines-between': 'always'
-      }]
+      }],
+      'padding-line-between-statements': [
+        'error',
+        { blankLine: 'always', prev: '*', next: 'return' },
+        { blankLine: 'any', prev: 'case', next: 'return' }
+      ]
     }
   },
   {

@@ -14,18 +14,21 @@ interface EventEnvelope {
 function isEventEnvelope(payload: unknown): payload is EventEnvelope {
   if (!payload || typeof payload !== 'object') return false
   const event = payload as Record<string, unknown>
+
   return typeof event.type === 'string' && 'payload' in event
 }
 
 function isNodePayload(payload: unknown): payload is Node {
   if (!payload || typeof payload !== 'object') return false
   const node = payload as Record<string, unknown>
+
   return typeof node.node_id === 'string' && typeof node.last_seen_any_event_at === 'string'
 }
 
 function isNodePositionPayload(payload: unknown): payload is NodePosition {
   if (!payload || typeof payload !== 'object') return false
   const p = payload as Record<string, unknown>
+
   return typeof p.node_id === 'string' &&
     typeof p.latitude === 'number' &&
     typeof p.longitude === 'number' &&
@@ -36,6 +39,7 @@ function isNodePositionPayload(payload: unknown): payload is NodePosition {
 function isStatsPayload(payload: unknown): payload is WSStats {
   if (!payload || typeof payload !== 'object') return false
   const stats = payload as Record<string, unknown>
+
   return typeof stats.known_nodes_count === 'number' &&
     typeof stats.online_nodes_count === 'number' &&
     typeof stats.ws_clients_count === 'number'
@@ -44,6 +48,7 @@ function isStatsPayload(payload: unknown): payload is WSStats {
 function isLogEventPayload(payload: unknown): payload is LogEvent {
   if (!payload || typeof payload !== 'object') return false
   const row = payload as Record<string, unknown>
+
   return typeof row.id === 'number' &&
     typeof row.observed_at === 'string' &&
     typeof row.event_kind_value === 'number' &&
@@ -78,18 +83,22 @@ export function startWS(path: string): () => void {
       const msg = parsed
       if (msg.type === 'chat.message' || msg.type === 'chat.system') {
         useChatStore.getState().pushMessage(msg.payload as never)
+
         return
       }
       if (msg.type === 'stats' && isStatsPayload(msg.payload)) {
         useWSStore.getState().setStats(msg.payload)
+
         return
       }
       if (msg.type === 'node.upsert' && isNodePayload(msg.payload)) {
         useNodeStore.getState().upsertNode(msg.payload)
+
         return
       }
       if (msg.type === 'node.position' && isNodePositionPayload(msg.payload)) {
         useNodeStore.getState().upsertPosition(msg.payload)
+
         return
       }
       if (msg.type === 'log.event' && isLogEventPayload(msg.payload)) {
@@ -108,6 +117,7 @@ export function startWS(path: string): () => void {
       retries++
       if (retries > maxRetries) {
         useWSStore.getState().setState('disconnected')
+
         return
       }
       useWSStore.getState().setState('reconnecting')
@@ -117,6 +127,7 @@ export function startWS(path: string): () => void {
   }
 
   connect()
+
   return () => {
     stop = true
     if (timer) window.clearTimeout(timer)

@@ -52,6 +52,7 @@ export function markerDataUrl(iconKey: MarkerIconKey, freshness: MarkerFreshness
     width,
     height
   })
+
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`
 }
 
@@ -81,6 +82,7 @@ function markerSvg(
   { fill, stroke, width, height }: { fill: string; stroke: string; width: number; height: number }
 ): string {
   const template = markerSvgTemplates[iconKey] ?? markerSvgTemplates[MARKER_ICON_KEY.default]
+
   return template
     .replaceAll('__MARKER_FILL__', fill)
     .replaceAll('__MARKER_STROKE__', stroke)
@@ -104,5 +106,6 @@ function markerColors(freshness: MarkerFreshness): [string, string] {
 
 function scalePoint(value: [number, number], scale: number): [number, number] {
   const [x, y] = value
+
   return [Math.round(x * scale), Math.round(y * scale)]
 }

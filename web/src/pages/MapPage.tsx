@@ -105,6 +105,7 @@ export function MapPage({
       onViewChange,
       onSelectNode: setSelectedId
     })
+
     return () => {
       adapterRef.current?.destroy()
       adapterRef.current = null
@@ -134,6 +135,7 @@ export function MapPage({
     if (mapNode?.position) {
       setSelectedId(id)
       adapterRef.current?.focusNode(id)
+
       return
     }
     onOpenNodeDetails(id)
