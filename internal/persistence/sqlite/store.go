@@ -962,7 +962,8 @@ func checkedUint32FromInt64(v int64) (uint32, bool) {
 		return 0, false
 	}
 
-	return uint32(uint64(v)), true
+	//nolint:gosec // Safe: value is range-checked to fit into uint32 above.
+	return uint32(v), true
 }
 
 func mustTime(v sql.NullString) time.Time {
