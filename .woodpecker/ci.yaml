@@ -1,5 +1,5 @@
 when:
-  - event: [push, tag]
+  - event: [push, pull_request, tag]
 
 clone:
   git:
@@ -106,7 +106,7 @@ steps:
     commands:
       - CGO_ENABLED=0 go build -trimpath -o server ./cmd/server
     when:
-      - event: push
+      - event: [push, pull_request]
 
   release-forgejo:
     depends_on:
