@@ -112,6 +112,7 @@ Before considering work finished, run the same baseline checks as CI, adjusted t
 - `cd web && npm run test`
 - `cd web && npm run build`
 - `go build ./cmd/server`
+- If building a binary only to validate the code, write it to a temporary directory or another `.gitignore`d path and remove it after the check so the repo root stays clean.
 
 ### Project hygiene
 
