@@ -148,7 +148,7 @@ func (s *Store) Close() error {
 
 // Migrate applies pending schema migrations.
 func (s *Store) Migrate(ctx context.Context) error {
-	if err := migrations.Apply(ctx, s.db); err != nil {
+	if err := migrations.Apply(ctx, s.db, s.log); err != nil {
 		return fmt.Errorf("migrate sqlite: %w", err)
 	}
 

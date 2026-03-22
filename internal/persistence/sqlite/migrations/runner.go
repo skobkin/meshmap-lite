@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 )
 
 const targetSchemaVersion = 8
@@ -26,7 +27,7 @@ var schemaMigrations = []migrationStep{
 }
 
 // Apply upgrades the SQLite schema to the latest supported version.
-func Apply(ctx context.Context, db *sql.DB) error {
+func Apply(ctx context.Context, db *sql.DB, log *slog.Logger) error {
 	version, err := readSchemaVersion(ctx, db)
 	if err != nil {
 		return err
@@ -52,6 +53,9 @@ func Apply(ctx context.Context, db *sql.DB) error {
 	for _, migration := range schemaMigrations {
 		if version >= migration.version {
 			continue
+		}
+		if log != nil {
+			log.Info("applying sqlite migration", "version", migration.version, "name", migration.name)
 		}
 		if err := applyMigration(ctx, db, migration); err != nil {
 			return fmt.Errorf("apply migration %s (%d): %w", migration.name, migration.version, err)
