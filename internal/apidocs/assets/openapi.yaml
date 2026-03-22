@@ -614,11 +614,12 @@ components:
           description: Resolved display fallback for the node when available.
         event_kind_value:
           type: integer
-          enum: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+          enum: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
           description: |
             `1` Map report, `2` Node info, `3` Position, `4` Telemetry,
             `5` Traceroute, `6` Neighbor info, `7` Routing,
-            `8` Other app packet, `9` Encrypted (undecryptable).
+            `8` Other app packet, `9` Encrypted (undecryptable),
+            `10` Range test.
         event_kind_title:
           type: string
         encrypted:

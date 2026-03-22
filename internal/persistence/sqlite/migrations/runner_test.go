@@ -1,8 +1,11 @@
 package migrations
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"log/slog"
+	"strings"
 	"testing"
 
 	_ "modernc.org/sqlite"
@@ -42,7 +45,7 @@ VALUES
 		t.Fatalf("seed legacy schema: %v", err)
 	}
 
-	if err := Apply(ctx, db); err != nil {
+	if err := Apply(ctx, db, nil); err != nil {
 		t.Fatalf("apply migrations: %v", err)
 	}
 
@@ -141,7 +144,7 @@ VALUES
 		t.Fatalf("seed schema: %v", err)
 	}
 
-	if err := Apply(ctx, db); err != nil {
+	if err := Apply(ctx, db, nil); err != nil {
 		t.Fatalf("apply migrations: %v", err)
 	}
 
@@ -195,7 +198,7 @@ CREATE TABLE nodes (
 		t.Fatalf("seed schema: %v", err)
 	}
 
-	if err := Apply(ctx, db); err != nil {
+	if err := Apply(ctx, db, nil); err != nil {
 		t.Fatalf("apply migrations: %v", err)
 	}
 
@@ -232,7 +235,7 @@ CREATE TABLE nodes (
 		t.Fatalf("seed schema: %v", err)
 	}
 
-	if err := Apply(ctx, db); err != nil {
+	if err := Apply(ctx, db, nil); err != nil {
 		t.Fatalf("apply migrations: %v", err)
 	}
 
@@ -269,7 +272,7 @@ CREATE TABLE nodes (
 		t.Fatalf("seed schema: %v", err)
 	}
 
-	if err := Apply(ctx, db); err != nil {
+	if err := Apply(ctx, db, nil); err != nil {
 		t.Fatalf("apply migrations: %v", err)
 	}
 
@@ -279,6 +282,103 @@ CREATE TABLE nodes (
 	}
 	if !hasTopologyEdges {
 		t.Fatalf("topology_edges table should exist")
+	}
+}
+
+func TestApply_ReclassifiesRangeTestLogEvents(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite", "file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	_, err = db.ExecContext(ctx, `
+PRAGMA user_version = 7;
+CREATE TABLE log_channels (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE
+);
+CREATE TABLE log_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  observed_at TEXT NOT NULL,
+  node_id TEXT,
+  event_kind INTEGER NOT NULL,
+  encrypted INTEGER NOT NULL,
+  channel_id INTEGER REFERENCES log_channels(id) ON DELETE SET NULL,
+  details_json TEXT,
+  CHECK (event_kind BETWEEN 1 AND 9),
+  CHECK (encrypted IN (0, 1)),
+  CHECK (details_json IS NULL OR json_valid(details_json))
+);
+INSERT INTO log_channels(id, name) VALUES (1, 'LongFast');
+INSERT INTO log_events(id, observed_at, node_id, event_kind, encrypted, channel_id, details_json) VALUES
+  (1, '2026-03-23T10:00:00Z', '!range000', 8, 0, 1, '{"portnum_value":66,"portnum_name":"RANGE_TEST_APP"}'),
+  (2, '2026-03-23T10:01:00Z', '!other000', 8, 0, 1, '{"portnum_value":65,"portnum_name":"SERIAL_APP"}');
+`)
+	if err != nil {
+		t.Fatalf("seed schema: %v", err)
+	}
+
+	if err := Apply(ctx, db, nil); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	var eventKind int
+	var details sql.NullString
+	if err := db.QueryRowContext(ctx, `SELECT event_kind, details_json FROM log_events WHERE id = 1`).Scan(&eventKind, &details); err != nil {
+		t.Fatalf("read migrated range test row: %v", err)
+	}
+	if eventKind != 10 {
+		t.Fatalf("expected range test kind 10, got %d", eventKind)
+	}
+	if details.Valid {
+		t.Fatalf("expected migrated range test details to be cleared, got %q", details.String)
+	}
+
+	if err := db.QueryRowContext(ctx, `SELECT event_kind, details_json FROM log_events WHERE id = 2`).Scan(&eventKind, &details); err != nil {
+		t.Fatalf("read preserved other row: %v", err)
+	}
+	if eventKind != 8 {
+		t.Fatalf("expected other-portnum kind 8, got %d", eventKind)
+	}
+	if !details.Valid || details.String == "" {
+		t.Fatalf("expected other-portnum details preserved")
+	}
+}
+
+func TestApply_LogsEachMigrationAtInfo(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite", "file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	_, err = db.ExecContext(ctx, `
+CREATE TABLE nodes (
+  node_id TEXT PRIMARY KEY
+);`)
+	if err != nil {
+		t.Fatalf("seed schema: %v", err)
+	}
+
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo}))
+
+	if err := Apply(ctx, db, logger); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	logOutput := buf.String()
+	if !strings.Contains(logOutput, "msg=\"applying sqlite migration\"") {
+		t.Fatalf("expected migration log message, got %q", logOutput)
+	}
+	if !strings.Contains(logOutput, "version=6") || !strings.Contains(logOutput, "name=log_events") {
+		t.Fatalf("expected log entry for log_events migration, got %q", logOutput)
+	}
+	if !strings.Contains(logOutput, "version=8") || !strings.Contains(logOutput, "name=log_event_range_test_kind") {
+		t.Fatalf("expected log entry for range test migration, got %q", logOutput)
 	}
 }
 

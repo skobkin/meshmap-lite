@@ -28,7 +28,8 @@ const eventKinds = [
   { value: 6, label: 'Neighbor info' },
   { value: 7, label: 'Routing' },
   { value: 8, label: 'Other app packet' },
-  { value: 9, label: 'Encrypted (undecryptable)' }
+  { value: 9, label: 'Encrypted (undecryptable)' },
+  { value: 10, label: 'Range test' }
 ]
 
 const mobileLogMediaQuery = '(max-width: 768px)'

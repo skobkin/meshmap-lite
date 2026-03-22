@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-const targetSchemaVersion = 7
+const targetSchemaVersion = 8
 
 type migrationStep struct {
 	version int
@@ -22,6 +22,7 @@ var schemaMigrations = []migrationStep{
 	{version: 5, name: "map_report_flags", apply: migrateV5MapReportFlags},
 	{version: 6, name: "log_events", apply: migrateV6LogEvents},
 	{version: 7, name: "topology_edges", apply: migrateV7TopologyEdges},
+	{version: 8, name: "log_event_range_test_kind", apply: migrateV8LogEventRangeTestKind},
 }
 
 // Apply upgrades the SQLite schema to the latest supported version.

@@ -250,6 +250,54 @@ func TestLogEventFromParsedRoutingKeepsTracerouteFailureSignal(t *testing.T) {
 	}
 }
 
+func TestLogEventFromParsedRangeTestUsesDedicatedKindWithoutFallbackDetails(t *testing.T) {
+	svc := &Service{}
+	now := time.Unix(1772296589, 0).UTC()
+
+	event, ok := svc.logEventFromParsed(meshtastic.ParsedEvent{
+		Kind:    meshtastic.ParsedOtherPortnum,
+		NodeID:  "!9028d008",
+		Portnum: generated.PortNum_RANGE_TEST_APP,
+		Other: &meshtastic.OtherPortnumPayload{
+			PortnumValue: int32(generated.PortNum_RANGE_TEST_APP),
+			PortnumName:  generated.PortNum_RANGE_TEST_APP.String(),
+		},
+	}, "LongFast", now)
+	if !ok {
+		t.Fatalf("expected range test log event")
+	}
+	if event.EventKind != domain.LogEventKindRangeTestValue {
+		t.Fatalf("unexpected event kind: %v", event.EventKind)
+	}
+	if event.Details != nil {
+		t.Fatalf("expected range test log event without fallback details: %#v", event.Details)
+	}
+}
+
+func TestLogEventFromParsedOtherPortnumKeepsFallbackDetails(t *testing.T) {
+	svc := &Service{}
+	now := time.Unix(1772296589, 0).UTC()
+
+	event, ok := svc.logEventFromParsed(meshtastic.ParsedEvent{
+		Kind:    meshtastic.ParsedOtherPortnum,
+		NodeID:  "!9028d008",
+		Portnum: generated.PortNum_SERIAL_APP,
+		Other: &meshtastic.OtherPortnumPayload{
+			PortnumValue: int32(generated.PortNum_SERIAL_APP),
+			PortnumName:  generated.PortNum_SERIAL_APP.String(),
+		},
+	}, "LongFast", now)
+	if !ok {
+		t.Fatalf("expected other-portnum log event")
+	}
+	if event.EventKind != domain.LogEventKindOtherPortnumValue {
+		t.Fatalf("unexpected event kind: %v", event.EventKind)
+	}
+	if event.Details["portnum_name"] != generated.PortNum_SERIAL_APP.String() {
+		t.Fatalf("unexpected fallback details: %#v", event.Details)
+	}
+}
+
 func TestHandleChatEmitsResolvedNodeDisplay(t *testing.T) {
 	store := &testStore{nodeDisplay: "skobkin-cap"}
 	emitter := &capturingEmitter{}

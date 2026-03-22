@@ -376,4 +376,14 @@ describe('LogPage', () => {
     expect(screen.getByLabelText('Channel filter')).toBeTruthy()
     expect(document.querySelector('label[for="log-channel-filter"]')?.textContent).toBe('Channel')
   })
+
+  it('includes Range test in the event type filter list', async () => {
+    const user = userEvent.setup()
+
+    renderPage([event(1)])
+
+    await user.click(eventTypeSummary())
+
+    expect(screen.getByRole('checkbox', { name: 'Range test' })).toBeTruthy()
+  })
 })

@@ -13,6 +13,7 @@ import (
 	"meshmap-lite/internal/dedup"
 	"meshmap-lite/internal/domain"
 	"meshmap-lite/internal/meshtastic"
+	generated "meshmap-lite/internal/meshtasticpb"
 	"meshmap-lite/internal/repo"
 )
 
@@ -471,10 +472,15 @@ func (s *Service) logEventFromParsed(evt meshtastic.ParsedEvent, channel string,
 		return e, true
 	case meshtastic.ParsedOtherPortnum:
 		e.EventKind = domain.LogEventKindOtherPortnumValue
+		if evt.Portnum == generated.PortNum_RANGE_TEST_APP {
+			e.EventKind = domain.LogEventKindRangeTestValue
+		}
 		if evt.Other != nil {
-			e.Details = map[string]any{
-				"portnum_value": evt.Other.PortnumValue,
-				"portnum_name":  evt.Other.PortnumName,
+			if e.EventKind == domain.LogEventKindOtherPortnumValue {
+				e.Details = map[string]any{
+					"portnum_value": evt.Other.PortnumValue,
+					"portnum_name":  evt.Other.PortnumName,
+				}
 			}
 		}
 
