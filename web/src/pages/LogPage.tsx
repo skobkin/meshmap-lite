@@ -89,18 +89,20 @@ export function LogPage({
               </ul>
             </details>
           </div>
-          <div className="log-filter-field">
-            <label htmlFor="log-channel-filter">Channel</label>
-            <select
-              id="log-channel-filter"
-              aria-label="Channel filter"
-              value={selectedChannel}
-              onChange={(e) => onChangeChannel((e.target as HTMLSelectElement).value)}
-            >
-              <option value="">All channels</option>
-              {channels.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
+          {channels.length > 1 && (
+            <div className="log-filter-field">
+              <label htmlFor="log-channel-filter">Channel</label>
+              <select
+                id="log-channel-filter"
+                aria-label="Channel filter"
+                value={selectedChannel}
+                onChange={(e) => onChangeChannel((e.target as HTMLSelectElement).value)}
+              >
+                <option value="">All channels</option>
+                {channels.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          )}
         </div>
       </details>
       <article className="log-table-wrap">

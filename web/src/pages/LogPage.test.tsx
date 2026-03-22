@@ -226,7 +226,7 @@ describe('LogPage', () => {
 
       return (
         <LogPage
-          channels={['mesh']}
+          channels={['mesh', 'ops']}
           items={[event(1)]}
           loadError=""
           selectedKinds={selectedKinds}
@@ -263,5 +263,43 @@ describe('LogPage', () => {
     expect(onChangeKinds).toHaveBeenLastCalledWith([])
     expect(eventTypeSummary().textContent).toBe('All event types')
     expect(channelFilterValue()).toBe('mesh')
+  })
+
+  it('hides the Channel filter when only one channel is available', () => {
+    render(
+      <LogPage
+        channels={['mesh']}
+        items={[event(1)]}
+        loadError=""
+        selectedKinds={[]}
+        selectedChannel=""
+        onChangeKinds={() => undefined}
+        onChangeChannel={() => undefined}
+        onOpenNodeDetails={() => undefined}
+        onLoadMore={() => undefined}
+      />
+    )
+
+    expect(screen.queryByLabelText('Channel filter')).toBeNull()
+    expect(document.querySelector('label[for="log-channel-filter"]')).toBeNull()
+  })
+
+  it('shows the Channel filter when multiple channels are available', () => {
+    render(
+      <LogPage
+        channels={['mesh', 'ops']}
+        items={[event(1)]}
+        loadError=""
+        selectedKinds={[]}
+        selectedChannel=""
+        onChangeKinds={() => undefined}
+        onChangeChannel={() => undefined}
+        onOpenNodeDetails={() => undefined}
+        onLoadMore={() => undefined}
+      />
+    )
+
+    expect(screen.getByLabelText('Channel filter')).toBeTruthy()
+    expect(document.querySelector('label[for="log-channel-filter"]')?.textContent).toBe('Channel')
   })
 })
