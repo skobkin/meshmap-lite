@@ -10,6 +10,32 @@ import { LogPage } from './LogPage'
 import type { LogEvent } from '../api/types'
 import type { JSX } from 'preact'
 
+function mockViewport(matches: boolean): void {
+  const listeners = new Set<(event: MediaQueryListEvent) => void>()
+
+  vi.stubGlobal('window', {
+    ...window,
+    matchMedia: vi.fn().mockImplementation(() => ({
+      matches,
+      media: '(max-width: 768px)',
+      onchange: null,
+      addEventListener: (_type: string, listener: (event: MediaQueryListEvent) => void) => {
+        listeners.add(listener)
+      },
+      removeEventListener: (_type: string, listener: (event: MediaQueryListEvent) => void) => {
+        listeners.delete(listener)
+      },
+      addListener: (listener: (event: MediaQueryListEvent) => void) => {
+        listeners.add(listener)
+      },
+      removeListener: (listener: (event: MediaQueryListEvent) => void) => {
+        listeners.delete(listener)
+      },
+      dispatchEvent: vi.fn()
+    }))
+  })
+}
+
 function event(id: number, overrides: Partial<LogEvent> = {}): LogEvent {
   return {
     id,
@@ -81,6 +107,27 @@ describe('LogPage', () => {
     expect(screen.queryByText('11.03.2026, 12:00:00')).toBeNull()
   })
 
+  it('renders grouped article cards on mobile without the desktop table', () => {
+    mockViewport(true)
+
+    renderPage([
+      event(1, { observed_at: '2026-03-11T12:00:00', event_kind_title: 'Position', encrypted: true }),
+      event(2, { observed_at: '2026-03-12T09:15:20', event_kind_title: 'Telemetry', channel_name: null, details: undefined })
+    ])
+
+    expect(document.querySelector('.log-mobile-list')).toBeTruthy()
+    expect(document.querySelector('.log-table')).toBeNull()
+    expect(screen.getByRole('heading', { name: '11.03.2026' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: '12.03.2026' })).toBeTruthy()
+    const cards = Array.from(document.querySelectorAll('.log-card'))
+    expect(cards).toHaveLength(2)
+    expect(cards[0]?.querySelector('.log-card-type')?.textContent).toBe('Position')
+    expect(cards[1]?.querySelector('.log-card-type')?.textContent).toBe('Telemetry')
+    expect(cards[0]?.querySelector('.log-card-meta')?.textContent).toContain('Encrypted')
+    expect(cards[0]?.querySelector('.log-card-meta')?.textContent).toContain('yes')
+    expect(cards[1]?.textContent).toContain('No details')
+  })
+
   it('falls back to the raw timestamp string when parsing fails', () => {
     renderPage([
       event(1, { observed_at: 'not-a-time' })
@@ -127,6 +174,33 @@ describe('LogPage', () => {
     await user.click(screen.getByRole('button', { name: 'Close details' }))
 
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('keeps node navigation and details actions working in the mobile layout', async () => {
+    mockViewport(true)
+
+    const user = userEvent.setup()
+    const onOpenNodeDetails = vi.fn()
+
+    render(
+      <LogPage
+        channels={['mesh']}
+        items={[event(1)]}
+        loadError=""
+        selectedKinds={[]}
+        selectedChannel=""
+        onChangeKinds={() => undefined}
+        onChangeChannel={() => undefined}
+        onOpenNodeDetails={onOpenNodeDetails}
+        onLoadMore={() => undefined}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Alpha Node' }))
+    expect(onOpenNodeDetails).toHaveBeenCalledWith('!abc')
+
+    await user.click(screen.getByRole('button', { name: 'View details for Map report' }))
+    expect(screen.getByRole('dialog')).toBeTruthy()
   })
 
   it('renders the node cell as an in-app navigation control when a node id is available', async () => {

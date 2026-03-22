@@ -606,6 +606,8 @@ body {
 
 .log-layout {
   padding-top: 1rem;
+  min-width: 0;
+  overflow-x: clip;
 }
 
 .log-filters {
@@ -673,6 +675,7 @@ body {
 
 .log-table-wrap {
   margin-top: 1rem;
+  min-width: 0;
 }
 
 .log-table {
@@ -743,6 +746,102 @@ body {
   border-width: 1px;
   font-size: 0.85rem;
   line-height: 1;
+}
+
+.log-mobile-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.log-day-group {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.log-day-heading {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pico-muted-color);
+}
+
+.log-card {
+  display: grid;
+  gap: 0.7rem;
+  margin: 0;
+  padding: 0.85rem;
+}
+
+.log-card-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.log-card-type {
+  min-width: 0;
+  text-align: right;
+  line-height: 1.2;
+}
+
+.log-card-head .chat-node-link,
+.log-card-head > code {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.log-card-head .chat-node-link code,
+.log-card-head > code {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.log-card-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin: 0;
+}
+
+.log-card-meta div {
+  min-width: 0;
+}
+
+.log-card-meta dt {
+  margin: 0 0 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.1;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pico-muted-color);
+}
+
+.log-card-meta dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.log-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.log-card-actions .log-time-value {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.log-card-no-details {
+  font-size: 0.85rem;
+  color: var(--pico-muted-color);
 }
 
 .log-details-modal-header button {
@@ -1039,6 +1138,24 @@ body {
   .chat-panel {
     border-left: 0;
     border-top: 1px solid var(--surface-border);
+  }
+}
+
+@media (width <= 768px) {
+  .log-table {
+    display: none;
+  }
+
+  .log-table-wrap > .secondary:not(.log-details-trigger) {
+    width: 100%;
+  }
+
+  .log-card-head {
+    flex-wrap: wrap;
+  }
+
+  .log-card-type {
+    text-align: left;
   }
 }
 
