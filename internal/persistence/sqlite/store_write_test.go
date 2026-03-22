@@ -151,7 +151,7 @@ func TestGetNodeDetails_WithTelemetryOnSingleConnection(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("upsert node: %v", err)
 	}
-	if err := s.MergeTelemetry(ctx, domain.NodeTelemetrySnapshot{
+	if _, err := s.MergeTelemetry(ctx, domain.NodeTelemetrySnapshot{
 		NodeID:     "!dddd4444",
 		ObservedAt: now,
 		UpdatedAt:  now,
@@ -357,6 +357,9 @@ func TestGetMapNodes_HidesStaleAndMissingPositions(t *testing.T) {
 	}
 	if items[0].Position == nil {
 		t.Fatalf("expected visible map node to include position")
+	}
+	if items[0].Telemetry != nil {
+		t.Fatalf("expected map node without telemetry to have nil telemetry, got %#v", items[0].Telemetry)
 	}
 }
 

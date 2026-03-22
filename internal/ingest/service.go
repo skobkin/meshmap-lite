@@ -948,12 +948,13 @@ func (s *Service) handleTelemetry(ctx context.Context, evt meshtastic.ParsedEven
 	t.AirQuality.PM10 = in.AirQuality.PM10
 	t.AirQuality.CO2 = in.AirQuality.CO2
 	t.AirQuality.IAQ = in.AirQuality.IAQ
-	if err := s.store.MergeTelemetry(ctx, t); err != nil {
+	merged, err := s.store.MergeTelemetry(ctx, t)
+	if err != nil {
 		s.log.Error("merge telemetry failed", "node_id", evt.NodeID, "err", err)
 
 		return false
 	}
-	s.emitter.Emit(domain.RealtimeEvent{Type: "node.telemetry", TS: now, Payload: t})
+	s.emitter.Emit(domain.RealtimeEvent{Type: "node.telemetry", TS: now, Payload: merged})
 
 	return true
 }

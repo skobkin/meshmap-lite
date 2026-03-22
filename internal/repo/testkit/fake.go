@@ -12,7 +12,7 @@ import (
 type FakeStore struct {
 	UpsertNodeFn          func(context.Context, domain.Node) (bool, error)
 	UpsertPositionFn      func(context.Context, domain.NodePosition) error
-	MergeTelemetryFn      func(context.Context, domain.NodeTelemetrySnapshot) error
+	MergeTelemetryFn      func(context.Context, domain.NodeTelemetrySnapshot) (domain.NodeTelemetrySnapshot, error)
 	UpsertTopologyEdgesFn func(context.Context, []domain.TopologyEdge) error
 	InsertChatEventFn     func(context.Context, domain.ChatEvent) (int64, error)
 	InsertLogEventFn      func(context.Context, domain.LogEvent) (int64, error)
@@ -46,12 +46,12 @@ func (f *FakeStore) UpsertPosition(ctx context.Context, pos domain.NodePosition)
 }
 
 // MergeTelemetry implements repo.WriteStore.
-func (f *FakeStore) MergeTelemetry(ctx context.Context, snapshot domain.NodeTelemetrySnapshot) error {
+func (f *FakeStore) MergeTelemetry(ctx context.Context, snapshot domain.NodeTelemetrySnapshot) (domain.NodeTelemetrySnapshot, error) {
 	if f.MergeTelemetryFn != nil {
 		return f.MergeTelemetryFn(ctx, snapshot)
 	}
 
-	return nil
+	return snapshot, nil
 }
 
 // UpsertTopologyEdges implements repo.WriteStore.

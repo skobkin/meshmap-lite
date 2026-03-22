@@ -104,10 +104,13 @@ export class LeafletMapAdapter {
   public render(nodes: MapNode[], disconnectedThreshold?: string): void {
     this.lastDisconnectedThreshold = disconnectedThreshold
     this.mapNodesByID = new globalThis.Map(nodes.map((node) => [node.node.node_id, node]))
+
     const visibleNodeIDs = new Set<string>()
     const visibleCircleIDs = new Set<string>()
     for (const n of nodes) {
-      if (!n.position) {continue}
+      if (!n.position) {
+        continue
+      }
       const id = n.node.node_id
       visibleNodeIDs.add(id)
       const mqtt = mqttStatus(n.node.last_seen_mqtt_gateway_at, disconnectedThreshold)
@@ -134,7 +137,7 @@ export class LeafletMapAdapter {
           row('Board', displayValue(n.node.board_model)),
           row('FW', displayValue(n.node.firmware_version))
         ]))
-      ]))
+      ]), n.telemetry)
       const latlng: [number, number] = [n.position.latitude, n.position.longitude]
       const markerIcon = buildMarkerIcon(markerIconKey, markerFreshness, this.selectedID === id)
       const m = this.markers[id]
@@ -464,17 +467,63 @@ function compactSections(sections: (PopupSection | null)[]): PopupSection[] {
   return sections.filter((item): item is PopupSection => item !== null)
 }
 
-function popupHtml(id: string, title: string, sections: PopupSection[]): string {
-  const sectionsHtml = sections.map((item) => (
-    `<div class="map-popup-section">` +
-      `<div class="map-popup-section-title"><strong>${item.title}</strong></div>` +
-      `<div class="map-popup-section-body">${item.rows.map((row) => `${row.label}: ${row.value}`).join('<br/>')}</div>` +
-    `</div>`
-  )).join('')
+function formatBatteryInfo(power: { voltage?: number; battery_level?: number }): string {
+  // Check if we have any battery data at all
+  const hasVoltage = power.voltage !== undefined
+  const hasBatteryLevel = power.battery_level !== undefined
+
+  if (!hasVoltage && !hasBatteryLevel) {
+    return ''
+  }
+
+  const batteryVoltage = hasVoltage ? power.voltage!.toFixed(2) + 'V' : ''
+  // Handle 0% as a valid value - use explicit null/undefined checks instead of truthy check
+  const batteryLevel = hasBatteryLevel ? Math.round(power.battery_level!) + '%' : ''
+  const batteryIcon = '🔋'
+
+  const parts: string[] = []
+  if (batteryVoltage) {
+    parts.push(batteryVoltage)
+  }
+
+  // Only show icon if we have at least one value (voltage or battery level)
+  if (batteryVoltage || batteryLevel) {
+    parts.push(batteryIcon)
+  }
+
+  if (batteryLevel) {
+    parts.push(batteryLevel)
+  }
+
+  return parts.length > 0 ? `<span class="map-popup-battery">${parts.join(' ')}</span>` : ''
+}
+
+function popupHtml(
+  id: string,
+  title: string,
+  sections: PopupSection[],
+  telemetry?: { power: { voltage?: number; battery_level?: number }; observed_at: string },
+): string {
+  const sectionsHtml = sections
+    .map(
+      (item) =>
+        `<div class="map-popup-section">` +
+        `<div class="map-popup-section-title"><strong>${item.title}</strong></div>` +
+        `<div class="map-popup-section-body">${item.rows.map((row) => `${row.label}: ${row.value}`).join('<br/>')}</div>` +
+        `</div>`,
+    )
+    .join('')
+
+  const power = telemetry?.power
+  const batteryInfo =
+    power && (power.voltage !== undefined || power.battery_level !== undefined) ? formatBatteryInfo(power) : ''
 
   return (
     `<div class="map-popup-title"><b>${title}</b></div>` +
     sectionsHtml +
-    `<div class="map-popup-actions"><a href="#" data-node-details-link="${id}">Details</a></div>`
+    `<div class="map-popup-details-section">` +
+      `<a href="#" data-node-details-link="${id}" class="map-popup-details-link">Details</a>` +
+      batteryInfo +
+    `</div>`
   )
 }

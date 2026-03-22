@@ -403,15 +403,28 @@ body {
   margin-bottom: 0.12rem;
 }
 
-.map-popup-actions {
+.map-popup-details-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-top: 0.45rem;
   padding-top: 0.45rem;
   border-top: 1px solid var(--surface-border);
+  gap: 0.5rem;
 }
 
-.map-popup-actions a {
+.map-popup-details-link {
   font-size: 0.9rem;
   font-weight: 600;
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.map-popup-battery {
+  font-size: 0.85rem;
+  white-space: nowrap;
+  color: var(--pico-muted-color);
+  flex: 0 0 auto;
 }
 
 .chat-day-separator {

@@ -52,6 +52,7 @@ export interface NodePosition {
 export interface MapNode {
   node: Node
   position?: NodePosition
+  telemetry?: NodeTelemetry
 }
 
 export interface ChatEvent {

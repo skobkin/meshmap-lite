@@ -230,7 +230,7 @@ ON CONFLICT(node_id) DO UPDATE SET
 }
 
 // MergeTelemetry merges incoming telemetry with existing snapshot and persists it.
-func (s *Store) MergeTelemetry(ctx context.Context, snap domain.NodeTelemetrySnapshot) error {
+func (s *Store) MergeTelemetry(ctx context.Context, snap domain.NodeTelemetrySnapshot) (domain.NodeTelemetrySnapshot, error) {
 	cur, _ := s.getTelemetry(ctx, snap.NodeID)
 	merged := domain.MergeTelemetry(cur, snap)
 	_, err := s.db.ExecContext(ctx, `
@@ -256,8 +256,11 @@ ON CONFLICT(node_id) DO UPDATE SET
 		ptrFloat(merged.Environment.TemperatureC), ptrFloat(merged.Environment.Humidity), ptrFloat(merged.Environment.PressureHpa),
 		ptrFloat(merged.AirQuality.PM25), ptrFloat(merged.AirQuality.PM10), ptrFloat(merged.AirQuality.CO2), ptrFloat(merged.AirQuality.IAQ),
 		merged.SourceChannel, ptrTime(merged.ReportedAt), merged.ObservedAt.UTC().Format(time.RFC3339Nano), merged.UpdatedAt.UTC().Format(time.RFC3339Nano))
+	if err != nil {
+		return domain.NodeTelemetrySnapshot{}, err
+	}
 
-	return err
+	return merged, nil
 }
 
 // UpsertTopologyEdges inserts or updates the latest observed topology edge snapshots.
@@ -466,9 +469,11 @@ func (s *Store) GetMapNodes(ctx context.Context, hidePositionAfter time.Duration
 	rows, err := s.db.QueryContext(ctx, `
 SELECT n.node_id,n.node_num,n.long_name,n.short_name,n.role,n.board_model,n.firmware_version,n.lora_region,n.lora_frequency_desc,
        n.modem_preset,n.has_default_channel,n.has_opted_report_location,n.neighbor_nodes_count,n.mqtt_gateway_capable,n.first_seen_at,n.last_seen_any_event_at,n.last_seen_mqtt_gateway_at,n.last_seen_position_at,n.updated_at,
-       p.latitude,p.longitude,p.altitude_m,p.position_precision,p.source_kind,p.source_channel,p.reported_at,p.observed_at,p.updated_at
+       p.latitude,p.longitude,p.altitude_m,p.position_precision,p.source_kind,p.source_channel,p.reported_at,p.observed_at,p.updated_at,
+       t.node_id,t.power_voltage,t.power_battery_level,t.env_temperature_c,t.env_humidity,t.env_pressure_hpa,t.air_pm25,t.air_pm10,t.air_co2,t.air_iaq,t.source_channel,t.reported_at,t.observed_at,t.updated_at
 FROM nodes n
 LEFT JOIN node_positions p ON p.node_id=n.node_id
+LEFT JOIN node_telemetry_snapshots t ON t.node_id=n.node_id
 WHERE p.node_id IS NOT NULL
   AND p.observed_at >= ?
 ORDER BY n.updated_at DESC`, cutoff)
@@ -478,11 +483,11 @@ ORDER BY n.updated_at DESC`, cutoff)
 	defer func() { _ = rows.Close() }()
 	out := make([]repo.MapNode, 0)
 	for rows.Next() {
-		n, p, err := scanMapNode(rows)
+		n, p, t, err := scanMapNodeWithTelemetry(rows)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, repo.MapNode{Node: n, Position: p})
+		out = append(out, repo.MapNode{Node: n, Position: p, Telemetry: t})
 	}
 
 	return out, rows.Err()
@@ -916,17 +921,17 @@ func (s *Store) Stats(ctx context.Context, threshold time.Duration) (domain.Stat
 	return st, nil
 }
 
-func (s *Store) getTelemetry(ctx context.Context, nodeID string) (domain.NodeTelemetrySnapshot, error) {
-	var out domain.NodeTelemetrySnapshot
-	var reported sql.NullString
-	var pv, pbl, etc, eh, eph, ap25, ap10, aco2, aiaq sql.NullFloat64
-	var observed, updated, source string
-	err := s.db.QueryRowContext(ctx, `
-SELECT node_id,power_voltage,power_battery_level,env_temperature_c,env_humidity,env_pressure_hpa,air_pm25,air_pm10,air_co2,air_iaq,source_channel,reported_at,observed_at,updated_at
-FROM node_telemetry_snapshots WHERE node_id=?`, nodeID).Scan(
-		&out.NodeID, &pv, &pbl, &etc, &eh, &eph, &ap25, &ap10, &aco2, &aiaq, &source, &reported, &observed, &updated)
-	if err != nil {
-		return out, err
+// scanTelemetryValues unpacks telemetry fields from nullable SQL types into a NodeTelemetrySnapshot.
+// It consolidates telemetry unpacking logic to avoid inconsistencies across different scanner functions.
+func scanTelemetryValues(nodeID string, pv, pbl, etc, eh, eph, ap25, ap10, aco2, aiaq sql.NullFloat64,
+	source sql.NullString, reported sql.NullString, observed, updated sql.NullString) *domain.NodeTelemetrySnapshot {
+	// Return nil if nodeID is empty (no row found)
+	if nodeID == "" {
+		return nil
+	}
+
+	out := &domain.NodeTelemetrySnapshot{
+		NodeID: nodeID,
 	}
 	out.Power.Voltage = parseNullableFloat(pv)
 	out.Power.BatteryLevel = parseNullableFloat(pbl)
@@ -937,12 +942,40 @@ FROM node_telemetry_snapshots WHERE node_id=?`, nodeID).Scan(
 	out.AirQuality.PM10 = parseNullableFloat(ap10)
 	out.AirQuality.CO2 = parseNullableFloat(aco2)
 	out.AirQuality.IAQ = parseNullableFloat(aiaq)
-	out.SourceChannel = source
+	out.SourceChannel = source.String
 	out.ReportedAt = parseNullableTime(reported)
-	out.ObservedAt, _ = time.Parse(time.RFC3339Nano, observed)
-	out.UpdatedAt, _ = time.Parse(time.RFC3339Nano, updated)
+	if observed.Valid {
+		out.ObservedAt = mustTime(observed)
+	}
+	if updated.Valid {
+		out.UpdatedAt = mustTime(updated)
+	}
 
-	return out, nil
+	return out
+}
+
+func (s *Store) getTelemetry(ctx context.Context, nodeID string) (domain.NodeTelemetrySnapshot, error) {
+	var nodeID2 string
+	var pv, pbl, etc, eh, eph, ap25, ap10, aco2, aiaq sql.NullFloat64
+	var source, reported sql.NullString
+	var observed, updated sql.NullString
+	err := s.db.QueryRowContext(ctx, `
+SELECT node_id,power_voltage,power_battery_level,env_temperature_c,env_humidity,env_pressure_hpa,air_pm25,air_pm10,air_co2,air_iaq,source_channel,reported_at,observed_at,updated_at
+FROM node_telemetry_snapshots WHERE node_id=?`, nodeID).Scan(
+		&nodeID2, &pv, &pbl, &etc, &eh, &eph, &ap25, &ap10, &aco2, &aiaq, &source, &reported, &observed, &updated)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return domain.NodeTelemetrySnapshot{}, nil
+		}
+
+		return domain.NodeTelemetrySnapshot{}, err
+	}
+	telemetry := scanTelemetryValues(nodeID2, pv, pbl, etc, eh, eph, ap25, ap10, aco2, aiaq, source, reported, observed, updated)
+	if telemetry == nil {
+		return domain.NodeTelemetrySnapshot{}, nil
+	}
+
+	return *telemetry, nil
 }
 
 func scanMapNode(rows *sql.Rows) (domain.Node, *domain.NodePosition, error) {
@@ -1003,6 +1036,82 @@ func scanMapNode(rows *sql.Rows) (domain.Node, *domain.NodePosition, error) {
 	}
 
 	return n, pos, nil
+}
+
+func scanMapNodeWithTelemetry(rows *sql.Rows) (domain.Node, *domain.NodePosition, *domain.NodeTelemetrySnapshot, error) {
+	var n domain.Node
+	var nodeNum sql.NullInt64
+	var hasDefaultCh sql.NullInt64
+	var hasOptedReportLoc sql.NullInt64
+	var neighbor sql.NullInt64
+	var gw sql.NullInt64
+	var firstSeen, lastAny, lastMQTT, lastPos, updated sql.NullString
+	var pLat, pLon, pAlt sql.NullFloat64
+	var pPrec sql.NullInt64
+	var pKind, pChannel, pReported, pObserved, pUpdated sql.NullString
+	var tNodeID sql.NullString
+	var tPv, tPbl, tEtc, tEh, tEph, tAp25, tAp10, tAco2, tAiaq sql.NullFloat64
+	var tSource, tReported, tObserved, tUpdated sql.NullString
+
+	err := rows.Scan(&n.NodeID, &nodeNum, &n.LongName, &n.ShortName, &n.Role, &n.BoardModel, &n.FirmwareVersion, &n.LoRaRegion, &n.LoRaFrequencyDesc,
+		&n.ModemPreset, &hasDefaultCh, &hasOptedReportLoc, &neighbor, &gw, &firstSeen, &lastAny, &lastMQTT, &lastPos, &updated,
+		&pLat, &pLon, &pAlt, &pPrec, &pKind, &pChannel, &pReported, &pObserved, &pUpdated,
+		&tNodeID, &tPv, &tPbl, &tEtc, &tEh, &tEph, &tAp25, &tAp10, &tAco2, &tAiaq, &tSource, &tReported, &tObserved, &tUpdated)
+	if err != nil {
+		return n, nil, nil, err
+	}
+
+	if nodeNum.Valid {
+		if nodeNum.Int64 >= 0 && nodeNum.Int64 <= math.MaxUint32 {
+			v := uint32(nodeNum.Int64)
+			n.NodeNum = &v
+		}
+	}
+	if neighbor.Valid {
+		v := int(neighbor.Int64)
+		n.NeighborNodesCount = &v
+	}
+	if hasDefaultCh.Valid {
+		v := hasDefaultCh.Int64 == 1
+		n.HasDefaultChannel = &v
+	}
+	if hasOptedReportLoc.Valid {
+		v := hasOptedReportLoc.Int64 == 1
+		n.HasOptedReportLocation = &v
+	}
+	if gw.Valid {
+		v := gw.Int64 == 1
+		n.MQTTGatewayCapable = &v
+	}
+	n.FirstSeenAt = mustTime(firstSeen)
+	n.LastSeenAnyEventAt = mustTime(lastAny)
+	n.LastSeenMQTTGatewayAt = parseNullableTime(lastMQTT)
+	n.LastSeenPositionAt = parseNullableTime(lastPos)
+	n.UpdatedAt = mustTime(updated)
+
+	if !pLat.Valid || !pLon.Valid {
+		return n, nil, nil, nil
+	}
+	pos := &domain.NodePosition{NodeID: n.NodeID, Latitude: pLat.Float64, Longitude: pLon.Float64, SourceKind: domain.PositionSourceKind(pKind.String), SourceChannel: pChannel.String, ReportedAt: parseNullableTime(pReported), ObservedAt: mustTime(pObserved), UpdatedAt: mustTime(pUpdated)}
+	if pAlt.Valid {
+		v := pAlt.Float64
+		pos.AltitudeM = &v
+	}
+	if pPrec.Valid {
+		if pPrec.Int64 >= 0 && pPrec.Int64 <= math.MaxUint32 {
+			v := uint32(pPrec.Int64)
+			pos.PositionPrecision = &v
+		}
+	}
+
+	telemetryNodeID := ""
+	if tNodeID.Valid {
+		telemetryNodeID = tNodeID.String
+	}
+	telemetry := scanTelemetryValues(telemetryNodeID, tPv, tPbl, tEtc, tEh, tEph, tAp25, tAp10, tAco2, tAiaq,
+		tSource, tReported, tObserved, tUpdated)
+
+	return n, pos, telemetry, nil
 }
 
 func scanChat(rows *sql.Rows) (domain.ChatEvent, error) {

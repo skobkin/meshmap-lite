@@ -1,4 +1,4 @@
-import type { MapNode, Node, NodePosition } from '../api/types'
+import type { MapNode, Node, NodePosition, NodeTelemetry } from '../api/types'
 
 export function upsertMapNode(mapNodes: MapNode[], item: MapNode): MapNode[] {
   const idx = mapNodes.findIndex((node) => node.node.node_id === item.node.node_id)
@@ -42,6 +42,21 @@ export function upsertPosition(mapNodes: MapNode[], position: NodePosition): Map
     return mapNodes
   }
   clone[idx] = { ...current, position }
+
+  return clone
+}
+
+export function upsertTelemetry(mapNodes: MapNode[], telemetry: NodeTelemetry): MapNode[] {
+  const idx = mapNodes.findIndex((item) => item.node.node_id === telemetry.node_id)
+  if (idx < 0) {
+    return mapNodes
+  }
+  const clone = mapNodes.slice()
+  const current = clone[idx]
+  if (!current) {
+    return mapNodes
+  }
+  clone[idx] = { ...current, telemetry }
 
   return clone
 }

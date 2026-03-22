@@ -4,7 +4,7 @@ import { useMetaStore } from '../stores/meta'
 import { useNodeStore } from '../stores/nodes'
 import { useWSStore } from '../stores/ws'
 
-import type { LogEvent, Node, NodePosition, WSStats } from './types'
+import type { LogEvent, Node, NodePosition, NodeTelemetry, WSStats } from './types'
 
 interface EventEnvelope {
   type: string
@@ -12,21 +12,30 @@ interface EventEnvelope {
 }
 
 function isEventEnvelope(payload: unknown): payload is EventEnvelope {
-  if (!payload || typeof payload !== 'object') {return false}
+  if (!payload || typeof payload !== 'object') {
+    return false
+  }
+
   const event = payload as Record<string, unknown>
 
   return typeof event.type === 'string' && 'payload' in event
 }
 
 function isNodePayload(payload: unknown): payload is Node {
-  if (!payload || typeof payload !== 'object') {return false}
+  if (!payload || typeof payload !== 'object') {
+    return false
+  }
+
   const node = payload as Record<string, unknown>
 
   return typeof node.node_id === 'string' && typeof node.last_seen_any_event_at === 'string'
 }
 
 function isNodePositionPayload(payload: unknown): payload is NodePosition {
-  if (!payload || typeof payload !== 'object') {return false}
+  if (!payload || typeof payload !== 'object') {
+    return false
+  }
+
   const p = payload as Record<string, unknown>
 
   return typeof p.node_id === 'string' &&
@@ -36,8 +45,27 @@ function isNodePositionPayload(payload: unknown): payload is NodePosition {
     typeof p.observed_at === 'string'
 }
 
+function isNodeTelemetryPayload(payload: unknown): payload is NodeTelemetry {
+  if (!payload || typeof payload !== 'object') {
+    return false
+  }
+
+  const t = payload as Record<string, unknown>
+
+  return (
+    typeof t.node_id === 'string' &&
+      typeof t.observed_at === 'string' &&
+      typeof t.updated_at === 'string' &&
+      typeof t.power === 'object' &&
+      typeof t.environment === 'object' &&
+      typeof t.air_quality === 'object'
+  )
+}
+
 function isStatsPayload(payload: unknown): payload is WSStats {
-  if (!payload || typeof payload !== 'object') {return false}
+  if (!payload || typeof payload !== 'object') {
+    return false
+  }
   const stats = payload as Record<string, unknown>
 
   return typeof stats.known_nodes_count === 'number' &&
@@ -46,7 +74,10 @@ function isStatsPayload(payload: unknown): payload is WSStats {
 }
 
 function isLogEventPayload(payload: unknown): payload is LogEvent {
-  if (!payload || typeof payload !== 'object') {return false}
+  if (!payload || typeof payload !== 'object') {
+    return false
+  }
+
   const row = payload as Record<string, unknown>
 
   return typeof row.id === 'number' &&
@@ -98,6 +129,11 @@ export function startWS(path: string): () => void {
       }
       if (msg.type === 'node.position' && isNodePositionPayload(msg.payload)) {
         useNodeStore.getState().upsertPosition(msg.payload)
+
+        return
+      }
+      if (msg.type === 'node.telemetry' && isNodeTelemetryPayload(msg.payload)) {
+        useNodeStore.getState().upsertTelemetry(msg.payload)
 
         return
       }

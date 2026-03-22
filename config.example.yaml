@@ -5,6 +5,8 @@ mqtt:
   client_id: ""
   root_topic: msh/RU/ARKH
   protocol_version: 3.1.1
+  username: "user1" # mqtt username
+  password: "12345" ## mqtt password
   subscribe_qos: 1
   clean_session: false
   reconnect_timeout: 10s

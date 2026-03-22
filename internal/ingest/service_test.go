@@ -43,8 +43,8 @@ func (s *testStore) UpsertPosition(_ context.Context, pos domain.NodePosition) e
 	return nil
 }
 
-func (*testStore) MergeTelemetry(context.Context, domain.NodeTelemetrySnapshot) error {
-	return nil
+func (*testStore) MergeTelemetry(_ context.Context, snap domain.NodeTelemetrySnapshot) (domain.NodeTelemetrySnapshot, error) {
+	return snap, nil
 }
 
 func (s *testStore) UpsertTopologyEdges(_ context.Context, edges []domain.TopologyEdge) error {

@@ -11,7 +11,7 @@ import (
 type WriteStore interface {
 	UpsertNode(ctx context.Context, node domain.Node) (created bool, err error)
 	UpsertPosition(ctx context.Context, pos domain.NodePosition) error
-	MergeTelemetry(ctx context.Context, snapshot domain.NodeTelemetrySnapshot) error
+	MergeTelemetry(ctx context.Context, snapshot domain.NodeTelemetrySnapshot) (domain.NodeTelemetrySnapshot, error)
 	UpsertTopologyEdges(ctx context.Context, edges []domain.TopologyEdge) error
 	InsertChatEvent(ctx context.Context, event domain.ChatEvent) (int64, error)
 	InsertLogEvent(ctx context.Context, event domain.LogEvent) (int64, error)
@@ -42,10 +42,11 @@ type ChatEventQuery struct {
 	BeforeID int64
 }
 
-// MapNode combines node identity with an optional latest position.
+// MapNode combines node identity with optional position and telemetry.
 type MapNode struct {
-	Node     domain.Node          `json:"node"`
-	Position *domain.NodePosition `json:"position,omitempty"`
+	Node      domain.Node                   `json:"node"`
+	Position  *domain.NodePosition          `json:"position,omitempty"`
+	Telemetry *domain.NodeTelemetrySnapshot `json:"telemetry,omitempty"`
 }
 
 // NodeSummary is a compact record for node list views.

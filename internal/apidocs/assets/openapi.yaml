@@ -106,8 +106,8 @@ paths:
       responses:
         '200':
           description: |
-            Returns `{node, position?}` items for nodes whose latest position is
-            newer than `meta.map.hide_position_after`.
+            Returns `{node, position?, telemetry?}` items for nodes whose latest
+            position is newer than `meta.map.hide_position_after`.
           content:
             application/json:
               schema:
@@ -554,6 +554,8 @@ components:
           $ref: '#/components/schemas/Node'
         position:
           $ref: '#/components/schemas/NodePosition'
+        telemetry:
+          $ref: '#/components/schemas/NodeTelemetry'
     ChatEvent:
       type: object
       required: [id, event_type, observed_at]
