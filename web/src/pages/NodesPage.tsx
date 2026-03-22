@@ -78,7 +78,7 @@ function detailSections(details: NodeDetails): DetailSection[] {
         row('Modem preset', displayValue(details.node.modem_preset)),
         row('Default channel', displayValue(details.node.has_default_channel)),
         row('Location reports opted-in', displayValue(details.node.has_opted_report_location)),
-        row('Neighbors', displayValue(details.node.neighbor_nodes_count)),
+        row('Online local nodes', displayValue(details.node.neighbor_nodes_count)),
         row('Board model', displayValue(details.node.board_model)),
         row('Firmware', displayValue(details.node.firmware_version))
       ])

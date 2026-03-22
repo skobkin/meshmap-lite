@@ -103,7 +103,7 @@ describe('NodesPage', () => {
     )
 
     expect(screen.getByText('MQTT gateway capable: no')).toBeTruthy()
-    expect(screen.getByText('Neighbors: 0')).toBeTruthy()
+    expect(screen.getByText('Online local nodes: 0')).toBeTruthy()
     expect(screen.getByText('Latitude: 0')).toBeTruthy()
     expect(screen.getByText('Voltage: 0')).toBeTruthy()
     expect(screen.getByText('Battery level: 0')).toBeTruthy()

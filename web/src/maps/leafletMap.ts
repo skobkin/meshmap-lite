@@ -122,7 +122,7 @@ export class LeafletMapAdapter {
           row('Short', displayValue(n.node.short_name)),
           row('ID', id),
           row('Role', displayValue(n.node.role)),
-          row('Neighbors', displayValue(n.node.neighbor_nodes_count))
+          row('Online local nodes', displayValue(n.node.neighbor_nodes_count))
         ])),
         section('Connectivity', compactRows([
           row('MQTT', `${mqtt.status}${mqtt.age ? ` (${mqtt.age})` : ''}`),
