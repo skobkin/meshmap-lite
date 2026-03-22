@@ -630,8 +630,45 @@ body {
   padding-top: 0.8rem;
 }
 
-.log-filters select[multiple] {
-  min-height: 9rem;
+.log-filter-field {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.log-filter-field > label {
+  margin: 0;
+}
+
+.log-filter-label {
+  margin: 0;
+  font-weight: 500;
+}
+
+.log-filter-dropdown {
+  margin-bottom: 0;
+}
+
+.log-filter-dropdown > summary {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-filter-dropdown > summary + ul.log-filter-options {
+  width: min(100%, 22rem);
+  max-height: 16rem;
+  overflow-y: auto;
+}
+
+.log-filter-options label {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin: 0;
+}
+
+.log-filter-options input[type="checkbox"] {
+  margin: 0;
 }
 
 .log-table-wrap {

@@ -31,6 +31,17 @@ const eventKinds = [
   { value: 9, label: 'Encrypted (undecryptable)' }
 ]
 
+function summaryForEventKinds(selectedKinds: number[]): string {
+  const labels = eventKinds
+    .filter((item) => selectedKinds.includes(item.value))
+    .map((item) => item.label)
+
+  if (labels.length === 0) {return 'All event types'}
+  if (labels.length <= 2) {return labels.join(', ')}
+
+  return `${labels.length} event types`
+}
+
 export function LogPage({
   channels,
   items,
@@ -43,29 +54,45 @@ export function LogPage({
   onLoadMore
 }: Props): JSX.Element {
   const [selectedEvent, setSelectedEvent] = useState<LogEvent>()
+  const selectedKindSet = new Set(selectedKinds)
   let previousDay = ''
+
+  const toggleEventKind = (value: number): void => {
+    const nextKinds = selectedKindSet.has(value)
+      ? selectedKinds.filter((kind) => kind !== value)
+      : eventKinds.filter((item) => selectedKindSet.has(item.value) || item.value === value).map((item) => item.value)
+    onChangeKinds(nextKinds)
+  }
 
   return (
     <section className="log-layout container-fluid">
       <details className="log-filters">
         <summary>Filters</summary>
         <div className="log-filters-content">
-          <label>
-            Event type
+          <div className="log-filter-field">
+            <span className="log-filter-label">Event type</span>
+            <details className="dropdown log-filter-dropdown">
+              <summary aria-label="Event type filter">{summaryForEventKinds(selectedKinds)}</summary>
+              <ul className="log-filter-options">
+                {eventKinds.map((item) => (
+                  <li key={item.value}>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={selectedKindSet.has(item.value)}
+                        onChange={() => toggleEventKind(item.value)}
+                      />
+                      {item.label}
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </div>
+          <div className="log-filter-field">
+            <label htmlFor="log-channel-filter">Channel</label>
             <select
-              aria-label="Event type filter"
-              multiple
-              onChange={(e) => {
-                const options = Array.from((e.target as HTMLSelectElement).selectedOptions)
-                onChangeKinds(options.map((o) => Number(o.value)).filter((v) => Number.isFinite(v)))
-              }}
-            >
-              {eventKinds.map((item) => <option key={item.value} value={item.value} selected={selectedKinds.includes(item.value)}>{item.label}</option>)}
-            </select>
-          </label>
-          <label>
-            Channel
-            <select
+              id="log-channel-filter"
               aria-label="Channel filter"
               value={selectedChannel}
               onChange={(e) => onChangeChannel((e.target as HTMLSelectElement).value)}
@@ -73,7 +100,7 @@ export function LogPage({
               <option value="">All channels</option>
               {channels.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
-          </label>
+          </div>
         </div>
       </details>
       <article className="log-table-wrap">

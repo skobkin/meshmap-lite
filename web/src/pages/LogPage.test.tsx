@@ -2,11 +2,13 @@
 
 import { render, screen } from '@testing-library/preact'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'preact/hooks'
 import { describe, expect, it, vi } from 'vitest'
 
 import { LogPage } from './LogPage'
 
 import type { LogEvent } from '../api/types'
+import type { JSX } from 'preact'
 
 function event(id: number, overrides: Partial<LogEvent> = {}): LogEvent {
   return {
@@ -28,7 +30,7 @@ function event(id: number, overrides: Partial<LogEvent> = {}): LogEvent {
   }
 }
 
-function renderPage(items: LogEvent[]): ReturnType<typeof render> {
+function renderPage(items: LogEvent[], overrides: Partial<Parameters<typeof LogPage>[0]> = {}): ReturnType<typeof render> {
   return render(
     <LogPage
       channels={['mesh']}
@@ -40,8 +42,27 @@ function renderPage(items: LogEvent[]): ReturnType<typeof render> {
       onChangeChannel={() => undefined}
       onOpenNodeDetails={() => undefined}
       onLoadMore={() => undefined}
+      {...overrides}
     />
   )
+}
+
+function eventTypeSummary(): HTMLElement {
+  const element = document.querySelector('.log-filter-dropdown > summary')
+  if (element?.tagName !== 'SUMMARY') {
+    throw new Error('Event type filter summary not found')
+  }
+
+  return element as HTMLElement
+}
+
+function channelFilterValue(): string {
+  const element = document.querySelector('#log-channel-filter')
+  if (!(element instanceof HTMLSelectElement)) {
+    throw new Error('Channel filter not found')
+  }
+
+  return element.value
 }
 
 describe('LogPage', () => {
@@ -126,11 +147,121 @@ describe('LogPage', () => {
       />
     )
 
-    const control = screen.getByRole('button', { name: 'Alpha Node' })
-    expect(control).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Alpha Node' })).toBeTruthy()
 
-    await user.click(control)
+    await user.click(screen.getByRole('button', { name: 'Alpha Node' }))
 
     expect(onOpenNodeDetails).toHaveBeenCalledWith('!abc')
+  })
+
+  it('shows a compact Event type summary for the selected kinds', () => {
+    const view = render(
+      <LogPage
+        channels={['mesh']}
+        items={[event(1)]}
+        loadError=""
+        selectedKinds={[]}
+        selectedChannel=""
+        onChangeKinds={() => undefined}
+        onChangeChannel={() => undefined}
+        onOpenNodeDetails={() => undefined}
+        onLoadMore={() => undefined}
+      />
+    )
+
+    expect(eventTypeSummary().textContent).toBe('All event types')
+
+    view.rerender(
+      <LogPage
+        channels={['mesh']}
+        items={[event(1)]}
+        loadError=""
+        selectedKinds={[7]}
+        selectedChannel=""
+        onChangeKinds={() => undefined}
+        onChangeChannel={() => undefined}
+        onOpenNodeDetails={() => undefined}
+        onLoadMore={() => undefined}
+      />
+    )
+    expect(eventTypeSummary().textContent).toBe('Routing')
+
+    view.rerender(
+      <LogPage
+        channels={['mesh']}
+        items={[event(1)]}
+        loadError=""
+        selectedKinds={[4, 7]}
+        selectedChannel=""
+        onChangeKinds={() => undefined}
+        onChangeChannel={() => undefined}
+        onOpenNodeDetails={() => undefined}
+        onLoadMore={() => undefined}
+      />
+    )
+    expect(eventTypeSummary().textContent).toBe('Telemetry, Routing')
+
+    view.rerender(
+      <LogPage
+        channels={['mesh']}
+        items={[event(1)]}
+        loadError=""
+        selectedKinds={[1, 4, 7]}
+        selectedChannel=""
+        onChangeKinds={() => undefined}
+        onChangeChannel={() => undefined}
+        onOpenNodeDetails={() => undefined}
+        onLoadMore={() => undefined}
+      />
+    )
+    expect(eventTypeSummary().textContent).toBe('3 event types')
+  })
+
+  it('toggles event kinds without resetting other selected kinds and clears back to all when the last one is unchecked', async () => {
+    const user = userEvent.setup()
+    const onChangeKinds = vi.fn()
+
+    function Harness(): JSX.Element {
+      const [selectedKinds, setSelectedKinds] = useState<number[]>([])
+
+      return (
+        <LogPage
+          channels={['mesh']}
+          items={[event(1)]}
+          loadError=""
+          selectedKinds={selectedKinds}
+          selectedChannel="mesh"
+          onChangeKinds={(kinds) => {
+            onChangeKinds(kinds)
+            setSelectedKinds(kinds)
+          }}
+          onChangeChannel={() => undefined}
+          onOpenNodeDetails={() => undefined}
+          onLoadMore={() => undefined}
+        />
+      )
+    }
+
+    render(<Harness />)
+
+    await user.click(screen.getByRole('checkbox', { name: 'Routing' }))
+    expect(onChangeKinds).toHaveBeenLastCalledWith([7])
+    expect(eventTypeSummary().textContent).toBe('Routing')
+    expect(channelFilterValue()).toBe('mesh')
+
+    await user.click(screen.getByRole('checkbox', { name: 'Telemetry' }))
+    expect(onChangeKinds).toHaveBeenLastCalledWith([4, 7])
+    expect(eventTypeSummary().textContent).toBe('Telemetry, Routing')
+    expect(channelFilterValue()).toBe('mesh')
+
+    await user.click(screen.getByRole('checkbox', { name: 'Routing' }))
+    expect(onChangeKinds).toHaveBeenLastCalledWith([4])
+    expect(eventTypeSummary().textContent).toBe('Telemetry')
+    expect(channelFilterValue()).toBe('mesh')
+
+    await user.click(screen.getByRole('checkbox', { name: 'Telemetry' }))
+    expect(onChangeKinds).toHaveBeenLastCalledWith([])
+    expect(eventTypeSummary().textContent).toBe('All event types')
+    expect(channelFilterValue()).toBe('mesh')
   })
 })
