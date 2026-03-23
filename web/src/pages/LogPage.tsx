@@ -3,6 +3,7 @@ import { useEffect, useState } from 'preact/hooks'
 
 import { LogDetailsModal, hasLogDetails } from '../components/LogDetailsModal'
 import { pkiLogDetailsRenderer } from '../components/PKILogDetails'
+import { routingLogDetailsRenderer } from '../components/RoutingLogDetails'
 import { dayKey, dayLabel, fullDateTime, hhmmss } from '../utils/time'
 
 import type { LogEvent } from '../api/types'
@@ -308,7 +309,7 @@ export function LogPage({
           event={selectedEvent}
           onClose={() => setSelectedEvent(undefined)}
           onOpenNodeDetails={onOpenNodeDetails}
-          renderers={[pkiLogDetailsRenderer]}
+          renderers={[pkiLogDetailsRenderer, routingLogDetailsRenderer]}
         />
       </article>
     </section>

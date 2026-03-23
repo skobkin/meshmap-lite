@@ -909,6 +909,59 @@ body {
   overflow: auto;
 }
 
+.log-details-grid {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+}
+
+.log-details-row {
+  display: grid;
+  grid-template-columns: minmax(9rem, 12rem) minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+}
+
+.log-details-label,
+.log-details-value {
+  margin: 0;
+}
+
+.log-details-label {
+  color: var(--pico-muted-color);
+  font-weight: 600;
+}
+
+.log-details-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.log-details-node-link {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  vertical-align: middle;
+}
+
+.log-details-node-link code {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.26rem 0.45rem;
+  line-height: 1;
+}
+
+.log-details-path {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.log-details-path-separator {
+  color: var(--pico-muted-color);
+}
+
 .json-view {
   margin: 0;
   padding: 0.9rem;
@@ -1128,6 +1181,10 @@ body {
   .log-details-modal {
     width: 100%;
     max-height: calc(100dvh - 2rem);
+  }
+
+  .log-details-row {
+    grid-template-columns: minmax(7rem, 10rem) minmax(0, 1fr);
   }
 
   .log-details-modal-header {

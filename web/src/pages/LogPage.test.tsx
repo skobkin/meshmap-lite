@@ -511,4 +511,78 @@ describe('LogPage', () => {
     expect(screen.getByText('!698509f8')).toBeTruthy()
     expect(screen.getByText('PKI encrypted')).toBeTruthy()
   })
+
+  it('renders structured Routing details and resolves route node labels into navigation controls', async () => {
+    useNodeStore.setState({
+      mapNodes: [
+        {
+          node: {
+            node_id: '!alpha',
+            long_name: 'Alpha Router',
+            last_seen_any_event_at: '2026-03-11T12:00:00Z'
+          }
+        }
+      ],
+      summaries: [
+        {
+          node_id: '!bravo',
+          display_name: 'Bravo Relay',
+          has_position: false,
+          last_seen_any_event_at: '2026-03-11T12:00:00Z'
+        }
+      ],
+      details: {
+        node: {
+          node_id: '!charlie',
+          short_name: 'C3',
+          last_seen_any_event_at: '2026-03-11T12:00:00Z'
+        }
+      }
+    })
+
+    const user = userEvent.setup()
+    const onOpenNodeDetails = vi.fn()
+
+    render(
+      <LogPage
+        channels={['mesh']}
+        items={[event(7, {
+          event_kind_value: 7,
+          event_kind_title: 'Routing',
+          details: {
+            variant: 'route_reply',
+            request_id: 101,
+            from: '!alpha',
+            to: '!bravo',
+            route: ['!alpha', '!charlie'],
+            route_back: ['!bravo', '!delta'],
+            traceroute_ref: true,
+            error_reason: 'NONE'
+          }
+        })]}
+        loadError=""
+        selectedKinds={[]}
+        selectedChannel=""
+        onChangeKinds={() => undefined}
+        onChangeChannel={() => undefined}
+        onOpenNodeDetails={onOpenNodeDetails}
+        onLoadMore={() => undefined}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'View details for Routing' }))
+
+    expect(screen.getByText('Variant')).toBeTruthy()
+    expect(screen.getByText('route_reply')).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: 'Alpha Router' })[0]?.getAttribute('title')).toBe('!alpha')
+    expect(screen.getAllByRole('button', { name: 'Bravo Relay' })[0]?.getAttribute('title')).toBe('!bravo')
+    expect(screen.getByRole('button', { name: 'C3' }).getAttribute('title')).toBe('!charlie')
+    expect(screen.getByRole('button', { name: '!delta' }).getAttribute('title')).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'C3' }))
+    await user.click(screen.getByRole('button', { name: '!delta' }))
+
+    expect(onOpenNodeDetails).toHaveBeenNthCalledWith(1, '!charlie')
+    expect(onOpenNodeDetails).toHaveBeenNthCalledWith(2, '!delta')
+  })
 })

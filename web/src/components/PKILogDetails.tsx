@@ -111,25 +111,29 @@ function PKILogDetailsView({
   return (
     <div>
       {rows.length > 0 ? (
-        <dl>
+        <dl className="log-details-grid">
           {rows.map((row) => (
-            <div key={row.label}>
-              <dt>{row.label}</dt>
-              <dd>
+            <div key={row.label} className="log-details-row">
+              <dt className="log-details-label">{row.label}</dt>
+              <dd className="log-details-value">
                 {isNodeReferenceKey(row.key) ? (
                   <ResolvedNodeData nodeId={row.value}>
                     {({ label, title, nodeId }) => onOpenNodeDetails
                       ? (
                         <button
                           type="button"
-                          className="chat-node-link"
+                          className="chat-node-link log-details-node-link"
                           title={title}
                           onClick={() => onOpenNodeDetails(nodeId)}
                         >
-                          {label}
+                          <code>{label}</code>
                         </button>
                       )
-                      : <span title={title}>{label}</span>}
+                      : (
+                        <span className="log-details-node-link" title={title}>
+                          <code>{label}</code>
+                        </span>
+                      )}
                   </ResolvedNodeData>
                 ) : row.value}
               </dd>
