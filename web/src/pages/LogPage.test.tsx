@@ -3,12 +3,52 @@
 import { render, screen } from '@testing-library/preact'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'preact/hooks'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { LogPage } from './LogPage'
 
-import type { LogEvent } from '../api/types'
+import type { LogEvent, MapNode, NodeDetails, NodeSummary } from '../api/types'
 import type { JSX } from 'preact'
+
+interface NodeStoreState {
+  mapNodes: MapNode[]
+  summaries: NodeSummary[]
+  selectedId?: string
+  details?: NodeDetails
+}
+
+const { useNodeStore, resetNodeStore } = vi.hoisted(() => {
+  let state: NodeStoreState = {
+    mapNodes: [],
+    summaries: [],
+    selectedId: undefined,
+    details: undefined
+  }
+  const store = ((selector?: (value: NodeStoreState) => unknown) => (
+    selector ? selector(state) : state
+  )) as ((selector?: (value: NodeStoreState) => unknown) => unknown) & {
+    setState: (partial: Partial<NodeStoreState>) => void
+  }
+  store.setState = (partial) => {
+    state = { ...state, ...partial }
+  }
+
+  return {
+    useNodeStore: store,
+    resetNodeStore: () => {
+      state = {
+        mapNodes: [],
+        summaries: [],
+        selectedId: undefined,
+        details: undefined
+      }
+    }
+  }
+})
+
+vi.mock('../stores/nodes', () => ({
+  useNodeStore
+}))
 
 function mockViewport(matches: boolean): void {
   const listeners = new Set<(event: MediaQueryListEvent) => void>()
@@ -92,6 +132,10 @@ function channelFilterValue(): string {
 }
 
 describe('LogPage', () => {
+  afterEach(() => {
+    resetNodeStore()
+  })
+
   it('renders day separators and time-only cells for grouped events', () => {
     renderPage([
       event(1, { observed_at: '2026-03-11T12:00:00' }),
@@ -201,6 +245,57 @@ describe('LogPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'View details for Map report' }))
     expect(screen.getByRole('dialog')).toBeTruthy()
+  })
+
+  it('resolves PKI node labels from the store and keeps raw ids in tooltips', async () => {
+    useNodeStore.setState({
+      mapNodes: [
+        {
+          node: {
+            node_id: '!alpha',
+            long_name: 'Alpha Router',
+            last_seen_any_event_at: '2026-03-11T12:00:00Z'
+          }
+        }
+      ],
+      summaries: [],
+      selectedId: undefined,
+      details: undefined
+    })
+
+    const user = userEvent.setup()
+    const onOpenNodeDetails = vi.fn()
+
+    render(
+      <LogPage
+        channels={['mesh']}
+        items={[event(11, {
+          event_kind_value: 11,
+          event_kind_title: 'PKI',
+          node_id: '!opaque',
+          node_display_name: 'Opaque',
+          details: {
+            sender_node_id: '!alpha'
+          }
+        })]}
+        loadError=""
+        selectedKinds={[]}
+        selectedChannel=""
+        onChangeKinds={() => undefined}
+        onChangeChannel={() => undefined}
+        onOpenNodeDetails={onOpenNodeDetails}
+        onLoadMore={() => undefined}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'View details for PKI' }))
+
+    const senderLink = screen.getByRole('button', { name: 'Alpha Router' })
+    expect(senderLink.getAttribute('title')).toBe('!alpha')
+
+    await user.click(senderLink)
+
+    expect(onOpenNodeDetails).toHaveBeenCalledWith('!alpha')
   })
 
   it('renders the node cell as an in-app navigation control when a node id is available', async () => {

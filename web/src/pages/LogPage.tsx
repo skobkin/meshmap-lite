@@ -307,6 +307,7 @@ export function LogPage({
         <LogDetailsModal
           event={selectedEvent}
           onClose={() => setSelectedEvent(undefined)}
+          onOpenNodeDetails={onOpenNodeDetails}
           renderers={[pkiLogDetailsRenderer]}
         />
       </article>

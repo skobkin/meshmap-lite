@@ -5,10 +5,14 @@ import { JsonDetailsView } from './JsonDetailsView'
 import type { LogEvent } from '../api/types'
 import type { ComponentChildren, JSX } from 'preact'
 
+export interface LogDetailsRendererContext {
+  onOpenNodeDetails?: (id: string) => void
+}
+
 export interface LogDetailsRenderer {
   id: string
   match: (event: LogEvent) => boolean
-  render: (event: LogEvent) => ComponentChildren
+  render: (event: LogEvent, context: LogDetailsRendererContext) => ComponentChildren
 }
 
 const registeredLogDetailsRenderers: LogDetailsRenderer[] = []
@@ -57,10 +61,11 @@ function logTitle(event: LogEvent): string {
 interface Props {
   event?: LogEvent
   onClose: () => void
+  onOpenNodeDetails?: (id: string) => void
   renderers?: LogDetailsRenderer[]
 }
 
-export function LogDetailsModal({ event, onClose, renderers }: Props): JSX.Element | null {
+export function LogDetailsModal({ event, onClose, onOpenNodeDetails, renderers }: Props): JSX.Element | null {
   const titleId = useId()
 
   useEffect(() => {
@@ -81,7 +86,7 @@ export function LogDetailsModal({ event, onClose, renderers }: Props): JSX.Eleme
 
   const renderer = resolveLogDetailsRenderer(event, renderers)
   const content = renderer
-    ? renderer.render(event)
+    ? renderer.render(event, { onOpenNodeDetails })
     : <JsonDetailsView value={event.details ?? {}} />
 
   return (

@@ -1,4 +1,5 @@
 import { JsonDetailsView } from './JsonDetailsView'
+import { ResolvedNodeData } from './ResolvedNodeData'
 
 import type { LogDetailsRenderer } from './LogDetailsModal'
 import type { LogEvent } from '../api/types'
@@ -41,12 +42,18 @@ function scalar(value: unknown): string | undefined {
   return undefined
 }
 
-function knownRows(details: Record<string, unknown>): { label: string; value: string }[] {
-  const rows: { label: string; value: string }[] = []
+interface KnownRow {
+  key: typeof knownKeys[number]
+  label: string
+  value: string
+}
+
+function knownRows(details: Record<string, unknown>): KnownRow[] {
+  const rows: KnownRow[] = []
   const add = (label: string, key: typeof knownKeys[number]): void => {
     const value = scalar(details[key])
     if (value) {
-      rows.push({ label, value })
+      rows.push({ key, label, value })
     }
   }
 
@@ -67,6 +74,10 @@ function knownRows(details: Record<string, unknown>): { label: string; value: st
   return rows
 }
 
+function isNodeReferenceKey(key: KnownRow['key']): boolean {
+  return key === 'sender_node_id' || key === 'destination_node_id' || key === 'gateway_id'
+}
+
 function extraDetails(details: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(details)) {
@@ -78,7 +89,13 @@ function extraDetails(details: Record<string, unknown>): Record<string, unknown>
   return out
 }
 
-function PKILogDetailsView({ event }: { event: LogEvent }): JSX.Element {
+function PKILogDetailsView({
+  event,
+  onOpenNodeDetails
+}: {
+  event: LogEvent
+  onOpenNodeDetails?: (id: string) => void
+}): JSX.Element {
   const details = asRecord(event.details)
   if (!details) {
     return <JsonDetailsView value={event.details ?? {}} />
@@ -98,7 +115,24 @@ function PKILogDetailsView({ event }: { event: LogEvent }): JSX.Element {
           {rows.map((row) => (
             <div key={row.label}>
               <dt>{row.label}</dt>
-              <dd>{row.value}</dd>
+              <dd>
+                {isNodeReferenceKey(row.key) ? (
+                  <ResolvedNodeData nodeId={row.value}>
+                    {({ label, title, nodeId }) => onOpenNodeDetails
+                      ? (
+                        <button
+                          type="button"
+                          className="chat-node-link"
+                          title={title}
+                          onClick={() => onOpenNodeDetails(nodeId)}
+                        >
+                          {label}
+                        </button>
+                      )
+                      : <span title={title}>{label}</span>}
+                  </ResolvedNodeData>
+                ) : row.value}
+              </dd>
             </div>
           ))}
         </dl>
@@ -111,5 +145,7 @@ function PKILogDetailsView({ event }: { event: LogEvent }): JSX.Element {
 export const pkiLogDetailsRenderer: LogDetailsRenderer = {
   id: 'pki',
   match: (event) => event.event_kind_value === 11,
-  render: (event) => <PKILogDetailsView event={event} />
+  render: (event, context) => (
+    <PKILogDetailsView event={event} onOpenNodeDetails={context.onOpenNodeDetails} />
+  )
 }
