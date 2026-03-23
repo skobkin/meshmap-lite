@@ -1,0 +1,115 @@
+import { JsonDetailsView } from './JsonDetailsView'
+
+import type { LogDetailsRenderer } from './LogDetailsModal'
+import type { LogEvent } from '../api/types'
+import type { JSX } from 'preact'
+
+const knownKeys = [
+  'sender_node_id',
+  'destination_node_id',
+  'gateway_id',
+  'topic_channel',
+  'envelope_channel_id',
+  'packet_id',
+  'encrypted',
+  'decrypted',
+  'pki_encrypted',
+  'payload_size_bytes',
+  'hop_start',
+  'hop_limit',
+  'priority'
+] as const
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return undefined
+  }
+
+  return value as Record<string, unknown>
+}
+
+function scalar(value: unknown): string | undefined {
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+
+    return trimmed === '' ? undefined : trimmed
+  }
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value)
+  }
+
+  return undefined
+}
+
+function knownRows(details: Record<string, unknown>): { label: string; value: string }[] {
+  const rows: { label: string; value: string }[] = []
+  const add = (label: string, key: typeof knownKeys[number]): void => {
+    const value = scalar(details[key])
+    if (value) {
+      rows.push({ label, value })
+    }
+  }
+
+  add('Sender', 'sender_node_id')
+  add('Destination', 'destination_node_id')
+  add('Gateway', 'gateway_id')
+  add('Topic channel', 'topic_channel')
+  add('Envelope channel', 'envelope_channel_id')
+  add('Packet ID', 'packet_id')
+  add('Encrypted', 'encrypted')
+  add('Decrypted', 'decrypted')
+  add('PKI encrypted', 'pki_encrypted')
+  add('Payload size', 'payload_size_bytes')
+  add('Hop start', 'hop_start')
+  add('Hop limit', 'hop_limit')
+  add('Priority', 'priority')
+
+  return rows
+}
+
+function extraDetails(details: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(details)) {
+    if (!knownKeys.includes(key as typeof knownKeys[number])) {
+      out[key] = value
+    }
+  }
+
+  return out
+}
+
+function PKILogDetailsView({ event }: { event: LogEvent }): JSX.Element {
+  const details = asRecord(event.details)
+  if (!details) {
+    return <JsonDetailsView value={event.details ?? {}} />
+  }
+
+  const rows = knownRows(details)
+  const extra = extraDetails(details)
+
+  if (rows.length === 0 && Object.keys(extra).length === 0) {
+    return <JsonDetailsView value={details} />
+  }
+
+  return (
+    <div>
+      {rows.length > 0 ? (
+        <dl>
+          {rows.map((row) => (
+            <div key={row.label}>
+              <dt>{row.label}</dt>
+              <dd>{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+      {Object.keys(extra).length > 0 ? <JsonDetailsView value={extra} /> : null}
+    </div>
+  )
+}
+
+export const pkiLogDetailsRenderer: LogDetailsRenderer = {
+  id: 'pki',
+  match: (event) => event.event_kind_value === 11,
+  render: (event) => <PKILogDetailsView event={event} />
+}

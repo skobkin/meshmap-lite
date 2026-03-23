@@ -298,6 +298,94 @@ func TestLogEventFromParsedOtherPortnumKeepsFallbackDetails(t *testing.T) {
 	}
 }
 
+func TestLogEventFromParsedPKIUsesDedicatedKindWithOuterHeaderDetails(t *testing.T) {
+	svc := &Service{}
+	now := time.Unix(1772296589, 0).UTC()
+
+	event, ok := svc.logEventFromParsed(meshtastic.ParsedEvent{
+		Kind:      meshtastic.ParsedPKI,
+		NodeID:    "!a55e5e56",
+		PacketID:  3350416627,
+		Encrypted: true,
+		Decrypted: false,
+		PKI: &meshtastic.PKIPayload{
+			SenderNodeID:      "!a55e5e56",
+			DestinationNodeID: "!698509f8",
+			GatewayID:         "!9028d008",
+			TopicChannel:      "PKI",
+			EnvelopeChannelID: "PKI",
+			PacketID:          3350416627,
+			Encrypted:         true,
+			Decrypted:         false,
+			PKIEncrypted:      true,
+			PayloadSizeBytes:  79,
+			HopStart:          7,
+			HopLimit:          7,
+			Priority:          "UNSET",
+		},
+	}, "PKI", now)
+	if !ok {
+		t.Fatalf("expected PKI log event")
+	}
+	if event.EventKind != domain.LogEventKindPKIValue {
+		t.Fatalf("unexpected event kind: %v", event.EventKind)
+	}
+	if event.Details["gateway_id"] != "!9028d008" || event.Details["destination_node_id"] != "!698509f8" {
+		t.Fatalf("unexpected PKI details: %#v", event.Details)
+	}
+	if event.Details["pki_encrypted"] != true || event.Details["payload_size_bytes"] != 79 {
+		t.Fatalf("unexpected PKI flags: %#v", event.Details)
+	}
+}
+
+func TestHandleMessagePersistsPKILogEvent(t *testing.T) {
+	store := &testStore{}
+	svc := New(Config{
+		RootTopic: "msh/RU/ARKH",
+		Channels: map[string]ChannelConfig{
+			"PKI": {Primary: true},
+		},
+		MapReports: MapReportsConfig{TopicSuffix: "2/map"},
+	}, store, dedup.New(dedup.Options{Size: 32, TTL: time.Minute}), testEmitter{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	envelopePayload, err := proto.Marshal(&generated.ServiceEnvelope{
+		ChannelId: "PKI",
+		GatewayId: "!9028d008",
+		Packet: &generated.MeshPacket{
+			From:         0xa55e5e56,
+			To:           0x698509f8,
+			Id:           3350416627,
+			HopStart:     7,
+			HopLimit:     7,
+			PkiEncrypted: true,
+			PayloadVariant: &generated.MeshPacket_Encrypted{
+				Encrypted: make([]byte, 79),
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	svc.HandleMessage(context.Background(), "msh/RU/ARKH/2/e/PKI/!9028d008", envelopePayload)
+
+	if store.lastLogEvent == nil {
+		t.Fatalf("expected PKI log event to persist")
+	}
+	if store.lastLogEvent.EventKind != domain.LogEventKindPKIValue {
+		t.Fatalf("unexpected event kind: %#v", store.lastLogEvent)
+	}
+	if store.lastLogEvent.Details["gateway_id"] != "!9028d008" {
+		t.Fatalf("unexpected gateway details: %#v", store.lastLogEvent.Details)
+	}
+	if store.lastLogEvent.Details["topic_channel"] != "PKI" {
+		t.Fatalf("unexpected topic channel details: %#v", store.lastLogEvent.Details)
+	}
+	if !sawNode(store.nodesSeen, "!698509f8") {
+		t.Fatalf("expected destination node evidence, got %#v", store.nodesSeen)
+	}
+}
+
 func TestHandleChatEmitsResolvedNodeDisplay(t *testing.T) {
 	store := &testStore{nodeDisplay: "skobkin-cap"}
 	emitter := &capturingEmitter{}

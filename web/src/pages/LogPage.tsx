@@ -2,6 +2,7 @@ import { Fragment } from 'preact'
 import { useEffect, useState } from 'preact/hooks'
 
 import { LogDetailsModal, hasLogDetails } from '../components/LogDetailsModal'
+import { pkiLogDetailsRenderer } from '../components/PKILogDetails'
 import { dayKey, dayLabel, fullDateTime, hhmmss } from '../utils/time'
 
 import type { LogEvent } from '../api/types'
@@ -29,7 +30,8 @@ const eventKinds = [
   { value: 7, label: 'Routing' },
   { value: 8, label: 'Other app packet' },
   { value: 9, label: 'Encrypted (undecryptable)' },
-  { value: 10, label: 'Range test' }
+  { value: 10, label: 'Range test' },
+  { value: 11, label: 'PKI' }
 ]
 
 const mobileLogMediaQuery = '(max-width: 768px)'
@@ -302,7 +304,11 @@ export function LogPage({
           </table>
         )}
         <button type="button" className="secondary" onClick={onLoadMore}>Load more</button>
-        <LogDetailsModal event={selectedEvent} onClose={() => setSelectedEvent(undefined)} />
+        <LogDetailsModal
+          event={selectedEvent}
+          onClose={() => setSelectedEvent(undefined)}
+          renderers={[pkiLogDetailsRenderer]}
+        />
       </article>
     </section>
   )

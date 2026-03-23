@@ -385,5 +385,35 @@ describe('LogPage', () => {
     await user.click(eventTypeSummary())
 
     expect(screen.getByRole('checkbox', { name: 'Range test' })).toBeTruthy()
+    expect(screen.getByRole('checkbox', { name: 'PKI' })).toBeTruthy()
+  })
+
+  it('renders structured PKI details without failing on missing fields', async () => {
+    const user = userEvent.setup()
+
+    renderPage([
+      event(1, {
+        event_kind_value: 11,
+        event_kind_title: 'PKI',
+        encrypted: true,
+        channel_name: 'PKI',
+        details: {
+          sender_node_id: '!a55e5e56',
+          destination_node_id: '!698509f8',
+          gateway_id: '!9028d008',
+          packet_id: 3350416627,
+          pki_encrypted: true
+        }
+      })
+    ])
+
+    await user.click(screen.getByRole('button', { name: 'View details for PKI' }))
+
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    expect(screen.getByText('Sender')).toBeTruthy()
+    expect(screen.getByText('!a55e5e56')).toBeTruthy()
+    expect(screen.getByText('Destination')).toBeTruthy()
+    expect(screen.getByText('!698509f8')).toBeTruthy()
+    expect(screen.getByText('PKI encrypted')).toBeTruthy()
   })
 })

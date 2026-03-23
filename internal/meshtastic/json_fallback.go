@@ -23,6 +23,7 @@ func parseJSONFallback(kind TopicKind, payload []byte) (ParsedEvent, error) {
 		Traceroute TraceroutePayload   `json:"traceroute"`
 		Neighbor   NeighborInfoPayload `json:"neighbor_info"`
 		Routing    RoutingPayload      `json:"routing"`
+		PKI        PKIPayload          `json:"pki"`
 		Other      OtherPortnumPayload `json:"other"`
 	}
 	if err := json.Unmarshal(payload, &raw); err != nil {
@@ -68,6 +69,14 @@ func parseJSONFallback(kind TopicKind, payload []byte) (ParsedEvent, error) {
 	case "routing":
 		out.Kind = ParsedRouting
 		out.Routing = &raw.Routing
+	case "pki":
+		out.Kind = ParsedPKI
+		out.PKI = &raw.PKI
+		if out.NodeID == "" {
+			out.NodeID = normalizeNodeID(raw.PKI.SenderNodeID)
+		}
+		out.Encrypted = raw.PKI.Encrypted
+		out.Decrypted = raw.PKI.Decrypted
 	case "other_portnum":
 		out.Kind = ParsedOtherPortnum
 		out.Other = &raw.Other

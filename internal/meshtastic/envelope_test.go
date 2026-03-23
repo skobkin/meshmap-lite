@@ -121,3 +121,53 @@ func TestParseServiceEnvelopeUnknownEncryptedWhenNoKey(t *testing.T) {
 		t.Fatalf("expected encrypted flag")
 	}
 }
+
+func TestParseServiceEnvelopePKIBecomesOpaquePKIEvent(t *testing.T) {
+	ConfigureChannelKeys(nil)
+
+	packet := &generated.MeshPacket{
+		From:         0xa55e5e56,
+		To:           0x698509f8,
+		Id:           3350416627,
+		HopStart:     7,
+		HopLimit:     7,
+		PkiEncrypted: true,
+		PayloadVariant: &generated.MeshPacket_Encrypted{
+			Encrypted: []byte{0xde, 0xad, 0xbe, 0xef, 0xca},
+		},
+	}
+	env := &generated.ServiceEnvelope{Packet: packet, ChannelId: "PKI", GatewayId: "!9028d008"}
+	payload, err := proto.Marshal(env)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	evt, err := parseServiceEnvelope(payload, "PKI")
+	if err != nil {
+		t.Fatalf("expected opaque PKI event, got err: %v", err)
+	}
+	if evt.Kind != ParsedPKI {
+		t.Fatalf("expected PKI kind, got %s", evt.Kind)
+	}
+	if evt.NodeID != "!a55e5e56" {
+		t.Fatalf("unexpected sender node id: %q", evt.NodeID)
+	}
+	if evt.PacketID != 3350416627 {
+		t.Fatalf("unexpected packet id: %d", evt.PacketID)
+	}
+	if !evt.Encrypted || evt.Decrypted {
+		t.Fatalf("unexpected encryption flags: encrypted=%v decrypted=%v", evt.Encrypted, evt.Decrypted)
+	}
+	if evt.PKI == nil {
+		t.Fatalf("expected PKI payload details")
+	}
+	if evt.PKI.DestinationNodeID != "!698509f8" {
+		t.Fatalf("unexpected destination: %#v", evt.PKI)
+	}
+	if evt.PKI.GatewayID != "!9028d008" || evt.PKI.TopicChannel != "PKI" {
+		t.Fatalf("unexpected PKI routing metadata: %#v", evt.PKI)
+	}
+	if !evt.PKI.PKIEncrypted || evt.PKI.PayloadSizeBytes != 5 {
+		t.Fatalf("unexpected PKI payload markers: %#v", evt.PKI)
+	}
+}

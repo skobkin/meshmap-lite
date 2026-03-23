@@ -21,6 +21,7 @@ const (
 	ParsedTraceroute       ParsedKind = "traceroute"
 	ParsedNeighborInfo     ParsedKind = "neighbor_info"
 	ParsedRouting          ParsedKind = "routing"
+	ParsedPKI              ParsedKind = "pki"
 	ParsedOtherPortnum     ParsedKind = "other_portnum"
 	ParsedUnknownEncrypted ParsedKind = "unknown_encrypted"
 )
@@ -43,6 +44,7 @@ type ParsedEvent struct {
 	Traceroute *TraceroutePayload
 	Neighbor   *NeighborInfoPayload
 	Routing    *RoutingPayload
+	PKI        *PKIPayload
 	Other      *OtherPortnumPayload
 }
 
@@ -162,6 +164,23 @@ type RoutingPayload struct {
 	RouteBack     []string `json:"route_back,omitempty"`
 	ErrorReason   string   `json:"error_reason,omitempty"`
 	TracerouteRef bool     `json:"traceroute_ref,omitempty"`
+}
+
+// PKIPayload carries outer-header evidence for PKI-encrypted packets.
+type PKIPayload struct {
+	SenderNodeID      string `json:"sender_node_id,omitempty"`
+	DestinationNodeID string `json:"destination_node_id,omitempty"`
+	GatewayID         string `json:"gateway_id,omitempty"`
+	TopicChannel      string `json:"topic_channel,omitempty"`
+	EnvelopeChannelID string `json:"envelope_channel_id,omitempty"`
+	PacketID          uint32 `json:"packet_id,omitempty"`
+	Encrypted         bool   `json:"encrypted"`
+	Decrypted         bool   `json:"decrypted"`
+	PKIEncrypted      bool   `json:"pki_encrypted"`
+	PayloadSizeBytes  int    `json:"payload_size_bytes,omitempty"`
+	HopStart          uint32 `json:"hop_start,omitempty"`
+	HopLimit          uint32 `json:"hop_limit,omitempty"`
+	Priority          string `json:"priority,omitempty"`
 }
 
 // Routing payload variants.

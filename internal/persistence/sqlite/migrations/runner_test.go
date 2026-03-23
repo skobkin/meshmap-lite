@@ -380,6 +380,53 @@ CREATE TABLE nodes (
 	if !strings.Contains(logOutput, "version=8") || !strings.Contains(logOutput, "name=log_event_range_test_kind") {
 		t.Fatalf("expected log entry for range test migration, got %q", logOutput)
 	}
+	if !strings.Contains(logOutput, "version=9") || !strings.Contains(logOutput, "name=log_event_pki_kind") {
+		t.Fatalf("expected log entry for PKI migration, got %q", logOutput)
+	}
+}
+
+func TestApply_AllowsPKILogEventKind(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite", "file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	_, err = db.ExecContext(ctx, `
+PRAGMA user_version = 8;
+CREATE TABLE log_channels (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE
+);
+CREATE TABLE log_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  observed_at TEXT NOT NULL,
+  node_id TEXT,
+  event_kind INTEGER NOT NULL,
+  encrypted INTEGER NOT NULL,
+  channel_id INTEGER REFERENCES log_channels(id) ON DELETE SET NULL,
+  details_json TEXT,
+  CHECK (event_kind BETWEEN 1 AND 10),
+  CHECK (encrypted IN (0, 1)),
+  CHECK (details_json IS NULL OR json_valid(details_json))
+);
+INSERT INTO log_channels(id, name) VALUES (1, 'PKI');
+INSERT INTO log_events(id, observed_at, node_id, event_kind, encrypted, channel_id, details_json) VALUES
+  (1, '2026-03-23T10:00:00Z', '!opaque001', 9, 1, 1, NULL);
+`)
+	if err != nil {
+		t.Fatalf("seed schema: %v", err)
+	}
+
+	if err := Apply(ctx, db, nil); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	if _, err := db.ExecContext(ctx, `INSERT INTO log_events(observed_at, node_id, event_kind, encrypted, channel_id, details_json) VALUES (?, ?, ?, ?, ?, ?)`,
+		"2026-03-23T10:01:00Z", "!opaque002", 11, 1, 1, `{"pki_encrypted":true}`); err != nil {
+		t.Fatalf("expected event kind 11 to be accepted, got %v", err)
+	}
 }
 
 func tableHasColumn(ctx context.Context, db *sql.DB, table, column string) (bool, error) {

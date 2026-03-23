@@ -2,6 +2,7 @@ package meshtastic
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	generated "meshmap-lite/internal/meshtasticpb"
@@ -43,6 +44,11 @@ func decodeEnvelopePayload(payload []byte, channelHint string, opaquePortnum gen
 	encrypted := decoded == nil
 	wasDecrypted := false
 	if decoded == nil {
+		if packet.GetPkiEncrypted() {
+			event := newPKIEvent(packet, strings.TrimSpace(env.GetGatewayId()), channelHint, strings.TrimSpace(env.GetChannelId()))
+
+			return decodedEnvelope{}, &event, nil
+		}
 		decryptedData, ok := decryptPacketIfPossible(packet, env.GetChannelId(), channelHint)
 		if !ok {
 			event := newUnknownEncryptedEvent(packet, opaquePortnum)
@@ -80,5 +86,35 @@ func newUnknownEncryptedEvent(packet *generated.MeshPacket, portnum generated.Po
 		Format:    "protobuf",
 		Encrypted: true,
 		Decrypted: false,
+	}
+}
+
+func newPKIEvent(packet *generated.MeshPacket, gatewayID, topicChannel, envelopeChannelID string) ParsedEvent {
+	senderNodeID := nodeIDFromNum(packet.GetFrom())
+
+	return ParsedEvent{
+		Kind:      ParsedPKI,
+		NodeID:    senderNodeID,
+		PacketID:  packet.GetId(),
+		Portnum:   0,
+		Format:    "protobuf",
+		Encrypted: true,
+		Decrypted: false,
+		Timestamp: packetTimestamp(packet),
+		PKI: &PKIPayload{
+			SenderNodeID:      senderNodeID,
+			DestinationNodeID: nodeIDFromNum(packet.GetTo()),
+			GatewayID:         gatewayID,
+			TopicChannel:      topicChannel,
+			EnvelopeChannelID: envelopeChannelID,
+			PacketID:          packet.GetId(),
+			Encrypted:         true,
+			Decrypted:         false,
+			PKIEncrypted:      true,
+			PayloadSizeBytes:  len(packet.GetEncrypted()),
+			HopStart:          packet.GetHopStart(),
+			HopLimit:          packet.GetHopLimit(),
+			Priority:          packet.GetPriority().String(),
+		},
 	}
 }

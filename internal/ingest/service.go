@@ -470,6 +470,13 @@ func (s *Service) logEventFromParsed(evt meshtastic.ParsedEvent, channel string,
 		}
 
 		return e, true
+	case meshtastic.ParsedPKI:
+		e.EventKind = domain.LogEventKindPKIValue
+		if evt.PKI != nil {
+			e.Details = pkiLogDetails(evt.PKI)
+		}
+
+		return e, true
 	case meshtastic.ParsedOtherPortnum:
 		e.EventKind = domain.LogEventKindOtherPortnumValue
 		if evt.Portnum == generated.PortNum_RANGE_TEST_APP {
@@ -544,6 +551,36 @@ func tracerouteLogDetails(in *meshtastic.TraceroutePayload) map[string]any {
 	}
 	if in.InferredDirect {
 		details["inferred_direct"] = true
+	}
+
+	return details
+}
+
+func pkiLogDetails(in *meshtastic.PKIPayload) map[string]any {
+	if in == nil {
+		return nil
+	}
+
+	details := map[string]any{
+		"sender_node_id":      in.SenderNodeID,
+		"destination_node_id": in.DestinationNodeID,
+		"gateway_id":          in.GatewayID,
+		"topic_channel":       in.TopicChannel,
+		"envelope_channel_id": in.EnvelopeChannelID,
+		"packet_id":           in.PacketID,
+		"encrypted":           in.Encrypted,
+		"decrypted":           in.Decrypted,
+		"pki_encrypted":       in.PKIEncrypted,
+		"payload_size_bytes":  in.PayloadSizeBytes,
+	}
+	if in.HopStart > 0 {
+		details["hop_start"] = in.HopStart
+	}
+	if in.HopLimit > 0 {
+		details["hop_limit"] = in.HopLimit
+	}
+	if in.Priority != "" {
+		details["priority"] = in.Priority
 	}
 
 	return details
@@ -672,6 +709,10 @@ func indirectNodeIDs(evt meshtastic.ParsedEvent) []string {
 			add(evt.Routing.FromNodeID, evt.Routing.ToNodeID)
 			add(evt.Routing.Route...)
 			add(evt.Routing.RouteBack...)
+		}
+	case meshtastic.ParsedPKI:
+		if evt.PKI != nil {
+			add(evt.PKI.DestinationNodeID)
 		}
 	}
 
