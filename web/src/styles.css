@@ -923,8 +923,7 @@ body {
 }
 
 .json-line {
-  display: flex;
-  align-items: flex-start;
+  display: block;
 }
 
 .json-toggle,
