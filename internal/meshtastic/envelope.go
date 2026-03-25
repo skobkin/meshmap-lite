@@ -44,12 +44,13 @@ func decodeEnvelopePayload(payload []byte, channelHint string, opaquePortnum gen
 	encrypted := decoded == nil
 	wasDecrypted := false
 	if decoded == nil {
-		if packet.GetPkiEncrypted() {
-			event := newPKIEvent(packet, strings.TrimSpace(env.GetGatewayId()), channelHint, strings.TrimSpace(env.GetChannelId()))
+		envelopeChannelID := strings.TrimSpace(env.GetChannelId())
+		if isPKITransportPacket(packet, channelHint, envelopeChannelID) {
+			event := newPKIEvent(packet, strings.TrimSpace(env.GetGatewayId()), channelHint, envelopeChannelID)
 
 			return decodedEnvelope{}, &event, nil
 		}
-		decryptedData, ok := decryptPacketIfPossible(packet, env.GetChannelId(), channelHint)
+		decryptedData, ok := decryptPacketIfPossible(packet, envelopeChannelID, channelHint)
 		if !ok {
 			event := newUnknownEncryptedEvent(packet, opaquePortnum)
 
@@ -65,6 +66,18 @@ func decodeEnvelopePayload(payload []byte, channelHint string, opaquePortnum gen
 		encrypted: encrypted,
 		decrypted: wasDecrypted,
 	}, nil, nil
+}
+
+func isPKITransportPacket(packet *generated.MeshPacket, topicChannel, envelopeChannelID string) bool {
+	if packet.GetPkiEncrypted() {
+		return true
+	}
+	if len(packet.GetEncrypted()) == 0 {
+		return false
+	}
+
+	return strings.EqualFold(strings.TrimSpace(topicChannel), "PKI") ||
+		strings.EqualFold(strings.TrimSpace(envelopeChannelID), "PKI")
 }
 
 func packetTimestamp(packet *generated.MeshPacket) *time.Time {
@@ -110,7 +123,7 @@ func newPKIEvent(packet *generated.MeshPacket, gatewayID, topicChannel, envelope
 			PacketID:          packet.GetId(),
 			Encrypted:         true,
 			Decrypted:         false,
-			PKIEncrypted:      true,
+			PKIEncrypted:      packet.GetPkiEncrypted(),
 			PayloadSizeBytes:  len(packet.GetEncrypted()),
 			HopStart:          packet.GetHopStart(),
 			HopLimit:          packet.GetHopLimit(),

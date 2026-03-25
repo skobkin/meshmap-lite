@@ -386,6 +386,100 @@ func TestHandleMessagePersistsPKILogEvent(t *testing.T) {
 	}
 }
 
+func TestHandleMessagePersistsPKILogEventForPKITopicWithoutPKIFlag(t *testing.T) {
+	store := &testStore{}
+	svc := New(Config{
+		RootTopic: "msh/RU/ARKH",
+		Channels: map[string]ChannelConfig{
+			"PKI": {Primary: true},
+		},
+		MapReports: MapReportsConfig{TopicSuffix: "2/map"},
+	}, store, dedup.New(dedup.Options{Size: 32, TTL: time.Minute}), testEmitter{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	envelopePayload, err := proto.Marshal(&generated.ServiceEnvelope{
+		ChannelId: "PKI",
+		GatewayId: "!9028d008",
+		Packet: &generated.MeshPacket{
+			From:     0xa55e5e56,
+			To:       0x9028d008,
+			Id:       3350416642,
+			HopStart: 7,
+			HopLimit: 7,
+			PayloadVariant: &generated.MeshPacket_Encrypted{
+				Encrypted: []byte{0xde, 0xad, 0xbe, 0xef, 0xca},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	svc.HandleMessage(context.Background(), "msh/RU/ARKH/2/e/PKI/!9028d008", envelopePayload)
+
+	if store.lastLogEvent == nil {
+		t.Fatalf("expected PKI log event to persist")
+	}
+	if store.lastLogEvent.EventKind != domain.LogEventKindPKIValue {
+		t.Fatalf("unexpected event kind: %#v", store.lastLogEvent)
+	}
+	if store.lastLogEvent.Details["pki_encrypted"] != false {
+		t.Fatalf("expected PKI log details to preserve wire flag, got %#v", store.lastLogEvent.Details)
+	}
+	if store.lastLogEvent.Details["destination_node_id"] != "!9028d008" {
+		t.Fatalf("unexpected destination details: %#v", store.lastLogEvent.Details)
+	}
+	if !sawNode(store.nodesSeen, "!9028d008") {
+		t.Fatalf("expected destination node evidence, got %#v", store.nodesSeen)
+	}
+}
+
+func TestHandleMessagePersistsPKILogEventWithoutConfiguredPKIChannel(t *testing.T) {
+	store := &testStore{}
+	svc := New(Config{
+		RootTopic:  "msh/RU/ARKH",
+		Channels:   map[string]ChannelConfig{},
+		MapReports: MapReportsConfig{TopicSuffix: "2/map"},
+	}, store, dedup.New(dedup.Options{Size: 32, TTL: time.Minute}), testEmitter{}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	envelopePayload, err := proto.Marshal(&generated.ServiceEnvelope{
+		ChannelId: "PKI",
+		GatewayId: "!9028d008",
+		Packet: &generated.MeshPacket{
+			From:         0x9028d008,
+			To:           0xa55e5e56,
+			Id:           3986283477,
+			HopStart:     2,
+			HopLimit:     2,
+			PkiEncrypted: true,
+			Priority:     generated.MeshPacket_RELIABLE,
+			PayloadVariant: &generated.MeshPacket_Encrypted{
+				Encrypted: make([]byte, 110),
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	svc.HandleMessage(context.Background(), "msh/RU/ARKH/2/e/PKI/!9028d008", envelopePayload)
+
+	if store.lastLogEvent == nil {
+		t.Fatalf("expected PKI log event to persist")
+	}
+	if store.lastLogEvent.EventKind != domain.LogEventKindPKIValue {
+		t.Fatalf("unexpected event kind: %#v", store.lastLogEvent)
+	}
+	if store.lastLogEvent.Details["topic_channel"] != "PKI" {
+		t.Fatalf("unexpected topic channel details: %#v", store.lastLogEvent.Details)
+	}
+	if !sawNode(store.nodesSeen, "!a55e5e56") {
+		t.Fatalf("expected destination node evidence, got %#v", store.nodesSeen)
+	}
+	if !sawNode(store.nodesSeen, "!9028d008") {
+		t.Fatalf("expected sender/gateway node evidence, got %#v", store.nodesSeen)
+	}
+}
+
 func TestHandleChatEmitsResolvedNodeDisplay(t *testing.T) {
 	store := &testStore{nodeDisplay: "skobkin-cap"}
 	emitter := &capturingEmitter{}

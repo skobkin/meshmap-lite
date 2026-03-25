@@ -590,12 +590,18 @@ func (s *Service) allowLogEvent(topicKind meshtastic.TopicKind, channel string, 
 	if kind == meshtastic.ParsedMapReport || topicKind == meshtastic.TopicKindMapReport {
 		return s.cfg.MapReports.Enabled
 	}
+	if kind == meshtastic.ParsedPKI {
+		return true
+	}
 	_, ok := s.cfg.Channels[channel]
 
 	return ok
 }
 
 func (s *Service) allowEvent(channel string, kind meshtastic.ParsedKind) bool {
+	if kind == meshtastic.ParsedPKI {
+		return true
+	}
 	ch, ok := s.cfg.Channels[channel]
 	if !ok && kind != meshtastic.ParsedMapReport {
 		return false

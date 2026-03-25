@@ -1,6 +1,7 @@
 package meshtastic
 
 import (
+	"encoding/hex"
 	"testing"
 
 	generated "meshmap-lite/internal/meshtasticpb"
@@ -169,5 +170,43 @@ func TestParseServiceEnvelopePKIBecomesOpaquePKIEvent(t *testing.T) {
 	}
 	if !evt.PKI.PKIEncrypted || evt.PKI.PayloadSizeBytes != 5 {
 		t.Fatalf("unexpected PKI payload markers: %#v", evt.PKI)
+	}
+}
+
+func TestParseServiceEnvelopePKITopicWithoutPKIFlagStillBecomesPKIEvent(t *testing.T) {
+	ConfigureChannelKeys(nil)
+
+	payload, err := hex.DecodeString("0a560d565e5ea51508d028902a213c06179e0d2c422b09497c5c755718e628910c611cb568a1cc244d5e722ed63e3935024db3c73d453dc369450000e8404807500160ceffffffffffffffff017807900108980156a801011203504b491a09213930323864303038")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	evt, err := parseServiceEnvelope(payload, "PKI")
+	if err != nil {
+		t.Fatalf("expected opaque PKI event, got err: %v", err)
+	}
+	if evt.Kind != ParsedPKI {
+		t.Fatalf("expected PKI kind, got %s", evt.Kind)
+	}
+	if evt.NodeID != "!a55e5e56" {
+		t.Fatalf("unexpected sender node id: %q", evt.NodeID)
+	}
+	if evt.PacketID != 3350416642 {
+		t.Fatalf("unexpected packet id: %d", evt.PacketID)
+	}
+	if evt.PKI == nil {
+		t.Fatalf("expected PKI payload details")
+	}
+	if evt.PKI.DestinationNodeID != "!9028d008" {
+		t.Fatalf("unexpected destination: %#v", evt.PKI)
+	}
+	if evt.PKI.TopicChannel != "PKI" || evt.PKI.EnvelopeChannelID != "PKI" {
+		t.Fatalf("unexpected PKI routing metadata: %#v", evt.PKI)
+	}
+	if evt.PKI.PKIEncrypted {
+		t.Fatalf("expected PKI flag to reflect wire packet, got %#v", evt.PKI)
+	}
+	if evt.PKI.PayloadSizeBytes == 0 {
+		t.Fatalf("expected encrypted payload size to be captured, got %#v", evt.PKI)
 	}
 }
