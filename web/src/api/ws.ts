@@ -4,7 +4,7 @@ import { useMetaStore } from '../stores/meta'
 import { useNodeStore } from '../stores/nodes'
 import { useWSStore } from '../stores/ws'
 
-import type { LogEvent, Node, NodePosition, NodeTelemetry, WSStats } from './types'
+import type { LogEvent, MQTTConnectionStatus, Node, NodePosition, NodeTelemetry, WSHeartbeat, WSStats } from './types'
 
 interface EventEnvelope {
   type: string
@@ -73,6 +73,19 @@ function isStatsPayload(payload: unknown): payload is WSStats {
     typeof stats.ws_clients_count === 'number'
 }
 
+function isMQTTConnectionStatus(payload: unknown): payload is MQTTConnectionStatus {
+  return payload === 'connected' || payload === 'disconnected'
+}
+
+function isHeartbeatPayload(payload: unknown): payload is WSHeartbeat {
+  if (!payload || typeof payload !== 'object') {
+    return false
+  }
+  const heartbeat = payload as Record<string, unknown>
+
+  return heartbeat.status === 'ok' && isMQTTConnectionStatus(heartbeat.mqtt_connection_status)
+}
+
 function isLogEventPayload(payload: unknown): payload is LogEvent {
   if (!payload || typeof payload !== 'object') {
     return false
@@ -119,6 +132,11 @@ export function startWS(path: string): () => void {
       }
       if (msg.type === 'stats' && isStatsPayload(msg.payload)) {
         useWSStore.getState().setStats(msg.payload)
+
+        return
+      }
+      if (msg.type === 'ws.heartbeat' && isHeartbeatPayload(msg.payload)) {
+        useWSStore.getState().setMQTTStatus(msg.payload.mqtt_connection_status)
 
         return
       }

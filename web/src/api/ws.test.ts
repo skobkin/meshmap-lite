@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ChatEvent, LogEvent, Meta, Node, NodePosition, WSState, WSStats } from './types'
+import type { ChatEvent, LogEvent, MQTTConnectionStatus, Meta, Node, NodePosition, WSState, WSStats } from './types'
 
 interface ChatStoreState {
   messages: ChatEvent[]
@@ -24,9 +24,11 @@ interface NodeStoreState {
 }
 
 interface WSStoreState {
+  mqttStatus: MQTTConnectionStatus | null
   state: WSState
   stats: WSStats | null
   setState: (state: WSState) => void
+  setMQTTStatus: (status: MQTTConnectionStatus) => void
   setStats: (stats: WSStats) => void
 }
 
@@ -127,10 +129,15 @@ describe('startWS', () => {
       }
     }
     wsStore = {
+      mqttStatus: null,
       state: 'connecting',
       stats: null,
       setState(state) {
         this.state = state
+        this.mqttStatus = state === 'connected' ? this.mqttStatus : null
+      },
+      setMQTTStatus(status) {
+        this.mqttStatus = status
       },
       setStats(stats) {
         this.stats = stats
@@ -165,6 +172,13 @@ describe('startWS', () => {
       }
     })
     socket?.emitMessage({
+      type: 'ws.heartbeat',
+      payload: {
+        status: 'ok',
+        mqtt_connection_status: 'connected'
+      }
+    })
+    socket?.emitMessage({
       type: 'node.upsert',
       payload: {
         node_id: '!abcd',
@@ -194,6 +208,7 @@ describe('startWS', () => {
     })
 
     expect(wsStore.state).toBe('connected')
+    expect(wsStore.mqttStatus).toBe('connected')
     expect(chatStore.messages).toEqual([
       {
         id: 7,
@@ -220,6 +235,29 @@ describe('startWS', () => {
       }
     ])
     expect(logStore.items.map((item) => item.id)).toEqual([9])
+
+    stop()
+  })
+
+  it('clears the last known MQTT status when the websocket disconnects', () => {
+    const stop = startWS('/api/v1/ws')
+    const socket = MockWebSocket.instances[0]
+
+    socket?.emitOpen()
+    socket?.emitMessage({
+      type: 'ws.heartbeat',
+      payload: {
+        status: 'ok',
+        mqtt_connection_status: 'connected'
+      }
+    })
+
+    expect(wsStore.mqttStatus).toBe('connected')
+
+    socket?.emitClose()
+
+    expect(wsStore.state).toBe('reconnecting')
+    expect(wsStore.mqttStatus).toBeNull()
 
     stop()
   })

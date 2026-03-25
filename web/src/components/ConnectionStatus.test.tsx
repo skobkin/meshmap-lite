@@ -9,6 +9,7 @@ describe('ConnectionStatus', () => {
   it('shows reconnecting status text while keeping stats in the tooltip', () => {
     render(
       <ConnectionStatus
+        mqttStatus={null}
         ws="reconnecting"
         wsStats={{
           known_nodes_count: 10,
@@ -24,9 +25,22 @@ describe('ConnectionStatus', () => {
   })
 
   it('shows a disconnected label when the websocket is down', () => {
-    render(<ConnectionStatus ws="disconnected" wsStats={null} />)
+    render(<ConnectionStatus mqttStatus={null} ws="disconnected" wsStats={null} />)
 
     expect(screen.getByText('Disconnected')).toBeTruthy()
     expect(screen.getByLabelText('WebSocket: disconnected')).toBeTruthy()
+  })
+
+  it('shows a warning label when websocket is up but MQTT is disconnected', () => {
+    render(
+      <ConnectionStatus
+        mqttStatus="disconnected"
+        ws="connected"
+        wsStats={null}
+      />
+    )
+
+    expect(screen.getByText('MQTT disconnected')).toBeTruthy()
+    expect(screen.getByLabelText(/MQTT: disconnected/)).toBeTruthy()
   })
 })

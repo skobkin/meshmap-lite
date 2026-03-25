@@ -198,6 +198,10 @@ body {
   color: #8a6d1f;
 }
 
+.ws-status.warning {
+  color: #9c6b00;
+}
+
 .ws-status.disconnected {
   color: #c92a2a;
 }
@@ -213,6 +217,10 @@ body {
 
 .ws-status.connecting .ws-status-icon {
   background: #f59f00;
+}
+
+.ws-status.warning .ws-status-icon {
+  background: #fab005;
 }
 
 .ws-status.disconnected .ws-status-icon {

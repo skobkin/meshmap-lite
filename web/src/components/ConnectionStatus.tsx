@@ -1,7 +1,8 @@
-import type { WSState, WSStats } from '../api/types'
+import type { MQTTConnectionStatus, WSState, WSStats } from '../api/types'
 import type { JSX } from 'preact'
 
 interface Props {
+  mqttStatus: MQTTConnectionStatus | null
   ws: WSState
   wsStats: WSStats | null
 }
@@ -15,9 +16,10 @@ function formatTime(value?: string): string {
 }
 
 function wsStateMeta(
+  mqttStatus: MQTTConnectionStatus | null,
   state: WSState,
   wsStats: WSStats | null
-): { title: string; tone: 'connected' | 'connecting' | 'disconnected'; label: string } {
+): { title: string; tone: 'connected' | 'connecting' | 'disconnected' | 'warning'; label: string } {
   const lines = [] as string[]
   if (state === 'connected') {
     lines.push('WebSocket: connected')
@@ -25,6 +27,9 @@ function wsStateMeta(
     lines.push(`WebSocket: ${state}`)
   } else {
     lines.push('WebSocket: disconnected')
+  }
+  if (mqttStatus) {
+    lines.push(`MQTT: ${mqttStatus}`)
   }
 
   if (wsStats) {
@@ -43,14 +48,18 @@ function wsStateMeta(
   }
 
   if (state === 'connected') {
+    if (mqttStatus === 'disconnected') {
+      return { title: lines.join('\n'), tone: 'warning', label: 'MQTT disconnected' }
+    }
+
     return { title: lines.join('\n'), tone: 'connected', label: '' }
   }
 
   return { title: lines.join('\n'), tone: 'disconnected', label: 'Disconnected' }
 }
 
-export function ConnectionStatus({ ws, wsStats }: Props): JSX.Element {
-  const status = wsStateMeta(ws, wsStats)
+export function ConnectionStatus({ mqttStatus, ws, wsStats }: Props): JSX.Element {
+  const status = wsStateMeta(mqttStatus, ws, wsStats)
 
   return (
     <span className={`ws-status ${status.tone}`} title={status.title} aria-label={status.title}>

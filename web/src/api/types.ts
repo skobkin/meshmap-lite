@@ -1,5 +1,11 @@
 export type WSState = 'connecting' | 'connected' | 'reconnecting' | 'disconnected'
+export type MQTTConnectionStatus = 'connected' | 'disconnected'
 export type MapPrecisionCirclesMode = 'none' | 'selected' | 'always'
+
+export interface WSHeartbeat {
+  status: 'ok'
+  mqtt_connection_status: MQTTConnectionStatus
+}
 
 export interface WSStats {
   known_nodes_count: number

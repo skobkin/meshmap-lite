@@ -40,7 +40,7 @@ func TestTopologyEdgesHandlerReturnsFilteredItems(t *testing.T) {
 		},
 	}
 
-	srv := New(Config{}, store, nil, nil, nil)
+	srv := New(Config{}, store, nil, nil, nil, nil)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/topology/edges?node_id=!49b5976c&channel=LongFast&source_kind=neighbor_info,routing_return", nil)
 	rec := httptest.NewRecorder()
 
@@ -84,7 +84,7 @@ func TestNodeByIDReturnsNeighbors(t *testing.T) {
 		},
 	}
 
-	srv := New(Config{}, store, nil, nil, nil)
+	srv := New(Config{}, store, nil, nil, nil, nil)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/nodes/%2149b5976c", nil)
 	rec := httptest.NewRecorder()
 

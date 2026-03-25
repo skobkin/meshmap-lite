@@ -5,6 +5,8 @@ import (
 	"net/http"
 
 	"github.com/gorilla/websocket"
+
+	"meshmap-lite/internal/domain"
 )
 
 func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -17,6 +19,15 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	client := h.register(conn, r)
 	defer h.unregister(client)
+	if h.opts.OnConnect != nil {
+		if err := h.opts.OnConnect(r, func(event domain.RealtimeEvent) error {
+			return h.emitToClient(client, event)
+		}); err != nil {
+			h.log.Warn("ws on-connect hook failed", "remote_addr", client.remoteAddr, "err", err)
+
+			return
+		}
+	}
 
 	for {
 		if _, _, err := client.conn.ReadMessage(); err != nil {

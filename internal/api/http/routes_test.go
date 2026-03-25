@@ -11,7 +11,7 @@ import (
 func TestRoutesServeDocsIndex(t *testing.T) {
 	t.Parallel()
 
-	srv := New(Config{}, nil, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil)
+	srv := New(Config{}, nil, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil, nil)
 	docs := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("docs"))
 	})
@@ -32,7 +32,7 @@ func TestRoutesServeDocsIndex(t *testing.T) {
 func TestRoutesPreferAPIV1HandlersOverDocs(t *testing.T) {
 	t.Parallel()
 
-	srv := New(Config{}, nil, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil)
+	srv := New(Config{}, nil, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil, nil)
 	docs := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		t.Fatal("docs handler should not serve /api/v1 routes")
 	})

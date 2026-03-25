@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+
+	"meshmap-lite/internal/domain"
 )
 
 const defaultWriteTimeout = 5 * time.Second
@@ -13,9 +15,13 @@ const defaultWriteTimeout = 5 * time.Second
 // OriginPolicy decides whether a websocket upgrade is allowed.
 type OriginPolicy func(*http.Request) bool
 
+// ConnectHandler is called once after a websocket client is registered.
+type ConnectHandler func(*http.Request, func(domain.RealtimeEvent) error) error
+
 // Options contains the websocket settings owned by this package.
 type Options struct {
 	CheckOrigin  OriginPolicy
+	OnConnect    ConnectHandler
 	WriteTimeout time.Duration
 }
 

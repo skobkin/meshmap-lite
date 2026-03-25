@@ -43,11 +43,15 @@ type Client struct {
 	log     *slog.Logger
 	handler Handler
 	client  mqtt.Client
+	state   atomicLifecycleState
 }
 
 // New constructs an MQTT client wrapper.
 func New(opts Options, log *slog.Logger, handler Handler) *Client {
-	return &Client{opts: opts, log: log, handler: handler}
+	client := &Client{opts: opts, log: log, handler: handler}
+	client.setLifecycleState(lifecycleStateDisconnected)
+
+	return client
 }
 
 func (c *Client) newClientOptions() *mqtt.ClientOptions {

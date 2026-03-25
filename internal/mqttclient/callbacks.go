@@ -6,6 +6,7 @@ import (
 
 func (c *Client) onConnectHandler(brokerURL, clientID string) mqtt.OnConnectHandler {
 	return func(client mqtt.Client) {
+		c.setLifecycleState(lifecycleStateConnected)
 		c.log.Info("mqtt connected", "broker", brokerURL, "client_id", clientID)
 		topic := c.subscriptionTopic()
 		c.log.Debug("mqtt subscribe requested", "topic", topic, "qos", c.opts.SubscribeQoS)
@@ -20,12 +21,14 @@ func (c *Client) onConnectHandler(brokerURL, clientID string) mqtt.OnConnectHand
 
 func (c *Client) reconnectingHandler() mqtt.ReconnectHandler {
 	return func(_ mqtt.Client, opts *mqtt.ClientOptions) {
+		c.setLifecycleState(lifecycleStateReconnecting)
 		c.log.Warn("mqtt reconnecting", "broker", opts.Servers[0].String(), "client_id", opts.ClientID)
 	}
 }
 
 func (c *Client) connectionLostHandler() mqtt.ConnectionLostHandler {
 	return func(_ mqtt.Client, err error) {
+		c.setLifecycleState(lifecycleStateDisconnected)
 		c.log.Warn("mqtt connection lost", "err", err)
 	}
 }

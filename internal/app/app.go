@@ -16,6 +16,7 @@ import (
 	"meshmap-lite/internal/buildinfo"
 	"meshmap-lite/internal/config"
 	"meshmap-lite/internal/dedup"
+	"meshmap-lite/internal/domain"
 	"meshmap-lite/internal/frontend"
 	"meshmap-lite/internal/ingest"
 	"meshmap-lite/internal/logging"
@@ -59,7 +60,16 @@ func Run(configPath string) error {
 	}
 	defer func() { _ = store.Close() }()
 
-	hub := ws.NewHub(logMgr.Logger("internal/api/ws"), ws.Options{})
+	var api *httpapi.Server
+	hub := ws.NewHub(logMgr.Logger("internal/api/ws"), ws.Options{
+		OnConnect: func(_ *http.Request, send func(domain.RealtimeEvent) error) error {
+			if api == nil {
+				return nil
+			}
+
+			return send(api.HeartbeatEvent(time.Now()))
+		},
+	})
 	dedupStore := dedup.New(dedup.Options{
 		Size: cfg.Storage.KV.Size,
 		TTL:  cfg.Storage.KV.TTL,
@@ -100,12 +110,12 @@ func Run(configPath string) error {
 		ing.HandleMessage(ctx, topic, payload)
 	})
 
-	api := httpapi.New(httpapi.Config{
+	api = httpapi.New(httpapi.Config{
 		AppName:  buildinfo.AppName,
 		Version:  buildinfo.Version,
 		Web:      cfg.Web,
 		Channels: cfg.Channels,
-	}, store, logMgr.Logger("internal/api/http"), mqttReady.Load, hub.ClientCount)
+	}, store, logMgr.Logger("internal/api/http"), mqttReady.Load, hub.ClientCount, mqtt.ConnectionStatus)
 	apiMux := api.Routes(hub, apidocs.Handler(apidocs.Options{
 		SpecURL: "/api/openapi.yaml",
 		Title:   buildinfo.AppName + " API",

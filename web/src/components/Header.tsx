@@ -1,10 +1,11 @@
 import { ConnectionStatus } from './ConnectionStatus'
 
-import type { WSState, WSStats } from '../api/types'
+import type { MQTTConnectionStatus, WSState, WSStats } from '../api/types'
 import type { JSX } from 'preact'
 
 interface Props {
   appName: string
+  mqttStatus: MQTTConnectionStatus | null
   page: 'map' | 'nodes' | 'log'
   version: string
   ws: WSState
@@ -12,7 +13,7 @@ interface Props {
   onPage: (p: 'map' | 'nodes' | 'log') => void
 }
 
-export function Header({ appName, page, version, ws, wsStats, onPage }: Props): JSX.Element {
+export function Header({ appName, mqttStatus, page, version, ws, wsStats, onPage }: Props): JSX.Element {
   const brandTitle = `${appName} ${version}`
 
   return (
@@ -55,7 +56,7 @@ export function Header({ appName, page, version, ws, wsStats, onPage }: Props): 
         </ul>
       </nav>
       <div className="header-icons">
-        <ConnectionStatus ws={ws} wsStats={wsStats} />
+        <ConnectionStatus mqttStatus={mqttStatus} ws={ws} wsStats={wsStats} />
         <a className="repo-link" href="https://git.skobk.in/skobkin/meshmap-lite" target="_blank" rel="noreferrer" title="Source" aria-label="Source code">
           <span className="repo-link-icon" aria-hidden="true" />
         </a>

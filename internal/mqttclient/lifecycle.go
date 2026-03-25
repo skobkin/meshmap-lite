@@ -20,18 +20,24 @@ func (c *Client) Start(ctx context.Context) error {
 		"keepalive", c.opts.Keepalive.String(),
 	)
 
+	c.setLifecycleState(lifecycleStateConnecting)
 	c.client = mqtt.NewClient(c.newClientOptions())
 	token := c.client.Connect()
 	if !token.WaitTimeout(c.opts.ConnectTimeout) {
+		c.setLifecycleState(lifecycleStateDisconnected)
+
 		return fmt.Errorf("mqtt connect timeout")
 	}
 	if err := token.Error(); err != nil {
+		c.setLifecycleState(lifecycleStateDisconnected)
+
 		return err
 	}
 
 	<-ctx.Done()
 	c.log.Info("mqtt client disconnecting")
 	c.client.Disconnect(defaultDisconnectQuiesceMS)
+	c.setLifecycleState(lifecycleStateDisconnected)
 	c.log.Info("mqtt client stopped")
 
 	return nil

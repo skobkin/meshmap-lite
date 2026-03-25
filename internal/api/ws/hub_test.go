@@ -123,6 +123,38 @@ func TestHubHonorsOriginPolicy(t *testing.T) {
 	}
 }
 
+func TestHubOnConnectCanSendInitialEvent(t *testing.T) {
+	hub := NewHub(testLogger(), Options{
+		OnConnect: func(_ *http.Request, send func(domain.RealtimeEvent) error) error {
+			return send(domain.RealtimeEvent{
+				Type: "ws.heartbeat",
+				TS:   time.Unix(20, 0).UTC(),
+				Payload: map[string]string{
+					"status":                 "ok",
+					"mqtt_connection_status": "connected",
+				},
+			})
+		},
+	})
+	server := httptest.NewServer(hub)
+	defer server.Close()
+
+	conn := mustDialWS(t, server.URL)
+	closeConn(t, conn)
+	waitForClientCount(t, hub, 1)
+
+	if err := conn.SetReadDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	_, body, err := conn.ReadMessage()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) == "" {
+		t.Fatalf("expected initial websocket payload")
+	}
+}
+
 func mustDialWS(t *testing.T, serverURL string) *websocket.Conn {
 	t.Helper()
 

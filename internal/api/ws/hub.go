@@ -1,11 +1,14 @@
 package ws
 
 import (
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"sync"
 
 	"github.com/gorilla/websocket"
+
+	"meshmap-lite/internal/domain"
 )
 
 // Hub manages websocket clients and broadcasts realtime events to all of them.
@@ -76,4 +79,13 @@ func (h *Hub) snapshotClients() []*client {
 	}
 
 	return clients
+}
+
+func (h *Hub) emitToClient(client *client, event domain.RealtimeEvent) error {
+	body, err := json.Marshal(event)
+	if err != nil {
+		return err
+	}
+
+	return client.write(body, h.opts.WriteTimeout)
 }

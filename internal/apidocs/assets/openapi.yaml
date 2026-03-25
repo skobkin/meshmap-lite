@@ -380,11 +380,14 @@ components:
           type: string
     Heartbeat:
       type: object
-      required: [status]
+      required: [status, mqtt_connection_status]
       properties:
         status:
           type: string
           const: ok
+        mqtt_connection_status:
+          type: string
+          enum: [connected, disconnected]
     Meta:
       type: object
       required:

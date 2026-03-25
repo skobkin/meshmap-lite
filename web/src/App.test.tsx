@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { chatStorageKey } from './stores/chatState'
 
-import type { ChannelItem, ChatEvent, LogEvent, MapNode, Meta, NodeDetails, NodeSummary, WSState, WSStats } from './api/types'
+import type { ChannelItem, ChatEvent, LogEvent, MQTTConnectionStatus, MapNode, Meta, NodeDetails, NodeSummary, WSState, WSStats } from './api/types'
 import type { JSX } from 'preact'
 
 type Selector<T, U> = (state: T) => U
@@ -162,9 +162,11 @@ interface NodeStoreState {
 }
 
 interface WSStoreState {
+  mqttStatus: MQTTConnectionStatus | null
   state: WSState
   stats: WSStats | null
   setState: (state: WSState) => void
+  setMQTTStatus: (status: MQTTConnectionStatus) => void
   setStats: (stats: WSStats) => void
 }
 
@@ -233,10 +235,15 @@ function setupModuleMocks(): void {
     setDetails: (details) => set({ details })
   }))
 
-  wsStore = createStoreHook<WSStoreState>((set) => ({
+  wsStore = createStoreHook<WSStoreState>((set, get) => ({
+    mqttStatus: null,
     state: 'connecting',
     stats: null,
-    setState: (state) => set({ state }),
+    setState: (state) => set({
+      state,
+      mqttStatus: state === 'connected' ? get().mqttStatus : null
+    }),
+    setMQTTStatus: (mqttStatus) => set({ mqttStatus }),
     setStats: (stats) => set({ stats })
   }))
 

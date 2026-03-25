@@ -1,5 +1,7 @@
 package httpapi
 
+import "meshmap-lite/internal/mqttclient"
+
 type healthStatusPayload struct {
 	Status string `json:"status"`
 }
@@ -42,5 +44,6 @@ type channelPayload struct {
 }
 
 type heartbeatPayload struct {
-	Status string `json:"status"`
+	Status               string                      `json:"status"`
+	MQTTConnectionStatus mqttclient.ConnectionStatus `json:"mqtt_connection_status"`
 }

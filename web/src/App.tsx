@@ -121,6 +121,7 @@ export function App(): JSX.Element {
   const [channels, setChannels] = useState<string[]>([])
   const [detailsCache, setDetailsCache] = useState(() => readNodeDetailsCache(localStorage))
   const [mapView, setMapView] = useState<SavedMapView>(() => readHashMapView() ?? readSavedMapView() ?? { center: [64.5, 40.6], zoom: 12 })
+  const mqttStatus = useWSStore((s) => s.mqttStatus)
   const ws = useWSStore((s) => s.state)
   const wsStats = useWSStore((s) => s.stats)
   const meta = useMetaStore((s) => s.meta)
@@ -440,11 +441,12 @@ export function App(): JSX.Element {
 
   return (
     <main className={mainClass}>
-      <Header
-        appName={meta?.app_name ?? defaultAppName}
-        page={page}
-        version={meta?.version ?? defaultAppVersion}
-        ws={ws}
+        <Header
+          appName={meta?.app_name ?? defaultAppName}
+          mqttStatus={mqttStatus}
+          page={page}
+          version={meta?.version ?? defaultAppVersion}
+          ws={ws}
         wsStats={wsStats}
         onPage={setPage}
       />

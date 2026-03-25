@@ -7,16 +7,18 @@ import (
 
 	"meshmap-lite/internal/config"
 	"meshmap-lite/internal/domain"
+	"meshmap-lite/internal/mqttclient"
 	"meshmap-lite/internal/repo"
 )
 
 // Server serves HTTP API routes and shared operational endpoints.
 type Server struct {
-	cfg      Config
-	store    repo.ReadStore
-	log      *slog.Logger
-	ready    func() bool
-	wsClient func() int
+	cfg        Config
+	store      repo.ReadStore
+	log        *slog.Logger
+	ready      func() bool
+	wsClient   func() int
+	mqttStatus func() mqttclient.ConnectionStatus
 }
 
 // Config contains the subset of app config required by the HTTP API.
@@ -28,8 +30,8 @@ type Config struct {
 }
 
 // New creates an HTTP API server with configured dependencies.
-func New(cfg Config, store repo.ReadStore, log *slog.Logger, ready func() bool, wsClient func() int) *Server {
-	return &Server{cfg: cfg, store: store, log: log, ready: ready, wsClient: wsClient}
+func New(cfg Config, store repo.ReadStore, log *slog.Logger, ready func() bool, wsClient func() int, mqttStatus func() mqttclient.ConnectionStatus) *Server {
+	return &Server{cfg: cfg, store: store, log: log, ready: ready, wsClient: wsClient, mqttStatus: mqttStatus}
 }
 
 // StartStatsTicker periodically emits runtime stats events.
@@ -55,6 +57,27 @@ func (s *Server) StartStatsTicker(ctx context.Context, emit func(domain.Realtime
 // StartHeartbeatTicker periodically emits websocket heartbeat events.
 func (s *Server) StartHeartbeatTicker(ctx context.Context, emit func(domain.RealtimeEvent)) {
 	startTickerLoop(ctx, s.log, "heartbeat ticker", s.heartbeatInterval(), func(now time.Time) {
-		emit(domain.RealtimeEvent{Type: "ws.heartbeat", TS: now.UTC(), Payload: heartbeatPayload{Status: "ok"}})
+		emit(s.HeartbeatEvent(now))
 	})
+}
+
+// HeartbeatEvent builds the websocket heartbeat event payload for UI clients.
+func (s *Server) HeartbeatEvent(now time.Time) domain.RealtimeEvent {
+	return domain.RealtimeEvent{
+		Type:    "ws.heartbeat",
+		TS:      now.UTC(),
+		Payload: s.heartbeatPayload(),
+	}
+}
+
+func (s *Server) heartbeatPayload() heartbeatPayload {
+	status := mqttclient.ConnectionStatusDisconnected
+	if s.mqttStatus != nil && s.mqttStatus() == mqttclient.ConnectionStatusConnected {
+		status = mqttclient.ConnectionStatusConnected
+	}
+
+	return heartbeatPayload{
+		Status:               "ok",
+		MQTTConnectionStatus: status,
+	}
 }
