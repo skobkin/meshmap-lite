@@ -1,10 +1,30 @@
 // @vitest-environment jsdom
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { resolveLogDetailsRenderer } from './LogDetailsModal'
 
 import type { LogEvent } from '../api/types'
+
+vi.mock('../stores/nodes', () => ({
+  useNodeStore: <T,>(selector?: (value: {
+    mapNodes: never[]
+    summaries: never[]
+    details: undefined
+  }) => T): T | {
+    mapNodes: never[]
+    summaries: never[]
+    details: undefined
+  } => {
+    const state = {
+      mapNodes: [] as never[],
+      summaries: [] as never[],
+      details: undefined
+    }
+
+    return selector ? selector(state) : state
+  }
+}))
 
 function event(overrides: Partial<LogEvent> = {}): LogEvent {
   return {

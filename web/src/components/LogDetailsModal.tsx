@@ -1,6 +1,7 @@
 import { useEffect, useId } from 'preact/hooks'
 
 import { JsonDetailsView } from './JsonDetailsView'
+import { ResolvedNodeData } from './ResolvedNodeData'
 
 import type { LogEvent } from '../api/types'
 import type { ComponentChildren, JSX } from 'preact'
@@ -46,16 +47,28 @@ function formatTime(value: string): string {
   return date.toLocaleString()
 }
 
-function logTitle(event: LogEvent): string {
-  const parts = [event.event_kind_title]
+function logTitle(event: LogEvent): ComponentChildren {
+  const formattedTime = formatTime(event.observed_at)
 
-  if (event.node_display_name ?? event.node_id) {
-    parts.push(event.node_display_name ?? event.node_id ?? '')
+  if (event.node_id) {
+    return (
+      <>
+        {event.event_kind_title}
+        {' · '}
+        <ResolvedNodeData nodeId={event.node_id} fallbackLabel={event.node_display_name}>
+          {({ label, title }) => <code title={title}>{label}</code>}
+        </ResolvedNodeData>
+        {' · '}
+        {formattedTime}
+      </>
+    )
   }
 
-  parts.push(formatTime(event.observed_at))
+  if (event.node_display_name) {
+    return `${event.event_kind_title} · ${event.node_display_name} · ${formattedTime}`
+  }
 
-  return parts.join(' · ')
+  return `${event.event_kind_title} · ${formattedTime}`
 }
 
 interface Props {

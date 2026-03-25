@@ -1,10 +1,10 @@
 import { Fragment } from 'preact'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks'
 
+import { ResolvedNodeData } from '../components/ResolvedNodeData'
 import { LeafletMapAdapter } from '../maps/leafletMap'
 import { useChatStore } from '../stores/chat'
 import { useNodeStore } from '../stores/nodes'
-import { chatNodeLabel } from '../utils/chat'
 import { dayKey, dayLabel, hhmm } from '../utils/time'
 import { TOPOLOGY_COLOR, sortedNeighbors } from '../utils/topology'
 
@@ -54,7 +54,6 @@ function renderChatTimeline(messages: ChatEvent[], { onSelectNode, systemText }:
     const needsSeparator = currentDay !== previousDay
     previousDay = currentDay
     const isNodeClickable = typeof m.node_id === 'string'
-    const nodeLabel = chatNodeLabel(m)
 
     return (
       <Fragment key={m.id}>
@@ -66,11 +65,20 @@ function renderChatTimeline(messages: ChatEvent[], { onSelectNode, systemText }:
         <p className={m.event_type === 'system' ? 'system' : ''}>
           <code>{hhmm(m.observed_at)}</code>{' '}
           {isNodeClickable && m.node_id ? (
-            <button type="button" className="chat-node-link" onClick={() => onSelectNode(m.node_id!)}>
-              <mark>{nodeLabel}</mark>
-            </button>
+            <ResolvedNodeData nodeId={m.node_id} fallbackLabel={m.node_display_name}>
+              {({ label, title }) => (
+                <button
+                  type="button"
+                  className="chat-node-link"
+                  title={title}
+                  onClick={() => onSelectNode(m.node_id!)}
+                >
+                  <mark>{label}</mark>
+                </button>
+              )}
+            </ResolvedNodeData>
           ) : (
-            <mark>{nodeLabel}</mark>
+            <mark>{m.node_display_name ?? 'system'}</mark>
           )}{' '}
           {m.event_type === 'system' ? systemText(m.system_code) : (m.message_text ?? '')}
         </p>

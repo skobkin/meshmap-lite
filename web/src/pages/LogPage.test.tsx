@@ -222,6 +222,17 @@ describe('LogPage', () => {
 
   it('keeps node navigation and details actions working in the mobile layout', async () => {
     mockViewport(true)
+    useNodeStore.setState({
+      mapNodes: [
+        {
+          node: {
+            node_id: '!abc',
+            long_name: 'Alpha Router',
+            last_seen_any_event_at: '2026-03-11T12:00:00Z'
+          }
+        }
+      ]
+    })
 
     const user = userEvent.setup()
     const onOpenNodeDetails = vi.fn()
@@ -240,7 +251,10 @@ describe('LogPage', () => {
       />
     )
 
-    await user.click(screen.getByRole('button', { name: 'Alpha Node' }))
+    const nodeButton = screen.getByRole('button', { name: 'Alpha Router' })
+    expect(nodeButton.getAttribute('title')).toBe('!abc')
+
+    await user.click(nodeButton)
     expect(onOpenNodeDetails).toHaveBeenCalledWith('!abc')
 
     await user.click(screen.getByRole('button', { name: 'View details for Map report' }))
@@ -321,6 +335,30 @@ describe('LogPage', () => {
     await user.click(screen.getByRole('button', { name: 'Alpha Node' }))
 
     expect(onOpenNodeDetails).toHaveBeenCalledWith('!abc')
+  })
+
+  it('resolves desktop row labels and modal titles from the shared node store', async () => {
+    useNodeStore.setState({
+      mapNodes: [
+        {
+          node: {
+            node_id: '!abc',
+            long_name: 'Field Router',
+            last_seen_any_event_at: '2026-03-11T12:00:00Z'
+          }
+        }
+      ]
+    })
+
+    const user = userEvent.setup()
+    renderPage([event(1)])
+
+    const rowButton = screen.getByRole('button', { name: 'Field Router' })
+    expect(rowButton.getAttribute('title')).toBe('!abc')
+
+    await user.click(screen.getByRole('button', { name: 'View details for Map report' }))
+
+    expect(screen.getByRole('heading', { name: /Map report · Field Router/i })).toBeTruthy()
   })
 
   it('shows a compact Event type summary for the selected kinds', () => {

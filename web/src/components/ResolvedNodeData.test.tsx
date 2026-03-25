@@ -115,10 +115,29 @@ describe('resolveNodeDataValue', () => {
       summary('!bravo', { display_name: 'Summary Name' })
     ).label).toBe('Summary Name')
 
+    const fallback = resolveNodeDataValue('!charlie', undefined, undefined, undefined, 'Payload Name')
+    expect(fallback.label).toBe('Payload Name')
+    expect(fallback.title).toBe('!charlie')
+    expect(fallback.resolved).toBe(true)
+
     const raw = resolveNodeDataValue('!charlie')
     expect(raw.label).toBe('!charlie')
     expect(raw.title).toBeUndefined()
     expect(raw.resolved).toBe(false)
+  })
+
+  it('prefers store-backed data over the fallback label', () => {
+    const value = resolveNodeDataValue(
+      '!alpha',
+      undefined,
+      mapNode('!alpha', { node: { node_id: '!alpha', long_name: 'Map Name', last_seen_any_event_at: fixedTime } }),
+      undefined,
+      'Payload Name'
+    )
+
+    expect(value.label).toBe('Map Name')
+    expect(value.title).toBe('!alpha')
+    expect(value.resolved).toBe(true)
   })
 })
 
@@ -147,5 +166,15 @@ describe('ResolvedNodeData', () => {
     )
 
     expect(screen.getByText('Field Router').getAttribute('title')).toBe('!alpha')
+  })
+
+  it('uses the fallback label when the node store has no matching data', () => {
+    render(
+      <ResolvedNodeData nodeId="!alpha" fallbackLabel="Payload Name">
+        {({ label, title }) => <span title={title}>{label}</span>}
+      </ResolvedNodeData>
+    )
+
+    expect(screen.getByText('Payload Name').getAttribute('title')).toBe('!alpha')
   })
 })

@@ -15,6 +15,7 @@ export interface ResolvedNodeDataValue {
 
 interface Props {
   nodeId: string
+  fallbackLabel?: string
   children: (value: ResolvedNodeDataValue) => ComponentChildren
 }
 
@@ -35,7 +36,8 @@ export function resolveNodeDataValue(
   nodeId: string,
   details?: NodeDetails,
   mapNode?: MapNode,
-  summary?: NodeSummary
+  summary?: NodeSummary,
+  fallbackLabel?: string
 ): ResolvedNodeDataValue {
   const detailsLabel = details?.node.node_id === nodeId
     ? bestNodeLabel(details.node.long_name, details.node.short_name)
@@ -46,7 +48,7 @@ export function resolveNodeDataValue(
   const summaryLabel = summary?.node_id === nodeId
     ? bestNodeLabel(summary.long_name, summary.short_name, summary.display_name)
     : undefined
-  const label = detailsLabel ?? mapNodeLabel ?? summaryLabel ?? nodeId
+  const label = detailsLabel ?? mapNodeLabel ?? summaryLabel ?? fallbackLabel?.trim() ?? nodeId
   const resolved = label !== nodeId
 
   return {
@@ -60,7 +62,7 @@ export function resolveNodeDataValue(
   }
 }
 
-export function ResolvedNodeData({ nodeId, children }: Props): JSX.Element {
+export function ResolvedNodeData({ nodeId, fallbackLabel, children }: Props): JSX.Element {
   const details = useNodeStore((state) => (
     state.details?.node.node_id === nodeId
       ? state.details
@@ -69,5 +71,5 @@ export function ResolvedNodeData({ nodeId, children }: Props): JSX.Element {
   const mapNode = useNodeStore((state) => state.mapNodes.find((item) => item.node.node_id === nodeId))
   const summary = useNodeStore((state) => state.summaries.find((item) => item.node_id === nodeId))
 
-  return <>{children(resolveNodeDataValue(nodeId, details, mapNode, summary))}</>
+  return <>{children(resolveNodeDataValue(nodeId, details, mapNode, summary, fallbackLabel))}</>
 }

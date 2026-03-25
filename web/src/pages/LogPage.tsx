@@ -3,6 +3,7 @@ import { useEffect, useState } from 'preact/hooks'
 
 import { LogDetailsModal, hasLogDetails } from '../components/LogDetailsModal'
 import { pkiLogDetailsRenderer } from '../components/PKILogDetails'
+import { ResolvedNodeData } from '../components/ResolvedNodeData'
 import { routingLogDetailsRenderer } from '../components/RoutingLogDetails'
 import { dayKey, dayLabel, fullDateTime, hhmmss } from '../utils/time'
 
@@ -115,6 +116,35 @@ function groupLogItemsByDay(items: LogEvent[]): LogDayGroup[] {
   return groups
 }
 
+function LogNodeLabel({
+  nodeId,
+  fallbackLabel,
+  onOpenNodeDetails
+}: {
+  nodeId?: string
+  fallbackLabel?: string
+  onOpenNodeDetails: (id: string) => void
+}): JSX.Element {
+  if (!nodeId) {
+    return <code>{fallbackLabel ?? '-'}</code>
+  }
+
+  return (
+    <ResolvedNodeData nodeId={nodeId} fallbackLabel={fallbackLabel}>
+      {({ label, title }) => (
+        <button
+          type="button"
+          className="chat-node-link"
+          title={title}
+          onClick={() => onOpenNodeDetails(nodeId)}
+        >
+          <code>{label}</code>
+        </button>
+      )}
+    </ResolvedNodeData>
+  )
+}
+
 export function LogPage({
   channels,
   items,
@@ -194,17 +224,11 @@ export function LogPage({
                   return (
                     <article key={row.id} className="log-card">
                       <div className="log-card-head">
-                        {nodeId ? (
-                          <button
-                            type="button"
-                            className="chat-node-link"
-                            onClick={() => onOpenNodeDetails(nodeId)}
-                          >
-                            <code>{row.node_display_name ?? nodeId}</code>
-                          </button>
-                        ) : (
-                          <code>{row.node_display_name ?? '-'}</code>
-                        )}
+                        <LogNodeLabel
+                          nodeId={nodeId}
+                          fallbackLabel={row.node_display_name}
+                          onOpenNodeDetails={onOpenNodeDetails}
+                        />
                         <strong className="log-card-type">{row.event_kind_title}</strong>
                       </div>
                       <dl className="log-card-meta">
@@ -270,17 +294,11 @@ export function LogPage({
                         <span className="log-time-value">{hhmmss(row.observed_at)}</span>
                       </td>
                       <td>
-                        {nodeId ? (
-                          <button
-                            type="button"
-                            className="chat-node-link"
-                            onClick={() => onOpenNodeDetails(nodeId)}
-                          >
-                            <code>{row.node_display_name ?? nodeId}</code>
-                          </button>
-                        ) : (
-                          <code>{row.node_display_name ?? '-'}</code>
-                        )}
+                        <LogNodeLabel
+                          nodeId={nodeId}
+                          fallbackLabel={row.node_display_name}
+                          onOpenNodeDetails={onOpenNodeDetails}
+                        />
                       </td>
                       <td>{row.event_kind_title}</td>
                       <td>{row.encrypted ? 'yes' : 'no'}</td>
