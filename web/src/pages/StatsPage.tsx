@@ -348,13 +348,20 @@ export function StatsPage({ initialStats }: Props): JSX.Element {
     return () => window.clearTimeout(timeout)
   }, [loadStats, stats])
 
+  const retry = (): void => {
+    setLoadError('')
+    void loadStats().catch((err) => {
+      if (!isAbortError(err)) {setLoadError('Failed to load activity stats.')}
+    })
+  }
+
   return (
     <section className="stats-layout container-fluid">
-      {loadError && <p className="load-error">{loadError}</p>}
+      {loadError && <p className="load-error">{loadError} <button className="outline secondary" onClick={retry}>Retry</button></p>}
       {stats ? (
         stats.periods.map((period) => <ActivitySection key={period.key} period={period} />)
       ) : (
-        <p className="node-list-empty">Loading activity stats.</p>
+        <p className="node-list-empty">{loadError ? 'Failed to load activity stats.' : 'Loading activity stats.'}</p>
       )}
     </section>
   )
