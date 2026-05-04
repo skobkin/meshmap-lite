@@ -33,7 +33,7 @@ const metrics: ActivityMetric[] = [
       { key: 'neighbor_info', label: 'Neighbor' },
       { key: 'range_test', label: 'Range' }
     ],
-    title: 'Telemetry / Neighbor / Range'
+    title: 'Others'
   }
 ]
 
