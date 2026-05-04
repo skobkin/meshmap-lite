@@ -133,7 +133,11 @@ describe('StatsPage', () => {
   it('parses durations and calculates next bucket boundaries', () => {
     expect(parseDurationMillis('5m')).toBe(300_000)
     expect(parseDurationMillis('1h')).toBe(3_600_000)
+    expect(parseDurationMillis('30s')).toBe(30_000)
+    expect(parseDurationMillis('1m30s')).toBe(90_000)
+    expect(parseDurationMillis('1h30m')).toBe(5_400_000)
     expect(parseDurationMillis('bad')).toBeNull()
+    expect(parseDurationMillis('')).toBeNull()
     expect(nextBoundaryDelay(Date.parse('2026-05-04T12:01:00Z'), 300_000)).toBe(240_000)
   })
 

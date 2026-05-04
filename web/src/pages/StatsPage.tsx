@@ -46,19 +46,22 @@ function isAbortError(err: unknown): boolean {
 }
 
 export function parseDurationMillis(raw: string): number | null {
-  const match = /^(\d+)(ms|s|m|h)$/.exec(raw.trim())
-  if (!match) {return null}
-  const value = Number(match[1])
-  if (!Number.isFinite(value) || value <= 0) {return null}
-  const unit = match[2] as 'ms' | 's' | 'm' | 'h'
-  const multipliers = {
-    ms: 1,
-    s: 1000,
-    m: 60 * 1000,
-    h: 60 * 60 * 1000
-  } satisfies Record<typeof unit, number>
+  const token = /([0-9]+(?:\.[0-9]+)?)(ms|s|m|h)/g
+  let total = 0
+  let found = false
+  for (const match of raw.trim().matchAll(token)) {
+    found = true
+    const n = Number(match[1])
+    if (!Number.isFinite(n) || n <= 0) {return null}
+    const unit = match[2]
+    if (unit === 'h') {total += n * 3600000}
+    else if (unit === 'm') {total += n * 60000}
+    else if (unit === 's') {total += n * 1000}
+    else if (unit === 'ms') {total += n}
+  }
+  if (!found) {return null}
 
-  return value * multipliers[unit]
+  return total
 }
 
 export function nextBoundaryDelay(nowMillis: number, bucketMillis: number): number {
