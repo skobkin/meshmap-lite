@@ -6,7 +6,7 @@ import { api } from '../api/client'
 import type { ActivityBucket, ActivityPeriod, ActivityStats } from '../api/types'
 import type { JSX } from 'preact'
 
-type ActivityMetricKey = 'text_messages' | 'pki' | 'node_info' | 'telemetry' | 'neighbor_info' | 'range_test'
+type ActivityMetricKey = 'text_messages' | 'pki' | 'node_info' | 'telemetry' | 'neighbor_info' | 'range_test' | 'traceroute'
 
 interface ActivityMetric {
   series: {
@@ -31,7 +31,8 @@ const metrics: ActivityMetric[] = [
     series: [
       { key: 'telemetry', label: 'Telemetry' },
       { key: 'neighbor_info', label: 'Neighbor' },
-      { key: 'range_test', label: 'Range' }
+      { key: 'range_test', label: 'Range' },
+      { key: 'traceroute', label: 'Traceroute' }
     ],
     title: 'Others'
   }
@@ -119,7 +120,8 @@ function lineColors(root?: Element): string[] {
   return [
     cssVar(el, '--pico-primary', '#339af0'),
     '#f59f00',
-    '#51cf66'
+    '#51cf66',
+    '#e64980'
   ]
 }
 

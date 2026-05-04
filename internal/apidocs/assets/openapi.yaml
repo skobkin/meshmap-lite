@@ -888,6 +888,7 @@ components:
         - telemetry
         - neighbor_info
         - range_test
+        - traceroute
       properties:
         bucket_start:
           type: string
@@ -908,6 +909,9 @@ components:
           type: integer
           minimum: 0
         range_test:
+          type: integer
+          minimum: 0
+        traceroute:
           type: integer
           minimum: 0
     RealtimeEvent:

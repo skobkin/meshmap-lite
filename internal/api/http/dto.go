@@ -73,4 +73,5 @@ type activityBucketPayload struct {
 	Telemetry    int       `json:"telemetry"`
 	NeighborInfo int       `json:"neighbor_info"`
 	RangeTest    int       `json:"range_test"`
+	Traceroute   int       `json:"traceroute"`
 }

@@ -51,6 +51,7 @@ func TestActivityBuckets_AggregatesCompleteBucketsAndBoundaries(t *testing.T) {
 	insertLog(start.Add(7*time.Minute), domain.LogEventKindTelemetryValue)
 	insertLog(start.Add(10*time.Minute), domain.LogEventKindNeighborInfoValue)
 	insertLog(start.Add(14*time.Minute), domain.LogEventKindRangeTestValue)
+	insertLog(start.Add(14*time.Minute), domain.LogEventKindTracerouteValue)
 	insertChat(start.Add(15 * time.Minute))
 
 	buckets, err := s.ActivityBuckets(ctx, domain.ActivityQuery{
@@ -70,7 +71,7 @@ func TestActivityBuckets_AggregatesCompleteBucketsAndBoundaries(t *testing.T) {
 	if buckets[1].PKI != 1 || buckets[1].NodeInfo != 1 || buckets[1].Telemetry != 1 {
 		t.Fatalf("unexpected second bucket counts: %+v", buckets[1])
 	}
-	if buckets[2].NeighborInfo != 1 || buckets[2].RangeTest != 1 {
+	if buckets[2].NeighborInfo != 1 || buckets[2].RangeTest != 1 || buckets[2].Traceroute != 1 {
 		t.Fatalf("unexpected third bucket counts: %+v", buckets[2])
 	}
 	if buckets[2].TextMessages != 0 {

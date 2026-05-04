@@ -344,6 +344,7 @@ type ActivityBucket struct {
 	Telemetry    int       `json:"telemetry"`
 	NeighborInfo int       `json:"neighbor_info"`
 	RangeTest    int       `json:"range_test"`
+	Traceroute   int       `json:"traceroute"`
 }
 
 // ActivityQuery defines an aligned, complete-bucket activity query.

@@ -116,6 +116,7 @@ func activityBucketPayloads(buckets []domain.ActivityBucket) []activityBucketPay
 			Telemetry:    bucket.Telemetry,
 			NeighborInfo: bucket.NeighborInfo,
 			RangeTest:    bucket.RangeTest,
+			Traceroute:   bucket.Traceroute,
 		})
 	}
 

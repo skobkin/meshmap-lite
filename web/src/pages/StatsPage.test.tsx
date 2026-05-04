@@ -95,7 +95,8 @@ function stats(): ActivityStats {
       node_info: 0,
       telemetry: 3,
       neighbor_info: 0,
-      range_test: 0
+      range_test: 0,
+      traceroute: 0
     }
   ]
 
@@ -155,15 +156,16 @@ describe('StatsPage', () => {
       'Text messages',
       'NodeInfo',
       'PKI',
-      'Telemetry / Neighbor / Range',
+      'Others',
       'Text messages',
       'NodeInfo',
       'PKI',
-      'Telemetry / Neighbor / Range'
+      'Others'
     ])
     expect(uplotMock.data[3]?.[1]).toEqual([3])
     expect(uplotMock.data[3]?.[2]).toEqual([0])
     expect(uplotMock.data[3]?.[3]).toEqual([0])
+    expect(uplotMock.data[3]?.[4]).toEqual([0])
   })
 
   it('refreshes on the next returned bucket boundary', async () => {
@@ -206,7 +208,8 @@ describe('StatsPage', () => {
     expect(uplotMock.options[3]?.series?.slice(1).map((series) => series.label)).toEqual([
       'Telemetry',
       'Neighbor',
-      'Range'
+      'Range',
+      'Traceroute'
     ])
     expect(uplotMock.options[3]?.series?.[1]?.fill).toBeUndefined()
     expect(dailyLabel).not.toContain('May')

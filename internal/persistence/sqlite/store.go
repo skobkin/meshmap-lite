@@ -965,9 +965,10 @@ SELECT ? + CAST((unixepoch(observed_at) - ?) / ? AS INTEGER) * ? AS bucket_start
        SUM(CASE WHEN event_kind = ? THEN 1 ELSE 0 END) AS node_info,
        SUM(CASE WHEN event_kind = ? THEN 1 ELSE 0 END) AS telemetry,
        SUM(CASE WHEN event_kind = ? THEN 1 ELSE 0 END) AS neighbor_info,
-       SUM(CASE WHEN event_kind = ? THEN 1 ELSE 0 END) AS range_test
+       SUM(CASE WHEN event_kind = ? THEN 1 ELSE 0 END) AS range_test,
+       SUM(CASE WHEN event_kind = ? THEN 1 ELSE 0 END) AS traceroute
 FROM log_events
-WHERE event_kind IN (?, ?, ?, ?, ?) AND observed_at >= ? AND observed_at < ?
+WHERE event_kind IN (?, ?, ?, ?, ?, ?) AND observed_at >= ? AND observed_at < ?
 GROUP BY bucket_start_unix
 `, startUnix, startUnix, bucketSeconds, bucketSeconds,
 		int(domain.LogEventKindPKIValue),
@@ -975,11 +976,13 @@ GROUP BY bucket_start_unix
 		int(domain.LogEventKindTelemetryValue),
 		int(domain.LogEventKindNeighborInfoValue),
 		int(domain.LogEventKindRangeTestValue),
+		int(domain.LogEventKindTracerouteValue),
 		int(domain.LogEventKindPKIValue),
 		int(domain.LogEventKindNodeInfoValue),
 		int(domain.LogEventKindTelemetryValue),
 		int(domain.LogEventKindNeighborInfoValue),
 		int(domain.LogEventKindRangeTestValue),
+		int(domain.LogEventKindTracerouteValue),
 		startText, endText)
 	if err != nil {
 		return err
@@ -989,7 +992,7 @@ GROUP BY bucket_start_unix
 	for rows.Next() {
 		var bucketUnix int64
 		var counts activityLogCounts
-		if err := rows.Scan(&bucketUnix, &counts.PKI, &counts.NodeInfo, &counts.Telemetry, &counts.NeighborInfo, &counts.RangeTest); err != nil {
+		if err := rows.Scan(&bucketUnix, &counts.PKI, &counts.NodeInfo, &counts.Telemetry, &counts.NeighborInfo, &counts.RangeTest, &counts.Traceroute); err != nil {
 			return err
 		}
 		if idx, ok := indexByUnix[bucketUnix]; ok {
@@ -998,6 +1001,7 @@ GROUP BY bucket_start_unix
 			buckets[idx].Telemetry = counts.Telemetry
 			buckets[idx].NeighborInfo = counts.NeighborInfo
 			buckets[idx].RangeTest = counts.RangeTest
+			buckets[idx].Traceroute = counts.Traceroute
 		}
 	}
 
@@ -1010,6 +1014,7 @@ type activityLogCounts struct {
 	Telemetry    int
 	NeighborInfo int
 	RangeTest    int
+	Traceroute   int
 }
 
 // Stats returns aggregate node and ingest statistics.

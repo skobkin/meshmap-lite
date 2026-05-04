@@ -176,6 +176,7 @@ export interface ActivityBucket {
   telemetry: number
   neighbor_info: number
   range_test: number
+  traceroute: number
 }
 
 export interface ActivityPeriod {
