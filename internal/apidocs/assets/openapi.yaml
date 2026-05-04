@@ -27,6 +27,8 @@ tags:
     description: Chat history endpoints.
   - name: Log
     description: Non-chat activity log endpoints.
+  - name: Stats
+    description: Aggregate packet activity statistics.
   - name: Topology
     description: Topology edge and neighbor evidence endpoints.
   - name: Nodes
@@ -216,6 +218,23 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/LogEvent'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/stats/activity:
+    get:
+      tags: [Stats]
+      summary: Fetch packet activity chart buckets
+      operationId: getStatsActivity
+      responses:
+        '200':
+          description: |
+            Returns two fixed all-channel activity periods for the Stats tab.
+            Buckets are UTC-aligned and complete only; missing buckets are
+            returned with explicit zero counts.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityStats'
         '500':
           $ref: '#/components/responses/InternalError'
   /api/v1/topology/edges:
@@ -829,6 +848,68 @@ components:
         last_ingest_at:
           type: string
           format: date-time
+    ActivityStats:
+      type: object
+      required: [generated_at, periods]
+      properties:
+        generated_at:
+          type: string
+          format: date-time
+        periods:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivityPeriod'
+    ActivityPeriod:
+      type: object
+      required: [key, title, window, bucket, buckets]
+      properties:
+        key:
+          type: string
+          enum: [daily, weekly]
+        title:
+          type: string
+        window:
+          type: string
+          description: Go duration string.
+        bucket:
+          type: string
+          description: Go duration string.
+        buckets:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActivityBucket'
+    ActivityBucket:
+      type: object
+      required:
+        - bucket_start
+        - text_messages
+        - pki
+        - node_info
+        - telemetry
+        - neighbor_info
+        - range_test
+      properties:
+        bucket_start:
+          type: string
+          format: date-time
+        text_messages:
+          type: integer
+          minimum: 0
+        pki:
+          type: integer
+          minimum: 0
+        node_info:
+          type: integer
+          minimum: 0
+        telemetry:
+          type: integer
+          minimum: 0
+        neighbor_info:
+          type: integer
+          minimum: 0
+        range_test:
+          type: integer
+          minimum: 0
     RealtimeEvent:
       type: object
       required: [type, ts, payload]

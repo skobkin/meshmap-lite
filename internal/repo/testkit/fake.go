@@ -24,6 +24,7 @@ type FakeStore struct {
 	ListTopologyEdgesFn func(context.Context, repo.TopologyEdgeQuery) ([]domain.TopologyEdge, error)
 	ListChatEventsFn    func(context.Context, repo.ChatEventQuery) ([]domain.ChatEvent, error)
 	ListLogEventsFn     func(context.Context, domain.LogEventQuery) ([]domain.LogEventView, error)
+	ActivityBucketsFn   func(context.Context, domain.ActivityQuery) ([]domain.ActivityBucket, error)
 	StatsFn             func(context.Context, time.Duration) (domain.Stats, error)
 }
 
@@ -139,6 +140,15 @@ func (f *FakeStore) ListChatEvents(ctx context.Context, q repo.ChatEventQuery) (
 func (f *FakeStore) ListLogEvents(ctx context.Context, q domain.LogEventQuery) ([]domain.LogEventView, error) {
 	if f.ListLogEventsFn != nil {
 		return f.ListLogEventsFn(ctx, q)
+	}
+
+	return nil, nil
+}
+
+// ActivityBuckets implements repo.ReadStore.
+func (f *FakeStore) ActivityBuckets(ctx context.Context, q domain.ActivityQuery) ([]domain.ActivityBucket, error) {
+	if f.ActivityBucketsFn != nil {
+		return f.ActivityBucketsFn(ctx, q)
 	}
 
 	return nil, nil

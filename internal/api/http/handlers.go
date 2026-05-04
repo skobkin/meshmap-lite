@@ -103,6 +103,27 @@ func (s *Server) logEvents(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, items)
 }
 
+func (s *Server) statsActivity(w http.ResponseWriter, r *http.Request) {
+	now := s.now().UTC()
+	periods := make([]activityPeriodPayload, 0, 2)
+	for _, def := range s.activityPeriods() {
+		period, err := s.loadActivityPeriod(r.Context(), def, now)
+		if err != nil {
+			if isRequestCanceled(err) {
+				s.log.Debug("stats activity canceled", "period", def.key, "err", err)
+
+				return
+			}
+			s.log.Error("stats activity", "period", def.key, "err", err)
+			writeError(w, http.StatusInternalServerError, "internal_error")
+
+			return
+		}
+		periods = append(periods, period)
+	}
+	writeJSON(w, http.StatusOK, activityPayload{GeneratedAt: now, Periods: periods})
+}
+
 func (s *Server) nodes(w http.ResponseWriter, r *http.Request) {
 	items, err := s.store.ListNodes(r.Context())
 	if err != nil {

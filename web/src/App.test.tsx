@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { chatStorageKey } from './stores/chatState'
 
-import type { ChannelItem, ChatEvent, LogEvent, MQTTConnectionStatus, MapNode, Meta, NodeDetails, NodeSummary, WSState, WSStats } from './api/types'
+import type { ActivityStats, ChannelItem, ChatEvent, LogEvent, MQTTConnectionStatus, MapNode, Meta, NodeDetails, NodeSummary, WSState, WSStats } from './api/types'
 import type { JSX } from 'preact'
 
 type Selector<T, U> = (state: T) => U
@@ -183,6 +183,7 @@ let apiMock: {
   nodes: ReturnType<typeof vi.fn>
   node: ReturnType<typeof vi.fn>
   logEvents: ReturnType<typeof vi.fn>
+  statsActivity: ReturnType<typeof vi.fn>
 }
 let startWSMock: ReturnType<typeof vi.fn>
 
@@ -254,7 +255,8 @@ function setupModuleMocks(): void {
     chatMessages: vi.fn().mockResolvedValue([chatMessage(1)]),
     nodes: vi.fn().mockResolvedValue([] satisfies NodeSummary[]),
     node: vi.fn().mockResolvedValue(nodeDetails('!alpha')),
-    logEvents: vi.fn().mockResolvedValue([logEvent(1)])
+    logEvents: vi.fn().mockResolvedValue([logEvent(1)]),
+    statsActivity: vi.fn().mockResolvedValue({ generated_at: '2026-05-04T12:00:00Z', periods: [] } satisfies ActivityStats)
   }
   startWSMock = vi.fn().mockReturnValue(vi.fn())
 
@@ -321,6 +323,13 @@ function setupModuleMocks(): void {
         <p>Log channel: {selectedChannel}</p>
         <button type="button" onClick={() => onChangeKinds([7])}>Set log kind 7</button>
         <button type="button" onClick={() => onChangeChannel('ops')}>Set log channel ops</button>
+      </section>
+    )
+  }))
+  vi.doMock('./pages/StatsPage', () => ({
+    StatsPage: (): JSX.Element => (
+      <section data-testid="stats-page">
+        <p>Stats page</p>
       </section>
     )
   }))
@@ -392,6 +401,19 @@ describe('App', () => {
     await screen.findByTestId('nodes-page')
 
     expect(apiMock.nodes).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens the stats tab between nodes and log', async () => {
+    const user = userEvent.setup()
+
+    await renderApp()
+    await screen.findByTestId('map-page')
+
+    const buttons = screen.getAllByRole('button').map((button) => button.textContent)
+    expect(buttons.slice(0, 4)).toEqual(['Map', 'Nodes', 'Stats', 'Log'])
+
+    await user.click(screen.getByRole('button', { name: 'Stats' }))
+    await screen.findByTestId('stats-page')
   })
 
   it('reuses cached node details before refreshing stale entries', async () => {

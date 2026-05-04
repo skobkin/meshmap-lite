@@ -3,6 +3,7 @@ package config
 import (
 	"sort"
 	"strings"
+	"time"
 )
 
 func resolveChannelKey(channels map[string]ChannelConfig, name string) string {
@@ -80,5 +81,19 @@ func normalize(cfg *Config) {
 	}
 	if cfg.Web.Map.TopologyCacheTTL <= 0 {
 		cfg.Web.Map.TopologyCacheTTL = defaultMapTopologyCacheTTL
+	}
+	normalizeStatsActivityPeriod(&cfg.Web.Stats.Activity.Daily, defaultStatsDailyWindow, defaultStatsDailyBucket)
+	normalizeStatsActivityPeriod(&cfg.Web.Stats.Activity.Weekly, defaultStatsWeeklyWindow, defaultStatsWeeklyBucket)
+}
+
+func normalizeStatsActivityPeriod(period *StatsActivityPeriodConfig, defaultWindow, defaultBucket time.Duration) {
+	if period.Window <= 0 {
+		period.Window = defaultWindow
+	}
+	if period.Bucket <= 0 {
+		period.Bucket = defaultBucket
+	}
+	if period.Window/period.Bucket > maxStatsActivityBuckets {
+		period.Window = period.Bucket * maxStatsActivityBuckets
 	}
 }

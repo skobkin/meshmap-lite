@@ -383,6 +383,9 @@ CREATE TABLE nodes (
 	if !strings.Contains(logOutput, "version=9") || !strings.Contains(logOutput, "name=log_event_pki_kind") {
 		t.Fatalf("expected log entry for PKI migration, got %q", logOutput)
 	}
+	if !strings.Contains(logOutput, "version=10") || !strings.Contains(logOutput, "name=activity_indexes") {
+		t.Fatalf("expected log entry for activity indexes migration, got %q", logOutput)
+	}
 }
 
 func TestApply_AllowsPKILogEventKind(t *testing.T) {
@@ -429,6 +432,58 @@ INSERT INTO log_events(id, observed_at, node_id, event_kind, encrypted, channel_
 	}
 }
 
+func TestApply_AddsActivityIndexes(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite", "file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	_, err = db.ExecContext(ctx, `
+PRAGMA user_version = 9;
+CREATE TABLE chat_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_type TEXT NOT NULL,
+  channel_name TEXT,
+  node_id TEXT,
+  message_text TEXT,
+  system_code TEXT,
+  message_time TEXT NOT NULL,
+  reported_at TEXT,
+  observed_at TEXT NOT NULL,
+  packet_id INTEGER,
+  created_at TEXT NOT NULL
+);
+CREATE TABLE log_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  observed_at TEXT NOT NULL,
+  node_id TEXT,
+  event_kind INTEGER NOT NULL,
+  encrypted INTEGER NOT NULL,
+  channel_id INTEGER,
+  details_json TEXT
+);
+`)
+	if err != nil {
+		t.Fatalf("seed schema: %v", err)
+	}
+
+	if err := Apply(ctx, db, nil); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	for _, name := range []string{"idx_chat_events_type_observed_at", "idx_log_events_kind_observed_at"} {
+		exists, err := indexExists(ctx, db, name)
+		if err != nil {
+			t.Fatalf("check index %s: %v", name, err)
+		}
+		if !exists {
+			t.Fatalf("expected index %s to exist", name)
+		}
+	}
+}
+
 func tableHasColumn(ctx context.Context, db *sql.DB, table, column string) (bool, error) {
 	rows, err := db.QueryContext(ctx, "PRAGMA table_info("+table+")")
 	if err != nil {
@@ -450,4 +505,13 @@ func tableHasColumn(ctx context.Context, db *sql.DB, table, column string) (bool
 	}
 
 	return false, rows.Err()
+}
+
+func indexExists(ctx context.Context, db *sql.DB, name string) (bool, error) {
+	var count int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name=?`, name).Scan(&count); err != nil {
+		return false, err
+	}
+
+	return count > 0, nil
 }

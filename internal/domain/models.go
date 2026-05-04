@@ -334,3 +334,21 @@ type LogEventQuery struct {
 	EventKinds []LogEventKind
 	Channel    string
 }
+
+// ActivityBucket contains packet counts for one complete activity time bucket.
+type ActivityBucket struct {
+	BucketStart  time.Time `json:"bucket_start"`
+	TextMessages int       `json:"text_messages"`
+	PKI          int       `json:"pki"`
+	NodeInfo     int       `json:"node_info"`
+	Telemetry    int       `json:"telemetry"`
+	NeighborInfo int       `json:"neighbor_info"`
+	RangeTest    int       `json:"range_test"`
+}
+
+// ActivityQuery defines an aligned, complete-bucket activity query.
+type ActivityQuery struct {
+	Start  time.Time
+	End    time.Time
+	Bucket time.Duration
+}

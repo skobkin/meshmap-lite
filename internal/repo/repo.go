@@ -26,6 +26,7 @@ type ReadStore interface {
 	ListTopologyEdges(ctx context.Context, q TopologyEdgeQuery) ([]domain.TopologyEdge, error)
 	ListChatEvents(ctx context.Context, q ChatEventQuery) ([]domain.ChatEvent, error)
 	ListLogEvents(ctx context.Context, q domain.LogEventQuery) ([]domain.LogEventView, error)
+	ActivityBuckets(ctx context.Context, q domain.ActivityQuery) ([]domain.ActivityBucket, error)
 	Stats(ctx context.Context, disconnectedThreshold time.Duration) (domain.Stats, error)
 }
 

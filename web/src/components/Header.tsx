@@ -1,16 +1,17 @@
 import { ConnectionStatus } from './ConnectionStatus'
 
+import type { Page } from '../App'
 import type { MQTTConnectionStatus, WSState, WSStats } from '../api/types'
 import type { JSX } from 'preact'
 
 interface Props {
   appName: string
   mqttStatus: MQTTConnectionStatus | null
-  page: 'map' | 'nodes' | 'log'
+  page: Page
   version: string
   ws: WSState
   wsStats: WSStats | null
-  onPage: (p: 'map' | 'nodes' | 'log') => void
+  onPage: (p: Page) => void
 }
 
 export function Header({ appName, mqttStatus, page, version, ws, wsStats, onPage }: Props): JSX.Element {
@@ -41,6 +42,16 @@ export function Header({ appName, mqttStatus, page, version, ws, wsStats, onPage
               onClick={() => onPage('nodes')}
             >
               Nodes
+            </button>
+          </li>
+          <li>
+            <button
+              type="button"
+              className={page === 'stats' ? '' : 'outline'}
+              aria-current={page === 'stats' ? 'page' : undefined}
+              onClick={() => onPage('stats')}
+            >
+              Stats
             </button>
           </li>
           <li>

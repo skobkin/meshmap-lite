@@ -19,6 +19,7 @@ const (
 	defaultWebBasePath        = "/"
 	defaultShowRecentMessages = 50
 	defaultLoggingLevel       = "info"
+	maxStatsActivityBuckets   = 1000
 )
 
 var defaultChannelEvents = []string{"text_message", "node_info", "position", "telemetry"}
@@ -34,6 +35,10 @@ const (
 	defaultMapTopologyCacheTTL      = 10 * time.Minute
 	defaultTracerouteFinalRetention = defaultTracerouteTimeout
 	defaultStorageKVSize            = 100000
+	defaultStatsDailyWindow         = 24 * time.Hour
+	defaultStatsDailyBucket         = 5 * time.Minute
+	defaultStatsWeeklyWindow        = 168 * time.Hour
+	defaultStatsWeeklyBucket        = time.Hour
 )
 
 func defaultConfig() Config {
@@ -85,6 +90,18 @@ func defaultConfig() Config {
 			Log: LogConfig{
 				LiveUpdates:     true,
 				PageSizeDefault: defaultLogPageSize,
+			},
+			Stats: StatsConfig{
+				Activity: StatsActivityConfig{
+					Daily: StatsActivityPeriodConfig{
+						Window: defaultStatsDailyWindow,
+						Bucket: defaultStatsDailyBucket,
+					},
+					Weekly: StatsActivityPeriodConfig{
+						Window: defaultStatsWeeklyWindow,
+						Bucket: defaultStatsWeeklyBucket,
+					},
+				},
 			},
 		},
 		Logging: LoggingConfig{Level: defaultLoggingLevel},

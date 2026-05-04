@@ -22,6 +22,7 @@
     "leaflet": "^1.9.4",
     "leaflet.markercluster": "^1.5.3",
     "preact": "^10.27.2",
+    "uplot": "^1.6.32",
     "zustand": "^5.0.8"
   },
   "devDependencies": {

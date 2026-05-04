@@ -6,6 +6,7 @@ import { Header } from './components/Header'
 import { LogPage } from './pages/LogPage'
 import { MapPage } from './pages/MapPage'
 import { NodesPage } from './pages/NodesPage'
+import { StatsPage } from './pages/StatsPage'
 import { useChatStore } from './stores/chat'
 import { useLogStore } from './stores/log'
 import { useMetaStore } from './stores/meta'
@@ -15,6 +16,8 @@ import { isNodeDetailsCacheFresh, persistNodeDetailsCache, readNodeDetailsCache,
 
 import type { NodeDetails } from './api/types'
 import type { JSX } from 'preact'
+
+export type Page = 'map' | 'nodes' | 'stats' | 'log'
 
 const mapViewKey = 'meshmap-lite.map.view'
 const mapHashLatParam = 'lat'
@@ -110,7 +113,7 @@ function readSavedMapView(): SavedMapView | null {
 }
 
 export function App(): JSX.Element {
-  const [page, setPage] = useState<'map' | 'nodes' | 'log'>('map')
+  const [page, setPage] = useState<Page>('map')
   const [hoveredTopologyNodeId, setHoveredTopologyNodeId] = useState<string>()
   const [mapFocusNodeId, setMapFocusNodeId] = useState<string>()
   const [bootstrapDone, setBootstrapDone] = useState(false)
@@ -479,6 +482,7 @@ export function App(): JSX.Element {
           onSelect={setSelectedId}
         />
       )}
+      {page === 'stats' && <StatsPage />}
       {page === 'log' && (
         <LogPage
           channels={channels}

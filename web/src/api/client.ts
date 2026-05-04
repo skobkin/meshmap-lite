@@ -1,4 +1,4 @@
-import type { ChannelItem, ChatEvent, LogEvent, MapNode, Meta, NodeDetails, NodeSummary, TopologyEdge } from './types'
+import type { ActivityStats, ChannelItem, ChatEvent, LogEvent, MapNode, Meta, NodeDetails, NodeSummary, TopologyEdge } from './types'
 
 interface RequestOptions {
   signal?: AbortSignal
@@ -41,6 +41,7 @@ export const api = {
 
     return request<TopologyEdge[]>(`/api/v1/topology/edges${suffix ? `?${suffix}` : ''}`, options)
   },
+  statsActivity: (options?: RequestOptions) => request<ActivityStats>('/api/v1/stats/activity', options),
   nodes: (options?: RequestOptions) => request<NodeSummary[]>('/api/v1/nodes', options),
   node: (id: string, options?: RequestOptions) => request<NodeDetails>(`/api/v1/nodes/${encodeURIComponent(id)}`, options)
 }

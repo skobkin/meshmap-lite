@@ -68,6 +68,14 @@ web:
   log:
     live_updates: true
     page_size_default: 100
+  stats:
+    activity:
+      daily:
+        window: 24h
+        bucket: 5m
+      weekly:
+        window: 168h
+        bucket: 1h
 
 logging:
   level: info

@@ -87,12 +87,13 @@ type ChannelConfig struct {
 
 // WebConfig contains HTTP/websocket and UI-related settings.
 type WebConfig struct {
-	ListenAddr string     `koanf:"listen_addr"`
-	BasePath   string     `koanf:"base_path"`
-	Chat       ChatConfig `koanf:"chat"`
-	WS         WSConfig   `koanf:"ws"`
-	Map        MapConfig  `koanf:"map"`
-	Log        LogConfig  `koanf:"log"`
+	ListenAddr string      `koanf:"listen_addr"`
+	BasePath   string      `koanf:"base_path"`
+	Chat       ChatConfig  `koanf:"chat"`
+	WS         WSConfig    `koanf:"ws"`
+	Map        MapConfig   `koanf:"map"`
+	Log        LogConfig   `koanf:"log"`
+	Stats      StatsConfig `koanf:"stats"`
 }
 
 // MapPrecisionCirclesMode controls how node precision circles are rendered on the web map.
@@ -134,6 +135,23 @@ type MapConfig struct {
 type LogConfig struct {
 	LiveUpdates     bool `koanf:"live_updates"`
 	PageSizeDefault int  `koanf:"page_size_default"`
+}
+
+// StatsConfig controls charts and aggregate activity APIs.
+type StatsConfig struct {
+	Activity StatsActivityConfig `koanf:"activity"`
+}
+
+// StatsActivityConfig configures fixed activity chart periods.
+type StatsActivityConfig struct {
+	Daily  StatsActivityPeriodConfig `koanf:"daily"`
+	Weekly StatsActivityPeriodConfig `koanf:"weekly"`
+}
+
+// StatsActivityPeriodConfig defines a window and bucket size for activity charts.
+type StatsActivityPeriodConfig struct {
+	Window time.Duration `koanf:"window"`
+	Bucket time.Duration `koanf:"bucket"`
 }
 
 // DefaultViewConfig defines initial map center and zoom.

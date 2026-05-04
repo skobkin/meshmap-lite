@@ -39,6 +39,18 @@ describe('api client', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/v1/nodes/!ab%2Fcd', { signal: undefined })
   })
 
+  it('requests activity stats', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ periods: [] })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await api.statsActivity()
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/stats/activity', { signal: undefined })
+  })
+
   it('builds topology edge query strings from optional filters', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

@@ -3,11 +3,14 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"meshmap-lite/internal/config"
 	"meshmap-lite/internal/domain"
 	"meshmap-lite/internal/repo"
 	"meshmap-lite/internal/repo/testkit"
@@ -55,6 +58,68 @@ func TestTopologyEdgesHandlerReturnsFilteredItems(t *testing.T) {
 	}
 	if len(items) != 1 || items[0].SourceKind != domain.TopologySourceNeighborInfo {
 		t.Fatalf("unexpected response payload: %#v", items)
+	}
+}
+
+func TestStatsActivityHandlerReturnsConfiguredPeriodsAndReusesCache(t *testing.T) {
+	now := time.Date(2026, 5, 4, 12, 7, 0, 0, time.UTC)
+	calls := 0
+	store := &testkit.FakeStore{
+		ActivityBucketsFn: func(_ context.Context, q domain.ActivityQuery) ([]domain.ActivityBucket, error) {
+			calls++
+			if q.End.Second() != 0 || q.End.Nanosecond() != 0 {
+				t.Fatalf("expected aligned end time, got %s", q.End)
+			}
+
+			return []domain.ActivityBucket{{
+				BucketStart:  q.Start,
+				TextMessages: calls,
+			}}, nil
+		},
+	}
+	srv := New(Config{
+		Web: config.WebConfig{
+			Stats: config.StatsConfig{
+				Activity: config.StatsActivityConfig{
+					Daily:  config.StatsActivityPeriodConfig{Window: 24 * time.Hour, Bucket: 5 * time.Minute},
+					Weekly: config.StatsActivityPeriodConfig{Window: 168 * time.Hour, Bucket: time.Hour},
+				},
+			},
+		},
+	}, store, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil, nil)
+	srv.now = func() time.Time { return now }
+
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/stats/activity", nil)
+		rec := httptest.NewRecorder()
+		srv.statsActivity(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("unexpected status: %d", rec.Code)
+		}
+		var payload activityPayload
+		if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		if len(payload.Periods) != 2 {
+			t.Fatalf("expected two periods, got %d", len(payload.Periods))
+		}
+		if payload.Periods[0].Key != "daily" || payload.Periods[0].Window != "24h" || payload.Periods[0].Bucket != "5m" {
+			t.Fatalf("unexpected daily period: %+v", payload.Periods[0])
+		}
+	}
+	if calls != 2 {
+		t.Fatalf("expected one store call per period due cache reuse, got %d", calls)
+	}
+
+	srv.now = func() time.Time { return now.Add(5 * time.Minute) }
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/stats/activity", nil)
+	rec := httptest.NewRecorder()
+	srv.statsActivity(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status after expiry: %d", rec.Code)
+	}
+	if calls != 3 {
+		t.Fatalf("expected daily cache to expire on next boundary, got %d calls", calls)
 	}
 }
 

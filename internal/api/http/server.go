@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	"meshmap-lite/internal/config"
@@ -13,12 +14,15 @@ import (
 
 // Server serves HTTP API routes and shared operational endpoints.
 type Server struct {
-	cfg        Config
-	store      repo.ReadStore
-	log        *slog.Logger
-	ready      func() bool
-	wsClient   func() int
-	mqttStatus func() mqttclient.ConnectionStatus
+	cfg           Config
+	store         repo.ReadStore
+	log           *slog.Logger
+	ready         func() bool
+	wsClient      func() int
+	mqttStatus    func() mqttclient.ConnectionStatus
+	activityMu    sync.Mutex
+	activityCache map[string]activityPeriodCache
+	now           func() time.Time
 }
 
 // Config contains the subset of app config required by the HTTP API.
@@ -31,7 +35,16 @@ type Config struct {
 
 // New creates an HTTP API server with configured dependencies.
 func New(cfg Config, store repo.ReadStore, log *slog.Logger, ready func() bool, wsClient func() int, mqttStatus func() mqttclient.ConnectionStatus) *Server {
-	return &Server{cfg: cfg, store: store, log: log, ready: ready, wsClient: wsClient, mqttStatus: mqttStatus}
+	return &Server{
+		cfg:           cfg,
+		store:         store,
+		log:           log,
+		ready:         ready,
+		wsClient:      wsClient,
+		mqttStatus:    mqttStatus,
+		activityCache: make(map[string]activityPeriodCache),
+		now:           time.Now,
+	}
 }
 
 // StartStatsTicker periodically emits runtime stats events.

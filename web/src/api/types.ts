@@ -168,6 +168,29 @@ export interface Meta {
   }
 }
 
+export interface ActivityBucket {
+  bucket_start: string
+  text_messages: number
+  pki: number
+  node_info: number
+  telemetry: number
+  neighbor_info: number
+  range_test: number
+}
+
+export interface ActivityPeriod {
+  key: 'daily' | 'weekly'
+  title: string
+  window: string
+  bucket: string
+  buckets: ActivityBucket[]
+}
+
+export interface ActivityStats {
+  generated_at: string
+  periods: ActivityPeriod[]
+}
+
 export interface LogEvent {
   id: number
   observed_at: string

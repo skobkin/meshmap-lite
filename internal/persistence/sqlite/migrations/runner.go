@@ -7,7 +7,7 @@ import (
 	"log/slog"
 )
 
-const targetSchemaVersion = 9
+const targetSchemaVersion = 10
 
 type migrationStep struct {
 	version int
@@ -25,6 +25,7 @@ var schemaMigrations = []migrationStep{
 	{version: 7, name: "topology_edges", apply: migrateV7TopologyEdges},
 	{version: 8, name: "log_event_range_test_kind", apply: migrateV8LogEventRangeTestKind},
 	{version: 9, name: "log_event_pki_kind", apply: migrateV9LogEventPKIKind},
+	{version: 10, name: "activity_indexes", apply: migrateV10ActivityIndexes},
 }
 
 // Apply upgrades the SQLite schema to the latest supported version.

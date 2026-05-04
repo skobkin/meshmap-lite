@@ -1,6 +1,10 @@
 package httpapi
 
-import "meshmap-lite/internal/mqttclient"
+import (
+	"time"
+
+	"meshmap-lite/internal/mqttclient"
+)
 
 type healthStatusPayload struct {
 	Status string `json:"status"`
@@ -46,4 +50,27 @@ type channelPayload struct {
 type heartbeatPayload struct {
 	Status               string                      `json:"status"`
 	MQTTConnectionStatus mqttclient.ConnectionStatus `json:"mqtt_connection_status"`
+}
+
+type activityPayload struct {
+	GeneratedAt time.Time               `json:"generated_at"`
+	Periods     []activityPeriodPayload `json:"periods"`
+}
+
+type activityPeriodPayload struct {
+	Key     string                  `json:"key"`
+	Title   string                  `json:"title"`
+	Window  string                  `json:"window"`
+	Bucket  string                  `json:"bucket"`
+	Buckets []activityBucketPayload `json:"buckets"`
+}
+
+type activityBucketPayload struct {
+	BucketStart  time.Time `json:"bucket_start"`
+	TextMessages int       `json:"text_messages"`
+	PKI          int       `json:"pki"`
+	NodeInfo     int       `json:"node_info"`
+	Telemetry    int       `json:"telemetry"`
+	NeighborInfo int       `json:"neighbor_info"`
+	RangeTest    int       `json:"range_test"`
 }

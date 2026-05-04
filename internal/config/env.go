@@ -91,6 +91,18 @@ var envSetters = map[string]envSetter{
 	"web.log.page_size_default": func(cfg *Config, value string) {
 		cfg.Web.Log.PageSizeDefault = mustInt(value, cfg.Web.Log.PageSizeDefault)
 	},
+	"web.stats.activity.daily.window": func(cfg *Config, value string) {
+		cfg.Web.Stats.Activity.Daily.Window = mustDuration(value, cfg.Web.Stats.Activity.Daily.Window)
+	},
+	"web.stats.activity.daily.bucket": func(cfg *Config, value string) {
+		cfg.Web.Stats.Activity.Daily.Bucket = mustDuration(value, cfg.Web.Stats.Activity.Daily.Bucket)
+	},
+	"web.stats.activity.weekly.window": func(cfg *Config, value string) {
+		cfg.Web.Stats.Activity.Weekly.Window = mustDuration(value, cfg.Web.Stats.Activity.Weekly.Window)
+	},
+	"web.stats.activity.weekly.bucket": func(cfg *Config, value string) {
+		cfg.Web.Stats.Activity.Weekly.Bucket = mustDuration(value, cfg.Web.Stats.Activity.Weekly.Bucket)
+	},
 	"logging.level": func(cfg *Config, value string) { cfg.Logging.Level = value },
 }
 
