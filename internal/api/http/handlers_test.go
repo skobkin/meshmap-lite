@@ -116,10 +116,21 @@ func TestStatsActivityHandlerReturnsConfiguredPeriodsAndReusesCache(t *testing.T
 	rec := httptest.NewRecorder()
 	srv.statsActivity(rec, req)
 	if rec.Code != http.StatusOK {
-		t.Fatalf("unexpected status after expiry: %d", rec.Code)
+		t.Fatalf("unexpected status after daily expiry: %d", rec.Code)
 	}
 	if calls != 3 {
 		t.Fatalf("expected daily cache to expire on next boundary, got %d calls", calls)
+	}
+
+	srv.now = func() time.Time { return now.Add(time.Hour) }
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/stats/activity", nil)
+	rec = httptest.NewRecorder()
+	srv.statsActivity(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status after weekly expiry: %d", rec.Code)
+	}
+	if calls != 5 {
+		t.Fatalf("expected both caches to expire after one hour, got %d calls", calls)
 	}
 }
 
