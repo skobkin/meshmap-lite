@@ -670,11 +670,11 @@ body {
 
 .activity-tooltip {
   min-width: 8rem;
+  max-width: 70%;
   color: var(--pico-color);
   font-size: 0.78rem;
   line-height: 1.2;
   text-align: right;
-  white-space: nowrap;
 }
 
 .activity-tooltip.muted {

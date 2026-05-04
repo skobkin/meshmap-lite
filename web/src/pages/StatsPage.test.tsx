@@ -13,7 +13,7 @@ type MockSetCursorHook = (plot: MockPlot) => void
 
 interface MockPlot {
   cursor: { idx?: number | null }
-  data: [number[], number[]]
+  data: number[][]
 }
 
 interface MockAxis {
@@ -41,12 +41,15 @@ interface MockOptions {
   }[]
   series?: {
     fill?: string
+    label?: string
+    stroke?: string
     width?: number
   }[]
 }
 
 const uplotMock = vi.hoisted(() => ({
   created: vi.fn(),
+  data: [] as number[][][],
   options: [] as MockOptions[],
   setData: vi.fn(),
   setSize: vi.fn(),
@@ -55,8 +58,9 @@ const uplotMock = vi.hoisted(() => ({
 
 vi.mock('uplot', () => ({
   default: class UPlotMock {
-    public constructor(options: MockOptions) {
+    public constructor(options: MockOptions, data: number[][]) {
       uplotMock.options.push(options)
+      uplotMock.data.push(data)
       uplotMock.created()
     }
 
@@ -119,6 +123,7 @@ function stats(): ActivityStats {
 describe('StatsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    uplotMock.data = []
     uplotMock.options = []
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-05-04T12:01:00Z'))
@@ -132,12 +137,29 @@ describe('StatsPage', () => {
     expect(nextBoundaryDelay(Date.parse('2026-05-04T12:01:00Z'), 300_000)).toBe(240_000)
   })
 
-  it('renders both activity sections and six charts per section', async () => {
-    render(<StatsPage />)
+  it('renders both activity sections and four charts per section in display order', async () => {
+    render(<StatsPage initialStats={stats()} />)
 
-    await screen.findByRole('heading', { name: '24 hours' })
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(screen.getByRole('heading', { name: '24 hours' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: '7 days' })).toBeTruthy()
-    expect(screen.getAllByLabelText(/packet counts$/)).toHaveLength(12)
+    expect(screen.getAllByLabelText(/packet counts$/)).toHaveLength(8)
+    expect(screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent)).toEqual([
+      'Text messages',
+      'NodeInfo',
+      'PKI',
+      'Telemetry / Neighbor / Range',
+      'Text messages',
+      'NodeInfo',
+      'PKI',
+      'Telemetry / Neighbor / Range'
+    ])
+    expect(uplotMock.data[3]?.[1]).toEqual([3])
+    expect(uplotMock.data[3]?.[2]).toEqual([0])
+    expect(uplotMock.data[3]?.[3]).toEqual([0])
   })
 
   it('refreshes on the next returned bucket boundary', async () => {
@@ -163,7 +185,7 @@ describe('StatsPage', () => {
 
     const dailyXAxis = uplotMock.options[0]?.axes?.[0]
     const dailyYAxis = uplotMock.options[0]?.axes?.[1]
-    const weeklyXAxis = uplotMock.options[6]?.axes?.[0]
+    const weeklyXAxis = uplotMock.options[4]?.axes?.[0]
     const dailyValues = dailyXAxis?.values?.({}, [Date.parse('2026-05-04T12:00:00Z') / 1000], 0, 0, 0) ?? []
     const weeklyValues = weeklyXAxis?.values?.({}, [Date.parse('2026-05-04T12:00:00Z') / 1000], 0, 0, 0) ?? []
     const dailyLabel = String(dailyValues[0])
@@ -177,6 +199,12 @@ describe('StatsPage', () => {
     expect(uplotMock.options[0]?.cursor?.sync?.key).toBe('stats-activity-daily')
     expect(uplotMock.options[0]?.series?.[1]?.width).toBe(1)
     expect(uplotMock.options[0]?.series?.[1]?.fill).toBe('rgb(51 154 240 / 10%)')
+    expect(uplotMock.options[3]?.series?.slice(1).map((series) => series.label)).toEqual([
+      'Telemetry',
+      'Neighbor',
+      'Range'
+    ])
+    expect(uplotMock.options[3]?.series?.[1]?.fill).toBeUndefined()
     expect(dailyLabel).not.toContain('May')
     expect(weeklyLabel).not.toContain(':')
     expect(dailyYAxis?.splits?.({}, 1, 0, 1.4, 0, 0)).toEqual([0, 1, 2])
@@ -187,7 +215,7 @@ describe('StatsPage', () => {
     render(<StatsPage initialStats={stats()} />)
 
     await screen.findByRole('heading', { name: '24 hours' })
-    expect(screen.getAllByText('Hover for values')).toHaveLength(12)
+    expect(screen.getAllByText('Hover for values')).toHaveLength(8)
 
     await act(async () => {
       uplotMock.options[0]?.plugins?.[0]?.hooks?.setCursor?.({

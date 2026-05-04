@@ -9,7 +9,10 @@ import type { JSX } from 'preact'
 type ActivityMetricKey = 'text_messages' | 'pki' | 'node_info' | 'telemetry' | 'neighbor_info' | 'range_test'
 
 interface ActivityMetric {
-  key: ActivityMetricKey
+  series: {
+    key: ActivityMetricKey
+    label: string
+  }[]
   title: string
 }
 
@@ -21,12 +24,17 @@ interface ChartTooltip {
 const chartHeight = 220
 const fallbackChartWidth = 360
 const metrics: ActivityMetric[] = [
-  { key: 'text_messages', title: 'Text messages' },
-  { key: 'pki', title: 'PKI' },
-  { key: 'node_info', title: 'NodeInfo' },
-  { key: 'telemetry', title: 'Telemetry' },
-  { key: 'neighbor_info', title: 'Neighbor Info' },
-  { key: 'range_test', title: 'Range test' }
+  { series: [{ key: 'text_messages', label: 'Text messages' }], title: 'Text messages' },
+  { series: [{ key: 'node_info', label: 'NodeInfo' }], title: 'NodeInfo' },
+  { series: [{ key: 'pki', label: 'PKI' }], title: 'PKI' },
+  {
+    series: [
+      { key: 'telemetry', label: 'Telemetry' },
+      { key: 'neighbor_info', label: 'Neighbor' },
+      { key: 'range_test', label: 'Range' }
+    ],
+    title: 'Telemetry / Neighbor / Range'
+  }
 ]
 
 interface Props {
@@ -70,15 +78,15 @@ function nextRefreshDelay(stats: ActivityStats): number {
   return delays.length > 0 ? Math.min(...delays) : 60_000
 }
 
-function chartData(buckets: ActivityBucket[], metric: ActivityMetricKey): [number[], number[]] {
+function chartData(buckets: ActivityBucket[], metric: ActivityMetric): uPlot.AlignedData {
   return [
     buckets.map((bucket) => Math.floor(Date.parse(bucket.bucket_start) / 1000)),
-    buckets.map((bucket) => bucket[metric])
+    ...metric.series.map((series) => buckets.map((bucket) => bucket[series.key]))
   ]
 }
 
-function hasAnyCount(buckets: ActivityBucket[], metric: ActivityMetricKey): boolean {
-  return buckets.some((bucket) => bucket[metric] > 0)
+function hasAnyCount(buckets: ActivityBucket[], metric: ActivityMetric): boolean {
+  return buckets.some((bucket) => metric.series.some((series) => bucket[series.key] > 0))
 }
 
 function chartWidth(root: HTMLDivElement): number {
@@ -93,11 +101,15 @@ function cssVar(root: Element, name: string, fallback: string): string {
   return value || fallback
 }
 
-function chartColors(root: Element): { axis: string; grid: string; line: string; fill: string } {
+function chartColors(root: Element): { axis: string; grid: string; lines: string[]; fill: string } {
   return {
     axis: cssVar(root, '--pico-muted-color', '#8b9bb4'),
     grid: cssVar(root, '--surface-border', '#2b3442'),
-    line: cssVar(root, '--pico-primary', '#339af0'),
+    lines: [
+      cssVar(root, '--pico-primary', '#339af0'),
+      '#f59f00',
+      '#51cf66'
+    ],
     fill: 'rgb(51 154 240 / 10%)'
   }
 }
@@ -153,8 +165,8 @@ function ActivityChart({ buckets, metric, periodKey }: { buckets: ActivityBucket
   const rootRef = useRef<HTMLDivElement>(null)
   const plotRef = useRef<uPlot>()
   const [tooltip, setTooltip] = useState<ChartTooltip | null>(null)
-  const data = useMemo(() => chartData(buckets, metric.key), [buckets, metric.key])
-  const anyCount = hasAnyCount(buckets, metric.key)
+  const data = useMemo(() => chartData(buckets, metric), [buckets, metric])
+  const anyCount = hasAnyCount(buckets, metric)
   const cursorPlugin = useMemo<uPlot.Plugin>(() => ({
     hooks: {
       setCursor: (plot) => {
@@ -166,10 +178,21 @@ function ActivityChart({ buckets, metric, periodKey }: { buckets: ActivityBucket
         }
 
         const timestamps = plot.data[0]
-        const values = plot.data[1]
         const timestamp = timestamps[idx]
-        const value = values?.[idx]
-        if (typeof timestamp !== 'number' || !Number.isFinite(timestamp) || typeof value !== 'number' || !Number.isFinite(value)) {
+        if (typeof timestamp !== 'number' || !Number.isFinite(timestamp)) {
+          setTooltip(null)
+
+          return
+        }
+
+        const values = metric.series.map((series, index) => {
+          const value = plot.data[index + 1]?.[idx]
+
+          return typeof value === 'number' && Number.isFinite(value)
+            ? `${series.label}: ${formatPacketCount(value)}`
+            : null
+        }).filter((value): value is string => value !== null)
+        if (values.length === 0) {
           setTooltip(null)
 
           return
@@ -177,11 +200,11 @@ function ActivityChart({ buckets, metric, periodKey }: { buckets: ActivityBucket
 
         setTooltip({
           time: formatTooltipTime(timestamp),
-          value: formatPacketCount(value)
+          value: values.join(' · ')
         })
       }
     }
-  }), [])
+  }), [metric])
 
   useEffect(() => {
     const root = rootRef.current
@@ -214,7 +237,7 @@ function ActivityChart({ buckets, metric, periodKey }: { buckets: ActivityBucket
         },
         {
           stroke: colors.axis,
-          label: 'Count',
+          label: 'Packets',
           labelGap: 4,
           labelSize: 20,
           size: 42,
@@ -227,13 +250,13 @@ function ActivityChart({ buckets, metric, periodKey }: { buckets: ActivityBucket
       ],
       series: [
         {},
-        {
-          label: metric.title,
-          stroke: colors.line,
+        ...metric.series.map((series, index) => ({
+          label: series.label,
+          stroke: colors.lines[index % colors.lines.length],
           width: 1,
           points: { show: false },
-          fill: colors.fill
-        }
+          fill: metric.series.length === 1 ? colors.fill : undefined
+        }))
       ],
       plugins: [cursorPlugin]
     }, data, root)
@@ -250,7 +273,7 @@ function ActivityChart({ buckets, metric, periodKey }: { buckets: ActivityBucket
       plot.destroy()
       plotRef.current = undefined
     }
-  }, [cursorPlugin, data, metric.title, periodKey])
+  }, [cursorPlugin, data, metric.series, metric.title, periodKey])
 
   useEffect(() => {
     plotRef.current?.setData(data)
@@ -279,7 +302,7 @@ function ActivitySection({ period }: { period: ActivityPeriod }): JSX.Element {
       </div>
       <div className="activity-grid">
         {metrics.map((metric) => (
-          <ActivityChart key={metric.key} buckets={period.buckets} metric={metric} periodKey={period.key} />
+          <ActivityChart key={metric.title} buckets={period.buckets} metric={metric} periodKey={period.key} />
         ))}
       </div>
     </section>
