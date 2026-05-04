@@ -7,8 +7,27 @@ import { StatsPage, nextBoundaryDelay, parseDurationMillis } from './StatsPage'
 
 import type { ActivityStats } from '../api/types'
 
+type MockAxisValues = (plot: unknown, ticks: number[], axisIndex: number, foundSpace: number, foundIncr: number) => (number | string | null)[]
+type MockAxisSplits = (plot: unknown, axisIndex: number, scaleMin: number, scaleMax: number, foundIncr: number, foundSpace: number) => number[]
+
+interface MockAxis {
+  border?: { stroke?: string }
+  grid?: { stroke?: string }
+  size?: number
+  space?: number
+  splits?: MockAxisSplits
+  stroke?: string
+  ticks?: { stroke?: string }
+  values?: MockAxisValues
+}
+
+interface MockOptions {
+  axes?: MockAxis[]
+}
+
 const uplotMock = vi.hoisted(() => ({
   created: vi.fn(),
+  options: [] as MockOptions[],
   setData: vi.fn(),
   setSize: vi.fn(),
   destroy: vi.fn()
@@ -16,7 +35,8 @@ const uplotMock = vi.hoisted(() => ({
 
 vi.mock('uplot', () => ({
   default: class UPlotMock {
-    public constructor() {
+    public constructor(options: MockOptions) {
+      uplotMock.options.push(options)
       uplotMock.created()
     }
 
@@ -79,6 +99,7 @@ function stats(): ActivityStats {
 describe('StatsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    uplotMock.options = []
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-05-04T12:01:00Z'))
     apiMock.statsActivity.mockResolvedValue(stats())
@@ -113,5 +134,27 @@ describe('StatsPage', () => {
     await waitFor(() => {
       expect(apiMock.statsActivity).toHaveBeenCalledTimes(2)
     })
+  })
+
+  it('configures readable chart axes for dark surfaces and dense time buckets', async () => {
+    render(<StatsPage initialStats={stats()} />)
+
+    await screen.findByRole('heading', { name: '24 hours' })
+
+    const dailyXAxis = uplotMock.options[0]?.axes?.[0]
+    const dailyYAxis = uplotMock.options[0]?.axes?.[1]
+    const weeklyXAxis = uplotMock.options[6]?.axes?.[0]
+    const dailyValues = dailyXAxis?.values?.({}, [Date.parse('2026-05-04T12:00:00Z') / 1000], 0, 0, 0) ?? []
+    const weeklyValues = weeklyXAxis?.values?.({}, [Date.parse('2026-05-04T12:00:00Z') / 1000], 0, 0, 0) ?? []
+    const dailyLabel = String(dailyValues[0])
+    const weeklyLabel = String(weeklyValues[0])
+
+    expect(dailyXAxis?.stroke).toBe('#8b9bb4')
+    expect(dailyXAxis?.grid?.stroke).toBe('#2b3442')
+    expect(dailyXAxis?.space).toBeGreaterThanOrEqual(90)
+    expect(dailyLabel).not.toContain('May')
+    expect(weeklyLabel).not.toContain(':')
+    expect(dailyYAxis?.splits?.({}, 1, 0, 1.4, 0, 0)).toEqual([0, 1, 2])
+    expect(dailyYAxis?.splits?.({}, 1, 0, 8.2, 0, 0)).toEqual([0, 2, 4, 6, 8, 9])
   })
 })

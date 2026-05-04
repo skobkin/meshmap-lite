@@ -14,7 +14,7 @@ interface ActivityMetric {
 }
 
 const chartHeight = 220
-const fallbackChartWidth = 420
+const fallbackChartWidth = 360
 const metrics: ActivityMetric[] = [
   { key: 'text_messages', title: 'Text messages' },
   { key: 'pki', title: 'PKI' },
@@ -76,13 +76,59 @@ function hasAnyCount(buckets: ActivityBucket[], metric: ActivityMetricKey): bool
   return buckets.some((bucket) => bucket[metric] > 0)
 }
 
-function formatTick(sec: number): string {
-  return new Date(sec * 1000).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
+function chartWidth(root: HTMLDivElement): number {
+  const width = Math.floor(root.clientWidth)
+
+  return width > 0 ? width : fallbackChartWidth
+}
+
+function cssVar(root: Element, name: string, fallback: string): string {
+  const value = getComputedStyle(root).getPropertyValue(name).trim()
+
+  return value || fallback
+}
+
+function chartColors(root: Element): { axis: string; grid: string; line: string; fill: string } {
+  return {
+    axis: cssVar(root, '--pico-muted-color', '#8b9bb4'),
+    grid: cssVar(root, '--surface-border', '#2b3442'),
+    line: cssVar(root, '--pico-primary', '#339af0'),
+    fill: 'rgb(51 154 240 / 14%)'
+  }
+}
+
+function formatTick(sec: number, periodKey: string): string {
+  const date = new Date(sec * 1000)
+
+  if (periodKey === 'weekly') {
+    return date.toLocaleDateString(undefined, {
+      month: 'short',
+      day: 'numeric'
+    })
+  }
+
+  return date.toLocaleTimeString(undefined, {
     hour: '2-digit',
     minute: '2-digit'
   })
+}
+
+function integerSplits(max: number): number[] {
+  const ceiling = Number.isFinite(max) ? Math.max(1, Math.ceil(max)) : 1
+  if (ceiling <= 6) {
+    return Array.from({ length: ceiling + 1 }, (_unused, index) => index)
+  }
+
+  const step = Math.ceil(ceiling / 5)
+  const splits: number[] = []
+  for (let value = 0; value < ceiling; value += step) {
+    splits.push(value)
+  }
+  if (splits.at(-1) !== ceiling) {
+    splits.push(ceiling)
+  }
+
+  return splits
 }
 
 function ActivityChart({ buckets, metric, periodKey }: { buckets: ActivityBucket[]; metric: ActivityMetric; periodKey: string }): JSX.Element {
@@ -95,22 +141,39 @@ function ActivityChart({ buckets, metric, periodKey }: { buckets: ActivityBucket
     const root = rootRef.current
     if (!root) {return undefined}
 
-    const width = Math.max(Math.floor(root.clientWidth), fallbackChartWidth)
+    const colors = chartColors(root)
     const plot = new uPlot({
-      width,
+      width: chartWidth(root),
       height: chartHeight,
       legend: { show: false },
-      cursor: { drag: { x: false, y: false } },
+      cursor: {
+        drag: { x: false, y: false },
+        points: { show: false }
+      },
       scales: {
         x: { time: true },
         y: { range: (_plot, _min, max) => [0, Math.max(1, Math.ceil(max))] }
       },
       axes: [
         {
-          values: (_plot, ticks) => ticks.map((tick) => formatTick(tick))
+          stroke: colors.axis,
+          grid: { stroke: colors.grid, width: 1 },
+          ticks: { stroke: colors.grid, width: 1 },
+          border: { stroke: colors.grid, width: 1 },
+          space: 92,
+          size: 34,
+          values: (_plot, ticks) => ticks.map((tick) => formatTick(tick, periodKey))
         },
         {
+          stroke: colors.axis,
           label: 'Count',
+          labelGap: 4,
+          labelSize: 20,
+          size: 42,
+          grid: { stroke: colors.grid, width: 1 },
+          ticks: { stroke: colors.grid, width: 1 },
+          border: { stroke: colors.grid, width: 1 },
+          splits: (_plot, _axisIndex, _scaleMin, scaleMax) => integerSplits(scaleMax),
           values: (_plot, ticks) => ticks.map((tick) => String(Math.round(tick)))
         }
       ],
@@ -118,18 +181,17 @@ function ActivityChart({ buckets, metric, periodKey }: { buckets: ActivityBucket
         {},
         {
           label: metric.title,
-          stroke: '#2563eb',
+          stroke: colors.line,
           width: 2,
           points: { show: false },
-          fill: 'rgb(37 99 235 / 12%)'
+          fill: colors.fill
         }
       ]
     }, data, root)
     plotRef.current = plot
 
     const resize = (): void => {
-      const nextWidth = Math.max(Math.floor(root.clientWidth), fallbackChartWidth)
-      plot.setSize({ width: nextWidth, height: chartHeight })
+      plot.setSize({ width: chartWidth(root), height: chartHeight })
     }
     const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(resize) : undefined
     observer?.observe(root)
@@ -139,7 +201,7 @@ function ActivityChart({ buckets, metric, periodKey }: { buckets: ActivityBucket
       plot.destroy()
       plotRef.current = undefined
     }
-  }, [data, metric.title])
+  }, [data, metric.title, periodKey])
 
   useEffect(() => {
     plotRef.current?.setData(data)
