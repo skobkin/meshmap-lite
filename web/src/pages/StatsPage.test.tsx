@@ -39,9 +39,15 @@ interface MockOptions {
       setCursor?: MockSetCursorHook
     }
   }[]
+  series?: {
+    fill?: string
+    paths?: unknown
+    width?: number
+  }[]
 }
 
 const uplotMock = vi.hoisted(() => ({
+  barPaths: vi.fn(),
   created: vi.fn(),
   options: [] as MockOptions[],
   setData: vi.fn(),
@@ -51,6 +57,10 @@ const uplotMock = vi.hoisted(() => ({
 
 vi.mock('uplot', () => ({
   default: class UPlotMock {
+    public static paths = {
+      bars: vi.fn(() => uplotMock.barPaths)
+    }
+
     public constructor(options: MockOptions) {
       uplotMock.options.push(options)
       uplotMock.created()
@@ -171,6 +181,9 @@ describe('StatsPage', () => {
     expect(uplotMock.options[0]?.cursor?.show).toBe(true)
     expect(uplotMock.options[0]?.cursor?.points?.show).toBe(true)
     expect(uplotMock.options[0]?.cursor?.sync?.key).toBe('stats-activity-daily')
+    expect(uplotMock.options[0]?.series?.[1]?.width).toBe(0)
+    expect(uplotMock.options[0]?.series?.[1]?.fill).toBe('#339af0')
+    expect(uplotMock.options[0]?.series?.[1]?.paths).toBe(uplotMock.barPaths)
     expect(dailyLabel).not.toContain('May')
     expect(weeklyLabel).not.toContain(':')
     expect(dailyYAxis?.splits?.({}, 1, 0, 1.4, 0, 0)).toEqual([0, 1, 2])

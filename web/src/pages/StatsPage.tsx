@@ -20,6 +20,10 @@ interface ChartTooltip {
 
 const chartHeight = 220
 const fallbackChartWidth = 360
+const activityBarPaths = uPlot.paths.bars?.({
+  size: [0.7, 4, 1],
+  gap: 1
+})
 const metrics: ActivityMetric[] = [
   { key: 'text_messages', title: 'Text messages' },
   { key: 'pki', title: 'PKI' },
@@ -93,12 +97,11 @@ function cssVar(root: Element, name: string, fallback: string): string {
   return value || fallback
 }
 
-function chartColors(root: Element): { axis: string; grid: string; line: string; fill: string } {
+function chartColors(root: Element): { axis: string; grid: string; line: string } {
   return {
     axis: cssVar(root, '--pico-muted-color', '#8b9bb4'),
     grid: cssVar(root, '--surface-border', '#2b3442'),
-    line: cssVar(root, '--pico-primary', '#339af0'),
-    fill: 'rgb(51 154 240 / 14%)'
+    line: cssVar(root, '--pico-primary', '#339af0')
   }
 }
 
@@ -230,9 +233,10 @@ function ActivityChart({ buckets, metric, periodKey }: { buckets: ActivityBucket
         {
           label: metric.title,
           stroke: colors.line,
-          width: 2,
+          width: 0,
           points: { show: false },
-          fill: colors.fill
+          fill: colors.line,
+          paths: activityBarPaths
         }
       ],
       plugins: [cursorPlugin]
