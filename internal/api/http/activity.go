@@ -80,6 +80,7 @@ func (s *Server) loadActivityPeriod(ctx context.Context, def activityPeriodDefin
 	if err != nil {
 		return activityPeriodPayload{}, err
 	}
+
 	period := activityPeriodPayload{
 		Key:     def.key,
 		Title:   def.title,
@@ -93,8 +94,13 @@ func (s *Server) loadActivityPeriod(ctx context.Context, def activityPeriodDefin
 	}
 
 	s.activityMu.Lock()
+	defer s.activityMu.Unlock()
+
+	if existing, ok := s.activityCache[def.key]; ok && now.Before(existing.expiresAt) {
+		return existing.period, nil
+	}
+
 	s.activityCache[def.key] = cache
-	s.activityMu.Unlock()
 
 	return period, nil
 }
