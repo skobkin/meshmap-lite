@@ -13,6 +13,11 @@ interface ActivityMetric {
   title: string
 }
 
+interface ChartTooltip {
+  time: string
+  value: string
+}
+
 const chartHeight = 220
 const fallbackChartWidth = 360
 const metrics: ActivityMetric[] = [
@@ -113,6 +118,19 @@ function formatTick(sec: number, periodKey: string): string {
   })
 }
 
+function formatTooltipTime(sec: number): string {
+  return new Date(sec * 1000).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+function formatPacketCount(value: number): string {
+  return `${value} ${value === 1 ? 'packet' : 'packets'}`
+}
+
 function integerSplits(max: number): number[] {
   const ceiling = Number.isFinite(max) ? Math.max(1, Math.ceil(max)) : 1
   if (ceiling <= 6) {
@@ -134,8 +152,36 @@ function integerSplits(max: number): number[] {
 function ActivityChart({ buckets, metric, periodKey }: { buckets: ActivityBucket[]; metric: ActivityMetric; periodKey: string }): JSX.Element {
   const rootRef = useRef<HTMLDivElement>(null)
   const plotRef = useRef<uPlot>()
+  const [tooltip, setTooltip] = useState<ChartTooltip | null>(null)
   const data = useMemo(() => chartData(buckets, metric.key), [buckets, metric.key])
   const anyCount = hasAnyCount(buckets, metric.key)
+  const cursorPlugin = useMemo<uPlot.Plugin>(() => ({
+    hooks: {
+      setCursor: (plot) => {
+        const idx = plot.cursor.idx
+        if (idx === null || idx === undefined || idx < 0) {
+          setTooltip(null)
+
+          return
+        }
+
+        const timestamps = plot.data[0]
+        const values = plot.data[1]
+        const timestamp = timestamps[idx]
+        const value = values?.[idx]
+        if (typeof timestamp !== 'number' || !Number.isFinite(timestamp) || typeof value !== 'number' || !Number.isFinite(value)) {
+          setTooltip(null)
+
+          return
+        }
+
+        setTooltip({
+          time: formatTooltipTime(timestamp),
+          value: formatPacketCount(value)
+        })
+      }
+    }
+  }), [])
 
   useEffect(() => {
     const root = rootRef.current
@@ -147,8 +193,10 @@ function ActivityChart({ buckets, metric, periodKey }: { buckets: ActivityBucket
       height: chartHeight,
       legend: { show: false },
       cursor: {
+        show: true,
         drag: { x: false, y: false },
-        points: { show: false }
+        points: { show: true, size: 5 },
+        sync: { key: `stats-activity-${periodKey}` }
       },
       scales: {
         x: { time: true },
@@ -186,7 +234,8 @@ function ActivityChart({ buckets, metric, periodKey }: { buckets: ActivityBucket
           points: { show: false },
           fill: colors.fill
         }
-      ]
+      ],
+      plugins: [cursorPlugin]
     }, data, root)
     plotRef.current = plot
 
@@ -201,7 +250,7 @@ function ActivityChart({ buckets, metric, periodKey }: { buckets: ActivityBucket
       plot.destroy()
       plotRef.current = undefined
     }
-  }, [data, metric.title, periodKey])
+  }, [cursorPlugin, data, metric.title, periodKey])
 
   useEffect(() => {
     plotRef.current?.setData(data)
@@ -211,6 +260,9 @@ function ActivityChart({ buckets, metric, periodKey }: { buckets: ActivityBucket
     <article className="activity-chart" data-period={periodKey}>
       <header>
         <h3>{metric.title}</h3>
+        <span className={tooltip ? 'activity-tooltip' : 'activity-tooltip muted'}>
+          {tooltip ? `${tooltip.time} · ${tooltip.value}` : 'Hover for values'}
+        </span>
       </header>
       <div className="activity-chart-canvas" ref={rootRef} aria-label={`${metric.title} packet counts`} />
       {!anyCount && <p className="activity-empty">No packets in this period.</p>}

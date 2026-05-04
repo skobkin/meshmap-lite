@@ -9,6 +9,12 @@ import type { ActivityStats } from '../api/types'
 
 type MockAxisValues = (plot: unknown, ticks: number[], axisIndex: number, foundSpace: number, foundIncr: number) => (number | string | null)[]
 type MockAxisSplits = (plot: unknown, axisIndex: number, scaleMin: number, scaleMax: number, foundIncr: number, foundSpace: number) => number[]
+type MockSetCursorHook = (plot: MockPlot) => void
+
+interface MockPlot {
+  cursor: { idx?: number | null }
+  data: [number[], number[]]
+}
 
 interface MockAxis {
   border?: { stroke?: string }
@@ -23,6 +29,16 @@ interface MockAxis {
 
 interface MockOptions {
   axes?: MockAxis[]
+  cursor?: {
+    points?: { show?: boolean; size?: number }
+    show?: boolean
+    sync?: { key?: string }
+  }
+  plugins?: {
+    hooks?: {
+      setCursor?: MockSetCursorHook
+    }
+  }[]
 }
 
 const uplotMock = vi.hoisted(() => ({
@@ -152,9 +168,28 @@ describe('StatsPage', () => {
     expect(dailyXAxis?.stroke).toBe('#8b9bb4')
     expect(dailyXAxis?.grid?.stroke).toBe('#2b3442')
     expect(dailyXAxis?.space).toBeGreaterThanOrEqual(90)
+    expect(uplotMock.options[0]?.cursor?.show).toBe(true)
+    expect(uplotMock.options[0]?.cursor?.points?.show).toBe(true)
+    expect(uplotMock.options[0]?.cursor?.sync?.key).toBe('stats-activity-daily')
     expect(dailyLabel).not.toContain('May')
     expect(weeklyLabel).not.toContain(':')
     expect(dailyYAxis?.splits?.({}, 1, 0, 1.4, 0, 0)).toEqual([0, 1, 2])
     expect(dailyYAxis?.splits?.({}, 1, 0, 8.2, 0, 0)).toEqual([0, 2, 4, 6, 8, 9])
+  })
+
+  it('shows the hovered chart point time and packet count', async () => {
+    render(<StatsPage initialStats={stats()} />)
+
+    await screen.findByRole('heading', { name: '24 hours' })
+    expect(screen.getAllByText('Hover for values')).toHaveLength(12)
+
+    await act(async () => {
+      uplotMock.options[0]?.plugins?.[0]?.hooks?.setCursor?.({
+        cursor: { idx: 0 },
+        data: [[Date.parse('2026-05-04T11:50:00Z') / 1000], [2]]
+      })
+    })
+
+    expect(screen.getByText(/2 packets$/)).toBeTruthy()
   })
 })

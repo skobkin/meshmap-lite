@@ -655,6 +655,10 @@ body {
 }
 
 .activity-chart header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
   margin-bottom: 0.5rem;
 }
 
@@ -662,6 +666,19 @@ body {
   margin: 0;
   font-size: 0.95rem;
   line-height: 1.2;
+}
+
+.activity-tooltip {
+  min-width: 8rem;
+  color: var(--pico-color);
+  font-size: 0.78rem;
+  line-height: 1.2;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.activity-tooltip.muted {
+  color: var(--pico-muted-color);
 }
 
 .activity-chart-canvas {
