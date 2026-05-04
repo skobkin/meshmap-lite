@@ -112,15 +112,15 @@ Reference:
 | `web.map.default_view.zoom`         | `MML_WEB__MAP__DEFAULT_VIEW__ZOOM`        | `13`                                                  | Initial map zoom.                                                                     |
 | `web.log.live_updates`              | `MML_WEB__LOG__LIVE_UPDATES`              | `true`                                                | Enable live log updates over WebSocket.                                               |
 | `web.log.page_size_default`         | `MML_WEB__LOG__PAGE_SIZE_DEFAULT`         | `100`                                                 | Default log page size (normalized to `1..500`).                                       |
-| `web.stats.activity.daily.bucket`   | `MML_WEB__STATS__ACTIVITY__DAILY__BUCKET` | `5m`                                                  | Stats tab daily activity bucket size.                                                 |
-| `web.stats.activity.weekly.bucket`  | `MML_WEB__STATS__ACTIVITY__WEEKLY__BUCKET` | `1h`                                                  | Stats tab weekly activity bucket size.                                                |
+| `web.stats.activity.daily.bucket`   | `MML_WEB__STATS__ACTIVITY__DAILY__BUCKET` | `5m`                                                  | Stats tab daily (24h) activity bucket size; values under `1m` are raised to `1m`.      |
+| `web.stats.activity.weekly.bucket`  | `MML_WEB__STATS__ACTIVITY__WEEKLY__BUCKET` | `1h`                                                  | Stats tab weekly (168h) activity bucket size; values under `7m` are raised to `7m`.     |
 | `logging.level`                     | `MML_LOGGING__LEVEL`                      | `"info"`                                              | Log level.                                                                            |
 
 Notes:
 - Channel names are preserved as configured.
 - ENV overrides are parsed as: `bool` (`true/false`), `int`, `float`, `time.Duration` (`10s`, `60m`, `6h`), or string.
 - Unknown ENV keys are ignored.
-- Stats activity periods are normalized to positive durations and capped at 1000 buckets per period.
+- Stats activity periods are normalized to positive durations and capped at 1440 buckets per period. The minimum effective bucket is therefore `1m` for daily and `7m` for weekly; any smaller value is silently raised to the minimum.
 - `mqtt.root_topic` must be set and at least one channel must be configured.
 - PSK shorthand behavior is documented in [`docs/keys.md`](docs/keys.md).
 

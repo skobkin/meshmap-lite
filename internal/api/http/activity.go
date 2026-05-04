@@ -20,7 +20,7 @@ type activityPeriodCache struct {
 	period    activityPeriodPayload
 }
 
-const maxActivityBuckets = 1000
+const maxActivityBuckets = 1440
 
 func (s *Server) activityPeriods() []activityPeriodDefinition {
 	return []activityPeriodDefinition{
@@ -43,11 +43,11 @@ func cappedBucket(window, bucket time.Duration) time.Duration {
 	if bucket <= 0 {
 		return bucket
 	}
-	if window/bucket > maxActivityBuckets {
-		return window / maxActivityBuckets
+	if window/bucket <= maxActivityBuckets {
+		return bucket
 	}
 
-	return bucket
+	return window / maxActivityBuckets
 }
 
 func (s *Server) loadActivityPeriod(ctx context.Context, def activityPeriodDefinition, now time.Time) (activityPeriodPayload, error) {
