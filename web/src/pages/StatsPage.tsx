@@ -108,13 +108,19 @@ function chartColors(root: Element): { axis: string; grid: string; lines: string
   return {
     axis: cssVar(root, '--pico-muted-color', '#8b9bb4'),
     grid: cssVar(root, '--surface-border', '#2b3442'),
-    lines: [
-      cssVar(root, '--pico-primary', '#339af0'),
-      '#f59f00',
-      '#51cf66'
-    ],
+    lines: lineColors(root),
     fill: 'rgb(51 154 240 / 10%)'
   }
+}
+
+function lineColors(root?: Element): string[] {
+  const el = root ?? document.documentElement
+
+  return [
+    cssVar(el, '--pico-primary', '#339af0'),
+    '#f59f00',
+    '#51cf66'
+  ]
 }
 
 function formatTick(sec: number, periodKey: string): string {
@@ -286,12 +292,22 @@ function ActivityChart({ buckets, metric, periodKey }: { buckets: ActivityBucket
     <article className="activity-chart" data-period={periodKey}>
       <header>
         <h3>{metric.title}</h3>
-        <span className={tooltip ? 'activity-tooltip' : 'activity-tooltip muted'}>
-          {tooltip ? `${tooltip.time} · ${tooltip.value}` : 'Hover for values'}
-        </span>
+          <span className={tooltip ? 'activity-tooltip' : 'activity-tooltip muted'}>
+            {tooltip ? `${tooltip.time} · ${tooltip.value}` : 'Hover for values'}
+          </span>
       </header>
       <div className="activity-chart-canvas" ref={rootRef} aria-label={`${metric.title} packet counts`} />
       {!anyCount && <p className="activity-empty">No packets in this period.</p>}
+      {metric.series.length > 1 && (
+        <div className="chart-legend">
+          {metric.series.map((series, index) => (
+            <span key={series.key} className="chart-legend-item">
+              <span className="chart-legend-swatch" style={{ background: lineColors()[index % lineColors().length] }} />
+              {series.label}
+            </span>
+          ))}
+        </div>
+      )}
     </article>
   )
 }
