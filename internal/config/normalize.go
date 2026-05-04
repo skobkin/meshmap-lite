@@ -82,18 +82,12 @@ func normalize(cfg *Config) {
 	if cfg.Web.Map.TopologyCacheTTL <= 0 {
 		cfg.Web.Map.TopologyCacheTTL = defaultMapTopologyCacheTTL
 	}
-	normalizeStatsActivityPeriod(&cfg.Web.Stats.Activity.Daily, defaultStatsDailyWindow, defaultStatsDailyBucket)
-	normalizeStatsActivityPeriod(&cfg.Web.Stats.Activity.Weekly, defaultStatsWeeklyWindow, defaultStatsWeeklyBucket)
+	normalizeStatsActivityBucket(&cfg.Web.Stats.Activity.Daily, defaultStatsDailyBucket)
+	normalizeStatsActivityBucket(&cfg.Web.Stats.Activity.Weekly, defaultStatsWeeklyBucket)
 }
 
-func normalizeStatsActivityPeriod(period *StatsActivityPeriodConfig, defaultWindow, defaultBucket time.Duration) {
-	if period.Window <= 0 {
-		period.Window = defaultWindow
-	}
+func normalizeStatsActivityBucket(period *StatsActivityBucketConfig, defaultBucket time.Duration) {
 	if period.Bucket <= 0 {
 		period.Bucket = defaultBucket
-	}
-	if period.Window/period.Bucket > maxStatsActivityBuckets {
-		period.Window = period.Bucket * maxStatsActivityBuckets
 	}
 }

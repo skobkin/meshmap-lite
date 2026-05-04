@@ -144,13 +144,12 @@ type StatsConfig struct {
 
 // StatsActivityConfig configures fixed activity chart periods.
 type StatsActivityConfig struct {
-	Daily  StatsActivityPeriodConfig `koanf:"daily"`
-	Weekly StatsActivityPeriodConfig `koanf:"weekly"`
+	Daily  StatsActivityBucketConfig `koanf:"daily"`
+	Weekly StatsActivityBucketConfig `koanf:"weekly"`
 }
 
-// StatsActivityPeriodConfig defines a window and bucket size for activity charts.
-type StatsActivityPeriodConfig struct {
-	Window time.Duration `koanf:"window"`
+// StatsActivityBucketConfig defines a bucket size for activity charts.
+type StatsActivityBucketConfig struct {
 	Bucket time.Duration `koanf:"bucket"`
 }
 

@@ -81,8 +81,8 @@ func TestStatsActivityHandlerReturnsConfiguredPeriodsAndReusesCache(t *testing.T
 		Web: config.WebConfig{
 			Stats: config.StatsConfig{
 				Activity: config.StatsActivityConfig{
-					Daily:  config.StatsActivityPeriodConfig{Window: 24 * time.Hour, Bucket: 5 * time.Minute},
-					Weekly: config.StatsActivityPeriodConfig{Window: 168 * time.Hour, Bucket: time.Hour},
+					Daily:  config.StatsActivityBucketConfig{Bucket: 5 * time.Minute},
+					Weekly: config.StatsActivityBucketConfig{Bucket: time.Hour},
 				},
 			},
 		},

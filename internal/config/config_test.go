@@ -30,7 +30,6 @@ channels:
 	t.Setenv("MML_WEB__MAP__HIDE_POSITION_AFTER", "336h")
 	t.Setenv("MML_WEB__MAP__TOPOLOGY_CACHE_TTL", "25m")
 	t.Setenv("MML_WEB__MAP__PRECISION_CIRCLES_MODE", "always")
-	t.Setenv("MML_WEB__STATS__ACTIVITY__DAILY__WINDOW", "12h")
 	t.Setenv("MML_WEB__STATS__ACTIVITY__DAILY__BUCKET", "10m")
 	cfg, err := Load(path)
 	if err != nil {
@@ -68,9 +67,6 @@ channels:
 	}
 	if cfg.Web.Map.PrecisionCirclesMode != MapPrecisionCirclesAlways {
 		t.Fatalf("expected web.map.precision_circles_mode env override, got %q", cfg.Web.Map.PrecisionCirclesMode)
-	}
-	if cfg.Web.Stats.Activity.Daily.Window != 12*time.Hour {
-		t.Fatalf("expected web.stats.activity.daily.window env override, got %v", cfg.Web.Stats.Activity.Daily.Window)
 	}
 	if cfg.Web.Stats.Activity.Daily.Bucket != 10*time.Minute {
 		t.Fatalf("expected web.stats.activity.daily.bucket env override, got %v", cfg.Web.Stats.Activity.Daily.Bucket)
@@ -216,7 +212,7 @@ channels:
 	}
 }
 
-func TestLoadNormalizesStatsActivityPeriods(t *testing.T) {
+func TestLoadNormalizesStatsActivityBuckets(t *testing.T) {
 	d := t.TempDir()
 	path := filepath.Join(d, "cfg.yaml")
 	if err := os.WriteFile(path, []byte(`
@@ -226,11 +222,9 @@ web:
   stats:
     activity:
       daily:
-        window: 0s
         bucket: 0s
       weekly:
-        window: 2000h
-        bucket: 1h
+        bucket: 0s
 channels:
   LongFast:
     psk: AQ==
@@ -242,14 +236,11 @@ channels:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Web.Stats.Activity.Daily.Window != 24*time.Hour {
-		t.Fatalf("expected default daily window, got %v", cfg.Web.Stats.Activity.Daily.Window)
-	}
 	if cfg.Web.Stats.Activity.Daily.Bucket != 5*time.Minute {
 		t.Fatalf("expected default daily bucket, got %v", cfg.Web.Stats.Activity.Daily.Bucket)
 	}
-	if got := cfg.Web.Stats.Activity.Weekly.Window / cfg.Web.Stats.Activity.Weekly.Bucket; got != maxStatsActivityBuckets {
-		t.Fatalf("expected weekly buckets capped to %d, got %d", maxStatsActivityBuckets, got)
+	if cfg.Web.Stats.Activity.Weekly.Bucket != time.Hour {
+		t.Fatalf("expected default weekly bucket, got %v", cfg.Web.Stats.Activity.Weekly.Bucket)
 	}
 }
 

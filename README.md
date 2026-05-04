@@ -112,9 +112,7 @@ Reference:
 | `web.map.default_view.zoom`         | `MML_WEB__MAP__DEFAULT_VIEW__ZOOM`        | `13`                                                  | Initial map zoom.                                                                     |
 | `web.log.live_updates`              | `MML_WEB__LOG__LIVE_UPDATES`              | `true`                                                | Enable live log updates over WebSocket.                                               |
 | `web.log.page_size_default`         | `MML_WEB__LOG__PAGE_SIZE_DEFAULT`         | `100`                                                 | Default log page size (normalized to `1..500`).                                       |
-| `web.stats.activity.daily.window`   | `MML_WEB__STATS__ACTIVITY__DAILY__WINDOW` | `24h`                                                 | Stats tab daily activity window.                                                      |
 | `web.stats.activity.daily.bucket`   | `MML_WEB__STATS__ACTIVITY__DAILY__BUCKET` | `5m`                                                  | Stats tab daily activity bucket size.                                                 |
-| `web.stats.activity.weekly.window`  | `MML_WEB__STATS__ACTIVITY__WEEKLY__WINDOW` | `168h`                                                | Stats tab weekly activity window.                                                     |
 | `web.stats.activity.weekly.bucket`  | `MML_WEB__STATS__ACTIVITY__WEEKLY__BUCKET` | `1h`                                                  | Stats tab weekly activity bucket size.                                                |
 | `logging.level`                     | `MML_LOGGING__LEVEL`                      | `"info"`                                              | Log level.                                                                            |
 

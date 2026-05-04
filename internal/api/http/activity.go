@@ -20,21 +20,34 @@ type activityPeriodCache struct {
 	period    activityPeriodPayload
 }
 
+const maxActivityBuckets = 1000
+
 func (s *Server) activityPeriods() []activityPeriodDefinition {
 	return []activityPeriodDefinition{
 		{
 			key:    "daily",
 			title:  "24 hours",
-			window: s.cfg.Web.Stats.Activity.Daily.Window,
-			bucket: s.cfg.Web.Stats.Activity.Daily.Bucket,
+			window: 24 * time.Hour,
+			bucket: cappedBucket(24*time.Hour, s.cfg.Web.Stats.Activity.Daily.Bucket),
 		},
 		{
 			key:    "weekly",
 			title:  "7 days",
-			window: s.cfg.Web.Stats.Activity.Weekly.Window,
-			bucket: s.cfg.Web.Stats.Activity.Weekly.Bucket,
+			window: 168 * time.Hour,
+			bucket: cappedBucket(168*time.Hour, s.cfg.Web.Stats.Activity.Weekly.Bucket),
 		},
 	}
+}
+
+func cappedBucket(window, bucket time.Duration) time.Duration {
+	if bucket <= 0 {
+		return bucket
+	}
+	if window/bucket > maxActivityBuckets {
+		return window / maxActivityBuckets
+	}
+
+	return bucket
 }
 
 func (s *Server) loadActivityPeriod(ctx context.Context, def activityPeriodDefinition, now time.Time) (activityPeriodPayload, error) {

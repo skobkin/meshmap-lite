@@ -71,10 +71,8 @@ web:
   stats:
     activity:
       daily:
-        window: 24h
         bucket: 5m
       weekly:
-        window: 168h
         bucket: 1h
 
 logging:
