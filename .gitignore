@@ -1,6 +1,8 @@
 .idea
-PRD.md
-PLAN.md
+
+/*.md
+!/AGENTS.md
+!/README.md
 
 /web/node_modules
 /web/dist
