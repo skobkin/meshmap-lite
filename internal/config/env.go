@@ -59,6 +59,9 @@ var envSetters = map[string]envSetter{
 	"web.chat.show_recent_messages": func(cfg *Config, value string) {
 		cfg.Web.Chat.ShowRecentMessages = mustInt(value, cfg.Web.Chat.ShowRecentMessages)
 	},
+	"web.chat.history_window": func(cfg *Config, value string) {
+		cfg.Web.Chat.HistoryWindow = durationOrZero(value)
+	},
 	"web.ws.heartbeat_interval": func(cfg *Config, value string) {
 		cfg.Web.WS.HeartbeatInterval = mustDuration(value, cfg.Web.WS.HeartbeatInterval)
 	},

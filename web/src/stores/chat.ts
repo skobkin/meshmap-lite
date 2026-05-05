@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-import { chatStorageKey, pushChatMessage, readStoredChatChannel } from './chatState'
+import { appendOlderChatMessages, chatStorageKey, pushChatMessage, readStoredChatChannel } from './chatState'
 
 import type { ChatEvent } from '../api/types'
 
@@ -9,6 +9,7 @@ interface ChatState {
   messages: ChatEvent[]
   setChannel: (channel: string) => void
   setMessages: (items: ChatEvent[]) => void
+  appendOlder: (items: ChatEvent[]) => void
   pushMessage: (item: ChatEvent) => void
 }
 
@@ -20,5 +21,6 @@ export const useChatStore = create<ChatState>((set) => ({
     set({ channel })
   },
   setMessages: (messages) => set({ messages }),
+  appendOlder: (items) => set((s) => ({ messages: appendOlderChatMessages(s.messages, items) })),
   pushMessage: (item) => set((s) => ({ messages: pushChatMessage(s.messages, item) }))
 }))

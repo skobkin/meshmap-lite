@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { chatStorageKey, pushChatMessage, readStoredChatChannel } from './chatState'
+import { appendOlderChatMessages, chatStorageKey, pushChatMessage, readStoredChatChannel } from './chatState'
 
 import type { ChatEvent } from '../api/types'
 
@@ -32,5 +32,14 @@ describe('chat state helpers', () => {
     expect(messages).toHaveLength(500)
     expect(messages[0]?.id).toBe(501)
     expect(messages.at(-1)?.id).toBe(2)
+  })
+
+  it('appends older history without trimming live capacity or duplicating rows', () => {
+    const messages = appendOlderChatMessages(
+      [message(5), message(4)],
+      [message(4), message(3), message(2)]
+    )
+
+    expect(messages.map((item) => item.id)).toEqual([5, 4, 3, 2])
   })
 })

@@ -61,6 +61,46 @@ func TestTopologyEdgesHandlerReturnsFilteredItems(t *testing.T) {
 	}
 }
 
+func TestChatMessagesHandlerAppliesHistoryWindow(t *testing.T) {
+	now := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
+	store := &testkit.FakeStore{
+		ListChatEventsFn: func(_ context.Context, q repo.ChatEventQuery) ([]domain.ChatEvent, error) {
+			if q.Channel != "LongFast" || q.Limit != 25 || q.BeforeID != 44 {
+				t.Fatalf("unexpected chat query: %+v", q)
+			}
+			wantCutoff := now.Add(-48 * time.Hour)
+			if !q.ObservedSinceAt.Equal(wantCutoff) {
+				t.Fatalf("expected observed cutoff %s, got %s", wantCutoff, q.ObservedSinceAt)
+			}
+
+			return []domain.ChatEvent{{
+				ID:         43,
+				EventType:  domain.ChatEventMessage,
+				ObservedAt: now,
+			}}, nil
+		},
+	}
+	srv := New(Config{
+		Web: config.WebConfig{
+			Chat: config.ChatConfig{
+				DefaultChannel:     "LongFast",
+				ShowRecentMessages: 50,
+				HistoryWindow:      48 * time.Hour,
+			},
+		},
+	}, store, nil, nil, nil, nil)
+	srv.now = func() time.Time { return now }
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/chat/messages?limit=25&before=44", nil)
+	rec := httptest.NewRecorder()
+
+	srv.chatMessages(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+}
+
 func TestStatsActivityHandlerReturnsConfiguredPeriodsAndReusesCache(t *testing.T) {
 	now := time.Date(2026, 5, 4, 12, 7, 0, 0, time.UTC)
 	calls := 0

@@ -36,6 +36,7 @@ const (
 	defaultStorageKVSize            = 100000
 	defaultStatsDailyBucket         = 5 * time.Minute
 	defaultStatsWeeklyBucket        = time.Hour
+	defaultChatHistoryWindow        = 7 * 24 * time.Hour
 )
 
 func defaultConfig() Config {
@@ -71,7 +72,11 @@ func defaultConfig() Config {
 		Web: WebConfig{
 			ListenAddr: defaultWebListenAddr,
 			BasePath:   defaultWebBasePath,
-			Chat:       ChatConfig{Enabled: true, ShowRecentMessages: defaultShowRecentMessages},
+			Chat: ChatConfig{
+				Enabled:            true,
+				ShowRecentMessages: defaultShowRecentMessages,
+				HistoryWindow:      defaultChatHistoryWindow,
+			},
 			WS: WSConfig{
 				HeartbeatInterval: DefaultWSHeartbeatInterval,
 				StatsInterval:     DefaultWSStatsInterval,

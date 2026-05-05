@@ -17,7 +17,15 @@ export const api = {
   meta: (options?: RequestOptions) => request<Meta>('/api/v1/meta', options),
   channels: (options?: RequestOptions) => request<ChannelItem[]>('/api/v1/channels', options),
   mapNodes: (options?: RequestOptions) => request<MapNode[]>('/api/v1/map/nodes', options),
-  chatMessages: (channel: string, limit: number, options?: RequestOptions) => request<ChatEvent[]>(`/api/v1/chat/messages?channel=${encodeURIComponent(channel)}&limit=${limit}`, options),
+  chatMessages: (params: { channel: string; limit?: number; before?: number }, options?: RequestOptions) => {
+    const q = new URLSearchParams()
+    if (params.channel) {q.set('channel', params.channel)}
+    if (params.limit && params.limit > 0) {q.set('limit', String(params.limit))}
+    if (params.before && params.before > 0) {q.set('before', String(params.before))}
+    const suffix = q.toString()
+
+    return request<ChatEvent[]>(`/api/v1/chat/messages${suffix ? `?${suffix}` : ''}`, options)
+  },
   logEvents: (params: { limit?: number; before?: number; eventKinds?: number[]; channel?: string }, options?: RequestOptions) => {
     const q = new URLSearchParams()
     if (params.limit && params.limit > 0) {q.set('limit', String(params.limit))}

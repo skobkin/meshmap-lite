@@ -30,6 +30,7 @@ channels:
 	t.Setenv("MML_WEB__MAP__HIDE_POSITION_AFTER", "336h")
 	t.Setenv("MML_WEB__MAP__TOPOLOGY_CACHE_TTL", "25m")
 	t.Setenv("MML_WEB__MAP__PRECISION_CIRCLES_MODE", "always")
+	t.Setenv("MML_WEB__CHAT__HISTORY_WINDOW", "24h")
 	t.Setenv("MML_WEB__STATS__ACTIVITY__DAILY__BUCKET", "10m")
 	cfg, err := Load(path)
 	if err != nil {
@@ -67,6 +68,9 @@ channels:
 	}
 	if cfg.Web.Map.PrecisionCirclesMode != MapPrecisionCirclesAlways {
 		t.Fatalf("expected web.map.precision_circles_mode env override, got %q", cfg.Web.Map.PrecisionCirclesMode)
+	}
+	if cfg.Web.Chat.HistoryWindow != 24*time.Hour {
+		t.Fatalf("expected web.chat.history_window env override, got %v", cfg.Web.Chat.HistoryWindow)
 	}
 	if cfg.Web.Stats.Activity.Daily.Bucket != 10*time.Minute {
 		t.Fatalf("expected web.stats.activity.daily.bucket env override, got %v", cfg.Web.Stats.Activity.Daily.Bucket)
@@ -126,6 +130,34 @@ channels:
 	}
 	if cfg.Web.Map.TopologyCacheTTL != 10*time.Minute {
 		t.Fatalf("expected web.map.topology_cache_ttl default to be 10 minutes, got %v", cfg.Web.Map.TopologyCacheTTL)
+	}
+	if cfg.Web.Chat.HistoryWindow != 7*24*time.Hour {
+		t.Fatalf("expected web.chat.history_window default to be 7 days, got %v", cfg.Web.Chat.HistoryWindow)
+	}
+}
+
+func TestLoadReadsChatHistoryWindowFromYAML(t *testing.T) {
+	d := t.TempDir()
+	path := filepath.Join(d, "cfg.yaml")
+	if err := os.WriteFile(path, []byte(`
+mqtt:
+  root_topic: msh/test
+web:
+  chat:
+    history_window: 48h
+channels:
+  LongFast:
+    psk: AQ==
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Web.Chat.HistoryWindow != 48*time.Hour {
+		t.Fatalf("expected YAML web.chat.history_window, got %v", cfg.Web.Chat.HistoryWindow)
 	}
 }
 
@@ -292,6 +324,59 @@ channels:
 	if cfg.Web.Map.TopologyCacheTTL != 10*time.Minute {
 		t.Fatalf("expected default topology cache ttl, got %v", cfg.Web.Map.TopologyCacheTTL)
 	}
+}
+
+func TestLoadNormalizesInvalidChatHistoryWindow(t *testing.T) {
+	t.Run("yaml", func(t *testing.T) {
+		d := t.TempDir()
+		path := filepath.Join(d, "cfg.yaml")
+		if err := os.WriteFile(path, []byte(`
+mqtt:
+  root_topic: msh/test
+web:
+  chat:
+    history_window: 0s
+channels:
+  LongFast:
+    psk: AQ==
+`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		cfg, err := Load(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.Web.Chat.HistoryWindow != 7*24*time.Hour {
+			t.Fatalf("expected default chat history window, got %v", cfg.Web.Chat.HistoryWindow)
+		}
+	})
+
+	t.Run("env", func(t *testing.T) {
+		d := t.TempDir()
+		path := filepath.Join(d, "cfg.yaml")
+		if err := os.WriteFile(path, []byte(`
+mqtt:
+  root_topic: msh/test
+web:
+  chat:
+    history_window: 48h
+channels:
+  LongFast:
+    psk: AQ==
+`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("MML_WEB__CHAT__HISTORY_WINDOW", "not-a-duration")
+
+		cfg, err := Load(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.Web.Chat.HistoryWindow != 7*24*time.Hour {
+			t.Fatalf("expected invalid env chat history window to normalize to default, got %v", cfg.Web.Chat.HistoryWindow)
+		}
+	})
 }
 
 func TestLoadMissingFileUsesDefaultsAndEnv(t *testing.T) {

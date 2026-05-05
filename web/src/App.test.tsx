@@ -127,6 +127,7 @@ interface ChatStoreState {
   messages: ChatEvent[]
   setChannel: (channel: string) => void
   setMessages: (items: ChatEvent[]) => void
+  appendOlder: (items: ChatEvent[]) => void
   pushMessage: (item: ChatEvent) => void
 }
 
@@ -202,6 +203,7 @@ function setupModuleMocks(): void {
       set({ channel })
     },
     setMessages: (items) => set({ messages: items }),
+    appendOlder: (items) => set({ messages: [...get().messages, ...items] }),
     pushMessage: (item) => set({ messages: [item, ...get().messages].slice(0, 500) })
   }))
 
@@ -282,13 +284,31 @@ function setupModuleMocks(): void {
     useWSStore: wsStore
   }))
   vi.doMock('./pages/MapPage', () => ({
-    MapPage: ({ channels, topologyNodeId }: { channels: string[]; topologyNodeId?: string }): JSX.Element => (
+    MapPage: ({
+      channels,
+      topologyNodeId,
+      onLoadMoreChat,
+      chatHasMore,
+      chatLoadingMore,
+      chatLoadMoreError
+    }: {
+      channels: string[]
+      topologyNodeId?: string
+      onLoadMoreChat: () => void
+      chatHasMore: boolean
+      chatLoadingMore: boolean
+      chatLoadMoreError: string
+    }): JSX.Element => (
       <section data-testid="map-page">
         <p>Map page</p>
         <p>Channels: {channels.join(',')}</p>
         <p>Chat channel: {chatStore.getState().channel}</p>
         <p>Chat messages: {chatStore.getState().messages.length}</p>
         <p>Topology node: {topologyNodeId ?? ''}</p>
+        <p>Chat has more: {chatHasMore ? 'yes' : 'no'}</p>
+        <p>Chat loading more: {chatLoadingMore ? 'yes' : 'no'}</p>
+        <p>Chat load error: {chatLoadMoreError}</p>
+        <button type="button" disabled={!chatHasMore || chatLoadingMore} onClick={onLoadMoreChat}>Load more chat</button>
       </section>
     )
   }))
@@ -355,7 +375,8 @@ describe('App', () => {
 
     await waitFor(() => {
       expect(apiMock.chatMessages).toHaveBeenCalled()
-      const options = apiMock.chatMessages.mock.calls[0]?.[2] as RequestOptions | undefined
+      expect(apiMock.chatMessages.mock.calls[0]?.[0]).toEqual({ channel: 'mesh', limit: 50 })
+      const options = apiMock.chatMessages.mock.calls[0]?.[1] as RequestOptions | undefined
       expect(options?.signal).toBeInstanceOf(AbortSignal)
     })
 
@@ -373,7 +394,8 @@ describe('App', () => {
     await screen.findByTestId('map-page')
     await waitFor(() => {
       expect(apiMock.chatMessages).toHaveBeenCalled()
-      const options = apiMock.chatMessages.mock.calls[0]?.[2] as RequestOptions | undefined
+      expect(apiMock.chatMessages.mock.calls[0]?.[0]).toEqual({ channel: 'mesh', limit: 50 })
+      const options = apiMock.chatMessages.mock.calls[0]?.[1] as RequestOptions | undefined
       expect(options?.signal).toBeInstanceOf(AbortSignal)
     })
 
@@ -479,5 +501,33 @@ describe('App', () => {
 
     expect(screen.getByText('Log items: 1')).toBeTruthy()
     expect(screen.getByText('Log kinds: 7')).toBeTruthy()
+  })
+
+  it('loads older chat messages from the oldest visible row and stops when the page is short', async () => {
+    const user = userEvent.setup()
+    apiMock.chatMessages
+      .mockResolvedValueOnce([chatMessage(10), chatMessage(9)])
+      .mockResolvedValueOnce([chatMessage(8)])
+    apiMock.meta.mockResolvedValue(meta({ show_recent_messages: 2 }))
+
+    await renderApp()
+    await screen.findByTestId('map-page')
+
+    await waitFor(() => {
+      expect(screen.getByText('Chat messages: 2')).toBeTruthy()
+      expect(screen.getByText('Chat has more: yes')).toBeTruthy()
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Load more chat' }))
+
+    await waitFor(() => {
+      expect(apiMock.chatMessages).toHaveBeenNthCalledWith(2, {
+        channel: 'mesh',
+        limit: 2,
+        before: 9
+      })
+      expect(screen.getByText('Chat messages: 3')).toBeTruthy()
+      expect(screen.getByText('Chat has more: no')).toBeTruthy()
+    })
   })
 })

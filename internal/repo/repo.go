@@ -38,9 +38,10 @@ type Store interface {
 
 // ChatEventQuery defines chat history list parameters.
 type ChatEventQuery struct {
-	Channel  string
-	Limit    int
-	BeforeID int64
+	Channel         string
+	Limit           int
+	BeforeID        int64
+	ObservedSinceAt time.Time
 }
 
 // MapNode combines node identity with optional position and telemetry.

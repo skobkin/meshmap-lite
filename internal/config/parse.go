@@ -49,6 +49,15 @@ func mustDuration(v string, d time.Duration) time.Duration {
 	return t
 }
 
+func durationOrZero(v string) time.Duration {
+	t, err := time.ParseDuration(v)
+	if err != nil {
+		return 0
+	}
+
+	return t
+}
+
 func mustFloat(v string, d float64) float64 {
 	f, err := strconv.ParseFloat(v, 64)
 	if err != nil {

@@ -110,9 +110,10 @@ const (
 
 // ChatConfig controls chat API/UI behavior.
 type ChatConfig struct {
-	Enabled            bool   `koanf:"enabled"`
-	DefaultChannel     string `koanf:"default_channel"`
-	ShowRecentMessages int    `koanf:"show_recent_messages"`
+	Enabled            bool          `koanf:"enabled"`
+	DefaultChannel     string        `koanf:"default_channel"`
+	ShowRecentMessages int           `koanf:"show_recent_messages"`
+	HistoryWindow      time.Duration `koanf:"history_window"`
 }
 
 // WSConfig configures websocket behavior.

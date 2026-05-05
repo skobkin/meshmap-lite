@@ -55,6 +55,9 @@ func normalize(cfg *Config) {
 	if cfg.Web.Log.PageSizeDefault > maxLogPageSize {
 		cfg.Web.Log.PageSizeDefault = maxLogPageSize
 	}
+	if cfg.Web.Chat.HistoryWindow <= 0 {
+		cfg.Web.Chat.HistoryWindow = defaultChatHistoryWindow
+	}
 	if cfg.Storage.SQL.LogMaxRows < 0 {
 		cfg.Storage.SQL.LogMaxRows = 0
 	}

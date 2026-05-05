@@ -23,8 +23,12 @@ interface Props {
   topologyNodeId?: string
   onFocusNodeHandled: () => void
   onHoverTopologyNode: (id?: string) => void
+  onLoadMoreChat: () => void
   onOpenNodeDetails: (id: string) => void
   onViewChange: (center: [number, number], zoom: number) => void
+  chatHasMore: boolean
+  chatLoadingMore: boolean
+  chatLoadMoreError: string
 }
 
 const sidebarStateKey = 'meshmap-lite.map.chat.collapsed'
@@ -99,8 +103,12 @@ export function MapPage({
   topologyNodeId,
   onFocusNodeHandled,
   onHoverTopologyNode,
+  onLoadMoreChat,
   onOpenNodeDetails,
-  onViewChange
+  onViewChange,
+  chatHasMore,
+  chatLoadingMore,
+  chatLoadMoreError
 }: Props): JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
   const adapterRef = useRef<LeafletMapAdapter | null>(null)
@@ -258,6 +266,17 @@ export function MapPage({
               onSelectNode: focusNodeFromChat,
               systemText
             })}
+            {chatLoadMoreError && <p className="chat-load-error" role="alert">{chatLoadMoreError}</p>}
+            {chatHasMore && (
+              <button
+                type="button"
+                className="secondary chat-load-more"
+                disabled={chatLoadingMore}
+                onClick={onLoadMoreChat}
+              >
+                {chatLoadingMore ? 'Loading...' : 'Load more'}
+              </button>
+            )}
           </div>
         </aside>
       )}

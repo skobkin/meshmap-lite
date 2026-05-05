@@ -92,3 +92,108 @@ func TestListChatEvents_ResolvesNodeDisplayName(t *testing.T) {
 		t.Fatalf("expected long-name display, got %q", items[0].NodeDisplay)
 	}
 }
+
+func TestListChatEvents_FiltersByObservedSinceAt(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, config.SQLConfig{URL: "file:chat-history-window?mode=memory&cache=shared", AutoMigrate: true}, nil)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	cutoff := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
+	events := []domain.ChatEvent{
+		{
+			EventType:   domain.ChatEventMessage,
+			ChannelName: "LongFast",
+			NodeID:      "!old",
+			MessageText: "old",
+			ObservedAt:  cutoff.Add(-time.Second),
+			CreatedAt:   cutoff.Add(-time.Second),
+		},
+		{
+			EventType:   domain.ChatEventMessage,
+			ChannelName: "LongFast",
+			NodeID:      "!cutoff",
+			MessageText: "cutoff",
+			ObservedAt:  cutoff,
+			CreatedAt:   cutoff,
+		},
+		{
+			EventType:   domain.ChatEventMessage,
+			ChannelName: "LongFast",
+			NodeID:      "!new",
+			MessageText: "new",
+			ObservedAt:  cutoff.Add(time.Second),
+			CreatedAt:   cutoff.Add(time.Second),
+		},
+	}
+	for _, event := range events {
+		if _, err := s.InsertChatEvent(ctx, event); err != nil {
+			t.Fatalf("insert chat event: %v", err)
+		}
+	}
+
+	items, err := s.ListChatEvents(ctx, repo.ChatEventQuery{
+		Channel:         "LongFast",
+		Limit:           50,
+		ObservedSinceAt: cutoff,
+	})
+	if err != nil {
+		t.Fatalf("list chat events: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("expected 2 chat events, got %d", len(items))
+	}
+	if items[0].MessageText != "new" || items[1].MessageText != "cutoff" {
+		t.Fatalf("unexpected messages: %#v", items)
+	}
+}
+
+func TestListChatEvents_PaginatesWithinObservedSinceAt(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, config.SQLConfig{URL: "file:chat-history-window-before?mode=memory&cache=shared", AutoMigrate: true}, nil)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	cutoff := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
+	insert := func(text string, observedAt time.Time) int64 {
+		t.Helper()
+		id, err := s.InsertChatEvent(ctx, domain.ChatEvent{
+			EventType:   domain.ChatEventMessage,
+			ChannelName: "LongFast",
+			NodeID:      "!" + text,
+			MessageText: text,
+			ObservedAt:  observedAt,
+			CreatedAt:   observedAt,
+		})
+		if err != nil {
+			t.Fatalf("insert chat event: %v", err)
+		}
+
+		return id
+	}
+
+	insert("old", cutoff.Add(-time.Second))
+	insert("older-visible", cutoff)
+	beforeID := insert("cursor", cutoff.Add(time.Second))
+	insert("newer", cutoff.Add(2*time.Second))
+
+	items, err := s.ListChatEvents(ctx, repo.ChatEventQuery{
+		Channel:         "LongFast",
+		Limit:           50,
+		BeforeID:        beforeID,
+		ObservedSinceAt: cutoff,
+	})
+	if err != nil {
+		t.Fatalf("list chat events: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 chat event, got %d", len(items))
+	}
+	if items[0].MessageText != "older-visible" {
+		t.Fatalf("unexpected paginated message: %#v", items[0])
+	}
+}

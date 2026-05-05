@@ -148,7 +148,9 @@ paths:
         '200':
           description: |
             Chat history ordered newest-first. `node_display_name` is resolved as
-            `long_name -> short_name -> node_id`.
+            `long_name -> short_name -> node_id`. Rows older than the configured
+            `web.chat.history_window` cutoff are excluded from both initial
+            results and `before` pagination.
           content:
             application/json:
               schema:

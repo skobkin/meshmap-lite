@@ -121,6 +121,9 @@ export function App(): JSX.Element {
   const [nodesLoadedOnce, setNodesLoadedOnce] = useState(false)
   const [nodesLoadError, setNodesLoadError] = useState<string>('')
   const [logsLoading, setLogsLoading] = useState(false)
+  const [chatLoadingMore, setChatLoadingMore] = useState(false)
+  const [chatLoadMoreError, setChatLoadMoreError] = useState('')
+  const [chatHasMore, setChatHasMore] = useState(false)
   const [channels, setChannels] = useState<string[]>([])
   const [detailsCache, setDetailsCache] = useState(() => readNodeDetailsCache(localStorage))
   const [mapView, setMapView] = useState<SavedMapView>(() => readHashMapView() ?? readSavedMapView() ?? { center: [64.5, 40.6], zoom: 12 })
@@ -132,6 +135,8 @@ export function App(): JSX.Element {
   const channel = useChatStore((s) => s.channel)
   const setChannel = useChatStore((s) => s.setChannel)
   const setMessages = useChatStore((s) => s.setMessages)
+  const appendOlderMessages = useChatStore((s) => s.appendOlder)
+  const chatMessages = useChatStore((s) => s.messages)
   const nodes = useNodeStore((s) => s.summaries)
   const details = useNodeStore((s) => s.details)
   const selectedId = useNodeStore((s) => s.selectedId)
@@ -251,9 +256,13 @@ export function App(): JSX.Element {
     if (!channel) {return}
     if (loadedMessagesFor.current === channel) {return}
     const controller = new AbortController()
-    void api.chatMessages(channel, meta?.show_recent_messages ?? 50, { signal: controller.signal })
+    const limit = meta?.show_recent_messages ?? 50
+    setChatLoadMoreError('')
+    setChatHasMore(false)
+    void api.chatMessages({ channel, limit }, { signal: controller.signal })
       .then((items) => {
         setMessages(items)
+        setChatHasMore(items.length >= limit)
         loadedMessagesFor.current = channel
       })
       .catch((err) => {
@@ -427,6 +436,27 @@ export function App(): JSX.Element {
       .finally(() => setLogsLoading(false))
   }, [appendOlderLogs, logFilters.channel, logFilters.eventKinds, logItems, logsLoading, meta?.log_page_size_default, setLogLoadError])
 
+  const loadMoreChat = useCallback(() => {
+    if (chatLoadingMore) {return}
+    if (!chatHasMore) {return}
+    if (!channel) {return}
+    const before = chatMessages[chatMessages.length - 1]?.id
+    if (!before) {return}
+    const limit = meta?.show_recent_messages ?? 50
+    setChatLoadingMore(true)
+    void api.chatMessages({ channel, limit, before })
+      .then((items) => {
+        appendOlderMessages(items)
+        setChatHasMore(items.length >= limit)
+        setChatLoadMoreError('')
+      })
+      .catch((err) => {
+        if (isAbortError(err)) {return}
+        setChatLoadMoreError('Failed to load older chat messages.')
+      })
+      .finally(() => setChatLoadingMore(false))
+  }, [appendOlderMessages, channel, chatHasMore, chatLoadingMore, chatMessages, meta?.show_recent_messages])
+
   const center = useMemo<[number, number]>(() => mapView.center, [mapView.center])
   const zoom = mapView.zoom
   const topologyNodeId = hoveredTopologyNodeId ?? selectedId
@@ -467,8 +497,12 @@ export function App(): JSX.Element {
           topologyNodeId={topologyNodeId}
           onFocusNodeHandled={() => setMapFocusNodeId(undefined)}
           onHoverTopologyNode={setHoveredTopologyNodeId}
+          onLoadMoreChat={loadMoreChat}
           onOpenNodeDetails={openNodeDetails}
           onViewChange={onMapViewChange}
+          chatHasMore={chatHasMore}
+          chatLoadingMore={chatLoadingMore}
+          chatLoadMoreError={chatLoadMoreError}
         />
       )}
       {page === 'nodes' && (

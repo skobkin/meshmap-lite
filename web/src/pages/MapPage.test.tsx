@@ -167,8 +167,12 @@ describe('MapPage chat timeline', () => {
         channels={['mesh']}
         onFocusNodeHandled={() => undefined}
         onHoverTopologyNode={() => undefined}
+        onLoadMoreChat={() => undefined}
         onOpenNodeDetails={onOpenNodeDetails}
         onViewChange={() => undefined}
+        chatHasMore={false}
+        chatLoadingMore={false}
+        chatLoadMoreError=""
       />
     )
 
@@ -182,5 +186,62 @@ describe('MapPage chat timeline', () => {
 
     expect(onOpenNodeDetails).toHaveBeenNthCalledWith(1, '!alpha')
     expect(onOpenNodeDetails).toHaveBeenNthCalledWith(2, '!bravo')
+  })
+
+  it('renders chat pagination controls and calls the load handler', async () => {
+    useChatStore.setState({
+      messages: [
+        {
+          id: 7,
+          event_type: 'message',
+          message_text: 'Hello',
+          observed_at: '2026-03-11T17:58:00Z'
+        }
+      ]
+    })
+    const user = userEvent.setup()
+    const onLoadMoreChat = vi.fn()
+
+    const { rerender } = render(
+      <MapPage
+        center={[0, 0]}
+        zoom={7}
+        clustering={true}
+        precisionCirclesMode="selected"
+        channels={['mesh']}
+        onFocusNodeHandled={() => undefined}
+        onHoverTopologyNode={() => undefined}
+        onLoadMoreChat={onLoadMoreChat}
+        onOpenNodeDetails={() => undefined}
+        onViewChange={() => undefined}
+        chatHasMore={true}
+        chatLoadingMore={false}
+        chatLoadMoreError=""
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Load more' }))
+    expect(onLoadMoreChat).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <MapPage
+        center={[0, 0]}
+        zoom={7}
+        clustering={true}
+        precisionCirclesMode="selected"
+        channels={['mesh']}
+        onFocusNodeHandled={() => undefined}
+        onHoverTopologyNode={() => undefined}
+        onLoadMoreChat={onLoadMoreChat}
+        onOpenNodeDetails={() => undefined}
+        onViewChange={() => undefined}
+        chatHasMore={false}
+        chatLoadingMore={false}
+        chatLoadMoreError="Failed to load older chat messages."
+      />
+    )
+
+    expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull()
+    expect(screen.getByRole('alert').textContent).toContain('Failed to load older chat messages.')
   })
 })

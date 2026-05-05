@@ -71,6 +71,9 @@ func (s *Server) mapNodes(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) chatMessages(w http.ResponseWriter, r *http.Request) {
 	query := parseChatQuery(r.URL.Query(), s.cfg.Web.Chat)
+	if s.cfg.Web.Chat.HistoryWindow > 0 {
+		query.ObservedSinceAt = s.now().UTC().Add(-s.cfg.Web.Chat.HistoryWindow)
+	}
 	items, err := s.store.ListChatEvents(r.Context(), query)
 	if err != nil {
 		if isRequestCanceled(err) {

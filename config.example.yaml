@@ -52,6 +52,7 @@ web:
     enabled: true
     default_channel: LongFast
     show_recent_messages: 50
+    history_window: 168h
   ws:
     heartbeat_interval: 30s
     stats_interval: 60s

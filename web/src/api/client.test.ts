@@ -27,6 +27,25 @@ describe('api client', () => {
     )
   })
 
+  it('builds chat message query strings with pagination', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => []
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await api.chatMessages({
+      channel: 'ops room',
+      limit: 25,
+      before: 42
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/chat/messages?channel=ops+room&limit=25&before=42',
+      { signal: undefined }
+    )
+  })
+
   it('encodes node ids in detail requests', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

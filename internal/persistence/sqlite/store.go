@@ -813,6 +813,10 @@ WHERE (LOWER(channel_name)=LOWER(?) OR channel_name='')`
 		query += ` AND e.id < ?`
 		args = append(args, q.BeforeID)
 	}
+	if !q.ObservedSinceAt.IsZero() {
+		query += ` AND e.observed_at >= ?`
+		args = append(args, q.ObservedSinceAt.UTC().Format(time.RFC3339Nano))
+	}
 	query += ` ORDER BY e.id DESC LIMIT ?`
 	args = append(args, q.Limit)
 	rows, err := s.db.QueryContext(ctx, query, args...)
