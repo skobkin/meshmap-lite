@@ -133,13 +133,13 @@ interface ChatStoreState {
 
 interface LogStoreState {
   items: LogEvent[]
-  filters: { eventKinds: number[]; channel: string }
+  filters: { eventKinds: number[]; channel: string; nodeID: string }
   loadedOnce: boolean
   loadError: string
   setInitial: (items: LogEvent[]) => void
   appendOlder: (items: LogEvent[]) => void
   prependLive: (item: LogEvent) => void
-  setFilters: (filters: { eventKinds: number[]; channel: string }) => void
+  setFilters: (filters: { eventKinds: number[]; channel: string; nodeID: string }) => void
   setLoadError: (msg: string) => void
 }
 
@@ -209,7 +209,7 @@ function setupModuleMocks(): void {
 
   logStore = createStoreHook<LogStoreState>((set, get) => ({
     items: [],
-    filters: { eventKinds: [], channel: '' },
+    filters: { eventKinds: [], channel: '', nodeID: '' },
     loadedOnce: false,
     loadError: '',
     setInitial: (items) => set({ items, loadedOnce: true, loadError: '' }),
@@ -462,6 +462,12 @@ describe('App', () => {
     await waitFor(() => {
       expect(apiMock.node).toHaveBeenCalledWith('!cached', expect.anything())
     })
+    await waitFor(() => {
+      expect(apiMock.logEvents).toHaveBeenCalledWith({
+        limit: 100,
+        nodeID: '!cached'
+      }, expect.anything())
+    })
   })
 
   it('reloads log data when filters change and replaces the visible list', async () => {
@@ -479,7 +485,8 @@ describe('App', () => {
       expect(apiMock.logEvents).toHaveBeenNthCalledWith(1, {
         limit: 100,
         eventKinds: [],
-        channel: ''
+        channel: '',
+        nodeID: ''
       }, expect.anything())
       const options = apiMock.logEvents.mock.calls[0]?.[1] as RequestOptions | undefined
       expect(options?.signal).toBeInstanceOf(AbortSignal)
@@ -493,7 +500,8 @@ describe('App', () => {
       expect(apiMock.logEvents).toHaveBeenNthCalledWith(2, {
         limit: 100,
         eventKinds: [7],
-        channel: ''
+        channel: '',
+        nodeID: ''
       }, expect.anything())
       const options = apiMock.logEvents.mock.calls[1]?.[1] as RequestOptions | undefined
       expect(options?.signal).toBeInstanceOf(AbortSignal)

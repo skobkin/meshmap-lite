@@ -184,6 +184,12 @@ paths:
           required: false
           schema:
             type: string
+        - name: node_id
+          in: query
+          required: false
+          description: Exact node ID filter.
+          schema:
+            type: string
         - name: event_kind
           in: query
           required: false

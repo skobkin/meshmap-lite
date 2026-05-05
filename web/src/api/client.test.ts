@@ -18,11 +18,12 @@ describe('api client', () => {
       limit: 50,
       before: 42,
       eventKinds: [1, 9],
-      channel: 'ops room'
+      channel: 'ops room',
+      nodeID: '!ab/cd'
     })
 
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/v1/log/events?limit=50&before=42&channel=ops+room&event_kind=1&event_kind=9',
+      '/api/v1/log/events?limit=50&before=42&channel=ops+room&node_id=%21ab%2Fcd&event_kind=1&event_kind=9',
       { signal: undefined }
     )
   })

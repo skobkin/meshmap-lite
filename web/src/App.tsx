@@ -14,7 +14,7 @@ import { useNodeStore } from './stores/nodes'
 import { useWSStore } from './stores/ws'
 import { isNodeDetailsCacheFresh, persistNodeDetailsCache, readNodeDetailsCache, upsertNodeDetailsCache } from './utils/nodeDetailsCache'
 
-import type { NodeDetails } from './api/types'
+import type { LogEvent, NodeDetails } from './api/types'
 import type { JSX } from 'preact'
 
 export type Page = 'map' | 'nodes' | 'stats' | 'log'
@@ -124,6 +124,9 @@ export function App(): JSX.Element {
   const [chatLoadingMore, setChatLoadingMore] = useState(false)
   const [chatLoadMoreError, setChatLoadMoreError] = useState('')
   const [chatHasMore, setChatHasMore] = useState(false)
+  const [nodeLogItems, setNodeLogItems] = useState<LogEvent[]>([])
+  const [nodeLogLoading, setNodeLogLoading] = useState(false)
+  const [nodeLogError, setNodeLogError] = useState('')
   const [channels, setChannels] = useState<string[]>([])
   const [detailsCache, setDetailsCache] = useState(() => readNodeDetailsCache(localStorage))
   const [mapView, setMapView] = useState<SavedMapView>(() => readHashMapView() ?? readSavedMapView() ?? { center: [64.5, 40.6], zoom: 12 })
@@ -155,6 +158,7 @@ export function App(): JSX.Element {
   const loadedMessagesFor = useRef('')
   const lastLoadedLogKey = useRef('')
   const activeLogRequest = useRef(0)
+  const activeNodeLogRequest = useRef(0)
   const inFlightNodeDetails = useRef(new Map<string, Promise<void>>())
   const initialChannelRef = useRef(channel)
   const mapCenter = mapView.center
@@ -343,7 +347,8 @@ export function App(): JSX.Element {
     const requestKey = JSON.stringify({
       limit: meta?.log_page_size_default ?? 100,
       eventKinds: logFilters.eventKinds,
-      channel: logFilters.channel
+      channel: logFilters.channel,
+      nodeID: logFilters.nodeID
     })
     if (logLoadedOnce && lastLoadedLogKey.current === requestKey) {return}
 
@@ -354,7 +359,8 @@ export function App(): JSX.Element {
     void api.logEvents({
       limit: meta?.log_page_size_default ?? 100,
       eventKinds: logFilters.eventKinds,
-      channel: logFilters.channel
+      channel: logFilters.channel,
+      nodeID: logFilters.nodeID
     }, { signal: controller.signal })
       .then((items) => {
         if (activeLogRequest.current !== requestID) {return}
@@ -374,7 +380,46 @@ export function App(): JSX.Element {
       })
 
     return () => controller.abort()
-  }, [page, bootstrapDone, logLoadedOnce, logFilters.eventKinds, logFilters.channel, meta?.log_page_size_default, setLogInitial, setLogLoadError])
+  }, [page, bootstrapDone, logLoadedOnce, logFilters.eventKinds, logFilters.channel, logFilters.nodeID, meta?.log_page_size_default, setLogInitial, setLogLoadError])
+
+  useEffect(() => {
+    if (!selectedId) {
+      setNodeLogItems([])
+      setNodeLogError('')
+      setNodeLogLoading(false)
+
+      return
+    }
+    if (!bootstrapDone) {return}
+
+    const requestID = activeNodeLogRequest.current + 1
+    activeNodeLogRequest.current = requestID
+    const controller = new AbortController()
+    setNodeLogLoading(true)
+    setNodeLogError('')
+
+    void api.logEvents({
+      limit: meta?.log_page_size_default ?? 100,
+      nodeID: selectedId
+    }, { signal: controller.signal })
+      .then((items) => {
+        if (activeNodeLogRequest.current !== requestID) {return}
+        setNodeLogItems(items)
+      })
+      .catch((err) => {
+        if (activeNodeLogRequest.current !== requestID) {return}
+        if (isAbortError(err)) {return}
+        setNodeLogItems([])
+        setNodeLogError('Failed to load recent events.')
+      })
+      .finally(() => {
+        if (activeNodeLogRequest.current === requestID) {
+          setNodeLogLoading(false)
+        }
+      })
+
+    return () => controller.abort()
+  }, [bootstrapDone, meta?.log_page_size_default, selectedId])
 
   useEffect(() => {
     if (!channels.length || !channel) {return}
@@ -423,7 +468,8 @@ export function App(): JSX.Element {
       limit: meta?.log_page_size_default ?? 100,
       before,
       eventKinds: logFilters.eventKinds,
-      channel: logFilters.channel
+      channel: logFilters.channel,
+      nodeID: logFilters.nodeID
     })
       .then((items) => {
         appendOlderLogs(items)
@@ -434,7 +480,7 @@ export function App(): JSX.Element {
         setLogLoadError('Failed to load older log events.')
       })
       .finally(() => setLogsLoading(false))
-  }, [appendOlderLogs, logFilters.channel, logFilters.eventKinds, logItems, logsLoading, meta?.log_page_size_default, setLogLoadError])
+  }, [appendOlderLogs, logFilters.channel, logFilters.eventKinds, logFilters.nodeID, logItems, logsLoading, meta?.log_page_size_default, setLogLoadError])
 
   const loadMoreChat = useCallback(() => {
     if (chatLoadingMore) {return}
@@ -512,7 +558,11 @@ export function App(): JSX.Element {
           details={details}
           loading={Boolean(selectedId && details?.node.node_id !== selectedId)}
           loadError={nodesLoadError}
+          recentEvents={nodeLogItems}
+          recentEventsLoading={nodeLogLoading}
+          recentEventsError={nodeLogError}
           onOpenMap={openNodeOnMap}
+          onOpenNodeDetails={openNodeDetails}
           onSelect={setSelectedId}
         />
       )}
@@ -524,11 +574,15 @@ export function App(): JSX.Element {
           loadError={logLoadError}
           selectedKinds={logFilters.eventKinds}
           selectedChannel={logFilters.channel}
+          selectedNodeID={logFilters.nodeID}
           onChangeKinds={(eventKinds) => {
             setLogFilters({ ...logFilters, eventKinds })
           }}
           onChangeChannel={(filterChannel) => {
             setLogFilters({ ...logFilters, channel: filterChannel })
+          }}
+          onChangeNodeID={(nodeID) => {
+            setLogFilters({ ...logFilters, nodeID })
           }}
           onOpenNodeDetails={openNodeDetails}
           onLoadMore={loadMoreLogs}

@@ -26,11 +26,12 @@ export const api = {
 
     return request<ChatEvent[]>(`/api/v1/chat/messages${suffix ? `?${suffix}` : ''}`, options)
   },
-  logEvents: (params: { limit?: number; before?: number; eventKinds?: number[]; channel?: string }, options?: RequestOptions) => {
+  logEvents: (params: { limit?: number; before?: number; eventKinds?: number[]; channel?: string; nodeID?: string }, options?: RequestOptions) => {
     const q = new URLSearchParams()
     if (params.limit && params.limit > 0) {q.set('limit', String(params.limit))}
     if (params.before && params.before > 0) {q.set('before', String(params.before))}
     if (params.channel) {q.set('channel', params.channel)}
+    if (params.nodeID) {q.set('node_id', params.nodeID)}
     for (const kind of params.eventKinds ?? []) {
       q.append('event_kind', String(kind))
     }

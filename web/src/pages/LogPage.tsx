@@ -1,11 +1,4 @@
-import { Fragment } from 'preact'
-import { useEffect, useState } from 'preact/hooks'
-
-import { LogDetailsModal, hasLogDetails } from '../components/LogDetailsModal'
-import { pkiLogDetailsRenderer } from '../components/PKILogDetails'
-import { ResolvedNodeData } from '../components/ResolvedNodeData'
-import { routingLogDetailsRenderer } from '../components/RoutingLogDetails'
-import { dayKey, dayLabel, fullDateTime, hhmmss } from '../utils/time'
+import { LogEventList } from '../components/LogEventList'
 
 import type { LogEvent } from '../api/types'
 import type { JSX } from 'preact'
@@ -16,8 +9,10 @@ interface Props {
   loadError: string
   selectedKinds: number[]
   selectedChannel: string
+  selectedNodeID?: string
   onChangeKinds: (kinds: number[]) => void
   onChangeChannel: (channel: string) => void
+  onChangeNodeID?: (nodeID: string) => void
   onOpenNodeDetails: (id: string) => void
   onLoadMore: () => void
 }
@@ -36,8 +31,6 @@ const eventKinds = [
   { value: 11, label: 'PKI' }
 ]
 
-const mobileLogMediaQuery = '(max-width: 768px)'
-
 function summaryForEventKinds(selectedKinds: number[]): string {
   const labels = eventKinds
     .filter((item) => selectedKinds.includes(item.value))
@@ -49,118 +42,20 @@ function summaryForEventKinds(selectedKinds: number[]): string {
   return `${labels.length} event types`
 }
 
-function isMobileLogLayout(): boolean {
-  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-    return false
-  }
-
-  return window.matchMedia(mobileLogMediaQuery).matches
-}
-
-function useMobileLogLayout(): boolean {
-  const [mobile, setMobile] = useState<boolean>(() => isMobileLogLayout())
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
-      return undefined
-    }
-
-    const mediaQuery = window.matchMedia(mobileLogMediaQuery)
-    const onChange = (event: MediaQueryListEvent): void => {
-      setMobile(event.matches)
-    }
-
-    setMobile(mediaQuery.matches)
-
-    if (typeof mediaQuery.addEventListener === 'function') {
-      mediaQuery.addEventListener('change', onChange)
-
-      return () => mediaQuery.removeEventListener('change', onChange)
-    }
-
-    const legacyMediaQuery = mediaQuery as MediaQueryList & {
-      addListener: (listener: (event: MediaQueryListEvent) => void) => void
-      removeListener: (listener: (event: MediaQueryListEvent) => void) => void
-    }
-
-    legacyMediaQuery.addListener(onChange)
-
-    return () => legacyMediaQuery.removeListener(onChange)
-  }, [])
-
-  return mobile
-}
-
-interface LogDayGroup {
-  key: string
-  label: string
-  items: LogEvent[]
-}
-
-function groupLogItemsByDay(items: LogEvent[]): LogDayGroup[] {
-  const groups: LogDayGroup[] = []
-
-  for (const item of items) {
-    const key = dayKey(item.observed_at)
-    const label = dayLabel(item.observed_at)
-    const previous = groups[groups.length - 1]
-
-    if (previous?.key !== key) {
-      groups.push({ key, label, items: [item] })
-      continue
-    }
-
-    previous.items.push(item)
-  }
-
-  return groups
-}
-
-function LogNodeLabel({
-  nodeId,
-  fallbackLabel,
-  onOpenNodeDetails
-}: {
-  nodeId?: string
-  fallbackLabel?: string
-  onOpenNodeDetails: (id: string) => void
-}): JSX.Element {
-  if (!nodeId) {
-    return <code>{fallbackLabel ?? '-'}</code>
-  }
-
-  return (
-    <ResolvedNodeData nodeId={nodeId} fallbackLabel={fallbackLabel}>
-      {({ label, title }) => (
-        <button
-          type="button"
-          className="chat-node-link"
-          title={title}
-          onClick={() => onOpenNodeDetails(nodeId)}
-        >
-          <code>{label}</code>
-        </button>
-      )}
-    </ResolvedNodeData>
-  )
-}
-
 export function LogPage({
   channels,
   items,
   loadError,
   selectedKinds,
   selectedChannel,
+  selectedNodeID = '',
   onChangeKinds,
   onChangeChannel,
+  onChangeNodeID = () => undefined,
   onOpenNodeDetails,
   onLoadMore
 }: Props): JSX.Element {
-  const [selectedEvent, setSelectedEvent] = useState<LogEvent>()
-  const mobileLayout = useMobileLogLayout()
   const selectedKindSet = new Set(selectedKinds)
-  const dayGroups = groupLogItemsByDay(items)
-  const firstRowIDs = new Set(dayGroups.map((group) => group.items[0]?.id).filter((id): id is number => typeof id === 'number'))
 
   const toggleEventKind = (value: number): void => {
     const nextKinds = selectedKindSet.has(value)
@@ -208,127 +103,23 @@ export function LogPage({
               </select>
             </div>
           )}
+          <div className="log-filter-field compact">
+            <label htmlFor="log-node-filter">Node ID</label>
+            <input
+              id="log-node-filter"
+              type="search"
+              aria-label="Node ID filter"
+              placeholder="Exact node ID"
+              value={selectedNodeID}
+              onInput={(e) => onChangeNodeID((e.currentTarget).value)}
+            />
+          </div>
         </div>
       </details>
       <article className="log-table-wrap">
         {loadError && <p className="load-error">{loadError}</p>}
-        {mobileLayout ? (
-          <div className="log-mobile-list" data-layout="mobile">
-            {dayGroups.map((group) => (
-              <section key={group.key} className="log-day-group" aria-labelledby={`log-day-${group.key}`}>
-                <h2 id={`log-day-${group.key}`} className="log-day-heading">{group.label}</h2>
-                {group.items.map((row) => {
-                  const nodeId = row.node_id
-                  const fullTimestamp = fullDateTime(row.observed_at)
-
-                  return (
-                    <article key={row.id} className="log-card">
-                      <div className="log-card-head">
-                        <LogNodeLabel
-                          nodeId={nodeId}
-                          fallbackLabel={row.node_display_name}
-                          onOpenNodeDetails={onOpenNodeDetails}
-                        />
-                        <strong className="log-card-type">{row.event_kind_title}</strong>
-                      </div>
-                      <dl className="log-card-meta">
-                        <div>
-                          <dt>Channel</dt>
-                          <dd>{row.channel_name ?? '-'}</dd>
-                        </div>
-                        <div>
-                          <dt>Encrypted</dt>
-                          <dd>{row.encrypted ? 'yes' : 'no'}</dd>
-                        </div>
-                      </dl>
-                      <div className="log-card-actions">
-                        {hasLogDetails(row.details) ? (
-                          <button
-                            type="button"
-                            className="secondary log-details-trigger"
-                            aria-label={`View details for ${row.event_kind_title}`}
-                            onClick={() => setSelectedEvent(row)}
-                          >
-                            View details
-                          </button>
-                        ) : (
-                          <span className="log-card-no-details">No details</span>
-                        )}
-                        <time className="log-time-value" dateTime={row.observed_at} title={fullTimestamp}>
-                          {hhmmss(row.observed_at)}
-                        </time>
-                      </div>
-                    </article>
-                  )
-                })}
-              </section>
-            ))}
-          </div>
-        ) : (
-          <table className="log-table" data-layout="desktop">
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Node</th>
-                <th>Type</th>
-                <th>Encrypted</th>
-                <th>Channel</th>
-                <th>Details</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((row) => {
-                const nodeId = row.node_id
-                const fullTimestamp = fullDateTime(row.observed_at)
-                const needsSeparator = firstRowIDs.has(row.id)
-
-                return (
-                  <Fragment key={row.id}>
-                    {needsSeparator && (
-                      <tr className="log-day-separator" aria-label={dayLabel(row.observed_at)}>
-                        <td colSpan={6}>{dayLabel(row.observed_at)}</td>
-                      </tr>
-                    )}
-                    <tr>
-                      <td className="log-time-cell" title={fullTimestamp} aria-label={fullTimestamp}>
-                        <span className="log-time-value">{hhmmss(row.observed_at)}</span>
-                      </td>
-                      <td>
-                        <LogNodeLabel
-                          nodeId={nodeId}
-                          fallbackLabel={row.node_display_name}
-                          onOpenNodeDetails={onOpenNodeDetails}
-                        />
-                      </td>
-                      <td>{row.event_kind_title}</td>
-                      <td>{row.encrypted ? 'yes' : 'no'}</td>
-                      <td>{row.channel_name ?? '-'}</td>
-                      <td>
-                        {hasLogDetails(row.details) ? (
-                          <button
-                            type="button"
-                            className="secondary log-details-trigger"
-                            aria-label={`View details for ${row.event_kind_title}`}
-                            onClick={() => setSelectedEvent(row)}
-                          >
-                            View
-                          </button>
-                        ) : '-'}
-                      </td>
-                    </tr>
-                  </Fragment>
-                )
-              })}
-            </tbody>
-          </table>
-        )}
+        <LogEventList items={items} showNodeColumn onOpenNodeDetails={onOpenNodeDetails} />
         <button type="button" className="secondary" onClick={onLoadMore}>Load more</button>
-        <LogDetailsModal
-          event={selectedEvent}
-          onClose={() => setSelectedEvent(undefined)}
-          onOpenNodeDetails={onOpenNodeDetails}
-          renderers={[pkiLogDetailsRenderer, routingLogDetailsRenderer]}
-        />
       </article>
     </section>
   )

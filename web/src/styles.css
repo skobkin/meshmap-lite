@@ -767,7 +767,7 @@ body {
 
 .log-filters-content {
   display: grid;
-  grid-template-columns: 260px 260px;
+  grid-template-columns: 260px 260px 180px;
   gap: 1rem;
   align-items: start;
   padding-top: 0.8rem;
@@ -776,6 +776,10 @@ body {
 .log-filter-field {
   display: grid;
   gap: 0.4rem;
+}
+
+.log-filter-field.compact input {
+  min-height: 0;
 }
 
 .log-filter-field > label {
@@ -817,6 +821,44 @@ body {
 .log-table-wrap {
   margin-top: 1rem;
   min-width: 0;
+}
+
+.log-event-list {
+  min-width: 0;
+}
+
+.log-event-list.scrollable {
+  overscroll-behavior: contain;
+}
+
+.log-event-list.compact {
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-bg) 96%, white 4%);
+}
+
+.log-event-list.compact .log-table {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.log-event-list.compact .log-table th,
+.log-event-list.compact .log-table td {
+  padding-top: 0.34rem;
+  padding-bottom: 0.34rem;
+}
+
+.log-event-list.compact .log-mobile-list {
+  gap: 0.65rem;
+  padding: 0.55rem;
+}
+
+.log-event-list.compact .log-card {
+  padding: 0.65rem;
+}
+
+.log-event-list > .node-list-empty {
+  padding: 0.65rem 0.75rem;
 }
 
 .log-table {

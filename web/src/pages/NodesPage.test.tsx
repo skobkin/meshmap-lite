@@ -5,7 +5,32 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { NodesPage } from './NodesPage'
 
-import type { NodeDetails, NodeSummary } from '../api/types'
+import type { LogEvent, MapNode, NodeDetails, NodeSummary } from '../api/types'
+
+interface NodeStoreState {
+  mapNodes: MapNode[]
+  summaries: NodeSummary[]
+  selectedId?: string
+  details?: NodeDetails
+}
+
+const { useNodeStore } = vi.hoisted(() => {
+  const state: NodeStoreState = {
+    mapNodes: [],
+    summaries: [],
+    selectedId: undefined,
+    details: undefined
+  }
+  const store = ((selector?: (value: NodeStoreState) => unknown) => (
+    selector ? selector(state) : state
+  )) as (selector?: (value: NodeStoreState) => unknown) => unknown
+
+  return { useNodeStore: store }
+})
+
+vi.mock('../stores/nodes', () => ({
+  useNodeStore
+}))
 
 function summary(nodeId: string, overrides: Partial<NodeSummary> = {}): NodeSummary {
   return {
@@ -55,6 +80,21 @@ function details(overrides: Partial<NodeDetails> = {}): NodeDetails {
       updated_at: '2026-03-11T12:00:00Z'
     },
     neighbors: [],
+    ...overrides
+  }
+}
+
+function logEvent(id: number, overrides: Partial<LogEvent> = {}): LogEvent {
+  return {
+    id,
+    observed_at: '2026-03-11T12:00:00Z',
+    node_id: '!zero',
+    node_display_name: 'Zero Node',
+    event_kind_value: 4,
+    event_kind_title: 'Telemetry',
+    encrypted: false,
+    channel_name: 'mesh',
+    details: { telemetry: 'ok' },
     ...overrides
   }
 }
@@ -157,5 +197,61 @@ describe('NodesPage', () => {
     )
 
     expect(screen.getByText('Loading node details...')).toBeTruthy()
+  })
+
+  it('renders recent events without the node column and keeps details actions', () => {
+    render(
+      <NodesPage
+        items={[summary('!zero', { display_name: 'Zero Node' })]}
+        selected="!zero"
+        details={details()}
+        recentEvents={[logEvent(1)]}
+        onOpenMap={() => undefined}
+        onSelect={() => undefined}
+      />
+    )
+
+    expect(screen.getByText('Recent events')).toBeTruthy()
+    expect(screen.queryByRole('columnheader', { name: 'Node' })).toBeNull()
+    expect(screen.getByRole('columnheader', { name: 'Details' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'View details for Telemetry' })).toBeTruthy()
+  })
+
+  it('renders recent event loading, error, and empty states', () => {
+    const { rerender } = render(
+      <NodesPage
+        items={[summary('!zero', { display_name: 'Zero Node' })]}
+        selected="!zero"
+        details={details()}
+        recentEventsLoading
+        onOpenMap={() => undefined}
+        onSelect={() => undefined}
+      />
+    )
+
+    expect(screen.getByText('Loading recent events...')).toBeTruthy()
+
+    rerender(
+      <NodesPage
+        items={[summary('!zero', { display_name: 'Zero Node' })]}
+        selected="!zero"
+        details={details()}
+        recentEventsError="Failed to load recent events."
+        onOpenMap={() => undefined}
+        onSelect={() => undefined}
+      />
+    )
+    expect(screen.getByText('Failed to load recent events.')).toBeTruthy()
+
+    rerender(
+      <NodesPage
+        items={[summary('!zero', { display_name: 'Zero Node' })]}
+        selected="!zero"
+        details={details()}
+        onOpenMap={() => undefined}
+        onSelect={() => undefined}
+      />
+    )
+    expect(screen.getByText('No recent events.')).toBeTruthy()
   })
 })

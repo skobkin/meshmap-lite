@@ -61,6 +61,44 @@ func TestTopologyEdgesHandlerReturnsFilteredItems(t *testing.T) {
 	}
 }
 
+func TestLogEventsHandlerForwardsNodeIDFilter(t *testing.T) {
+	store := &testkit.FakeStore{
+		ListLogEventsFn: func(_ context.Context, q domain.LogEventQuery) ([]domain.LogEventView, error) {
+			if q.Limit != 25 || q.BeforeID != 44 || q.Channel != "LongFast" || q.NodeID != "!49b5976c" {
+				t.Fatalf("unexpected log query: %+v", q)
+			}
+			if len(q.EventKinds) != 1 || q.EventKinds[0] != domain.LogEventKindTelemetryValue {
+				t.Fatalf("unexpected event kinds: %+v", q.EventKinds)
+			}
+
+			return []domain.LogEventView{{
+				ID:             43,
+				ObservedAt:     time.Unix(1772296589, 0).UTC(),
+				NodeID:         q.NodeID,
+				EventKindValue: domain.LogEventKindTelemetryValue,
+				EventKindTitle: domain.LogEventKindTitle(domain.LogEventKindTelemetryValue),
+			}}, nil
+		},
+	}
+
+	srv := New(Config{Web: config.WebConfig{Log: config.LogConfig{PageSizeDefault: 100}}}, store, nil, nil, nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/log/events?limit=25&before=44&channel=LongFast&node_id=!49b5976c&event_kind=4", nil)
+	rec := httptest.NewRecorder()
+
+	srv.logEvents(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	var items []domain.LogEventView
+	if err := json.Unmarshal(rec.Body.Bytes(), &items); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(items) != 1 || items[0].NodeID != "!49b5976c" {
+		t.Fatalf("unexpected response payload: %#v", items)
+	}
+}
+
 func TestChatMessagesHandlerAppliesHistoryWindow(t *testing.T) {
 	now := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
 	store := &testkit.FakeStore{

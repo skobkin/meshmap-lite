@@ -864,6 +864,10 @@ LEFT JOIN nodes n ON n.node_id=e.node_id`)
 		w = append(w, `LOWER(c.name)=LOWER(?)`)
 		a = append(a, ch)
 	}
+	if nodeID := strings.TrimSpace(q.NodeID); nodeID != "" {
+		w = append(w, `e.node_id = ?`)
+		a = append(a, nodeID)
+	}
 	if len(q.EventKinds) > 0 {
 		var in strings.Builder
 		in.WriteString(`e.event_kind IN (`)

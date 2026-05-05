@@ -1,10 +1,11 @@
 import { useState } from 'preact/hooks'
 
+import { LogEventList } from '../components/LogEventList'
 import { defaultMarkerDataUrl } from '../maps/markerIcons'
 import { relativeTime } from '../utils/time'
 import { neighborTimeLabel, sortedNeighbors, topologyEvidenceLabel, topologySignalLabel } from '../utils/topology'
 
-import type { NodeDetails, NodeSummary } from '../api/types'
+import type { LogEvent, NodeDetails, NodeSummary } from '../api/types'
 import type { ComponentChildren, JSX } from 'preact'
 
 interface Props {
@@ -13,7 +14,11 @@ interface Props {
   details?: NodeDetails
   loading?: boolean
   loadError?: string
+  recentEvents?: LogEvent[]
+  recentEventsLoading?: boolean
+  recentEventsError?: string
   onOpenMap: (id: string) => void
+  onOpenNodeDetails?: (id: string) => void
   onSelect: (id: string) => void
 }
 
@@ -133,7 +138,19 @@ function matchesFilter(item: NodeSummary, rawFilter: string): boolean {
   ].some((value) => value?.toLowerCase().includes(filter))
 }
 
-export function NodesPage({ items, selected, details, loading, loadError, onOpenMap, onSelect }: Props): JSX.Element {
+export function NodesPage({
+  items,
+  selected,
+  details,
+  loading,
+  loadError,
+  recentEvents = [],
+  recentEventsLoading,
+  recentEventsError,
+  onOpenMap,
+  onOpenNodeDetails = () => undefined,
+  onSelect
+}: Props): JSX.Element {
   const [filter, setFilter] = useState('')
   const sections = details ? detailSections(details) : []
   const neighbors = sortedNeighbors(details)
@@ -222,6 +239,23 @@ export function NodesPage({ items, selected, details, loading, loadError, onOpen
                 </div>
               ) : (
                 <p className="node-list-empty">No topology neighbors available.</p>
+              )}
+            </section>
+            <section className="node-recent-events">
+              <h4>Recent events</h4>
+              {recentEventsLoading ? (
+                <p className="node-list-empty">Loading recent events...</p>
+              ) : recentEventsError ? (
+                <p className="load-error">{recentEventsError}</p>
+              ) : (
+                <LogEventList
+                  items={recentEvents}
+                  showNodeColumn={false}
+                  compact
+                  maxBodyRows={10}
+                  emptyText="No recent events."
+                  onOpenNodeDetails={onOpenNodeDetails}
+                />
               )}
             </section>
           </>

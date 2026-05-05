@@ -510,6 +510,24 @@ describe('LogPage', () => {
     expect(document.querySelector('label[for="log-channel-filter"]')?.textContent).toBe('Channel')
   })
 
+  it('shows an exact Node ID filter', async () => {
+    const user = userEvent.setup()
+    const onChangeNodeID = vi.fn()
+
+    renderPage([event(1)], {
+      selectedNodeID: '!alpha',
+      onChangeNodeID
+    })
+
+    const input = screen.getByRole('searchbox', { name: 'Node ID filter' })
+    expect((input as HTMLInputElement).value).toBe('!alpha')
+
+    await user.clear(input)
+    await user.type(input, '!bravo')
+
+    expect(onChangeNodeID).toHaveBeenLastCalledWith('!bravo')
+  })
+
   it('includes Range test in the event type filter list', async () => {
     const user = userEvent.setup()
 

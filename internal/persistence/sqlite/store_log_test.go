@@ -46,8 +46,17 @@ func TestListLogEvents_WithFiltersAndDisplayName(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("insert log event #2: %v", err)
 	}
+	if _, err := s.InsertLogEvent(ctx, domain.LogEvent{
+		ObservedAt: now.Add(2 * time.Second),
+		NodeID:     "!22222222",
+		EventKind:  domain.LogEventKindPositionValue,
+		Encrypted:  false,
+		Channel:    "LongFast",
+	}); err != nil {
+		t.Fatalf("insert log event #3: %v", err)
+	}
 
-	items, err := s.ListLogEvents(ctx, domain.LogEventQuery{Limit: 50, Channel: "longfast"})
+	items, err := s.ListLogEvents(ctx, domain.LogEventQuery{Limit: 50, Channel: "longfast", NodeID: "!11111111"})
 	if err != nil {
 		t.Fatalf("list log events: %v", err)
 	}

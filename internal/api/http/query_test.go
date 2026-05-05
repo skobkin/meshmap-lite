@@ -13,12 +13,13 @@ func TestParseLogQueryDeduplicatesKinds(t *testing.T) {
 		"limit":       []string{"25"},
 		"before":      []string{"44"},
 		"channel":     []string{"LongFast"},
+		"node_id":     []string{"!49b5976c"},
 		"event_kind":  []string{"1,2"},
 		"event_kinds": []string{"2,999,1"},
 	}
 
 	got := parseLogQuery(values, config.LogConfig{PageSizeDefault: 100})
-	if got.Limit != 25 || got.BeforeID != 44 || got.Channel != "LongFast" {
+	if got.Limit != 25 || got.BeforeID != 44 || got.Channel != "LongFast" || got.NodeID != "!49b5976c" {
 		t.Fatalf("unexpected parsed query: %+v", got)
 	}
 	if len(got.EventKinds) != 2 || got.EventKinds[0] != domain.LogEventKindMapReportValue || got.EventKinds[1] != domain.LogEventKindNodeInfoValue {

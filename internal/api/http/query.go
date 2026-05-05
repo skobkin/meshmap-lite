@@ -39,6 +39,7 @@ func parseLogQuery(values url.Values, logConfig config.LogConfig) domain.LogEven
 		BeforeID:   int64(parseInt(values.Get("before"), 0)),
 		EventKinds: parseEventKinds(values),
 		Channel:    values.Get("channel"),
+		NodeID:     values.Get("node_id"),
 	}
 }
 

@@ -333,6 +333,7 @@ type LogEventQuery struct {
 	BeforeID   int64
 	EventKinds []LogEventKind
 	Channel    string
+	NodeID     string
 }
 
 // ActivityBucket contains packet counts for one complete activity time bucket.

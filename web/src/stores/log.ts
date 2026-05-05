@@ -18,7 +18,7 @@ interface LogState {
 
 export const useLogStore = create<LogState>((set) => ({
   items: [],
-  filters: { eventKinds: [], channel: '' },
+  filters: { eventKinds: [], channel: '', nodeID: '' },
   loadedOnce: false,
   loadError: '',
   setInitial: (items) => set({ items, loadedOnce: true, loadError: '' }),
