@@ -126,7 +126,7 @@ export class LeafletMapAdapter {
         ])),
         section('Connectivity', compactRows([
           row('MQTT', `${mqtt.status}${mqtt.age ? ` (${mqtt.age})` : ''}`),
-          row('Last MQTT via', displayUploader(n.node.last_mqtt_uploader_node_id, n.node.last_mqtt_uploader_display_name, n.node.last_mqtt_uploader_at)),
+          row('Last GW', displayUploader(n.node.last_mqtt_uploader_node_id, n.node.last_mqtt_uploader_display_name, n.node.last_mqtt_uploader_at)),
           row('Last update', displayRelativeTime(n.node.last_seen_any_event_at)),
           row('Last position', displayRelativeTime(n.node.last_seen_position_at))
         ])),
@@ -450,10 +450,21 @@ function displayRelativeTime(v?: string): string | null {
 
 function displayUploader(nodeID?: string, displayName?: string, seenAt?: string): string | null {
   if (!nodeID) {return null}
-  const label = displayName && displayName !== nodeID ? `${displayName} (${nodeID})` : nodeID
+  const label = displayName && displayName !== nodeID ? displayName : nodeID
   const age = displayRelativeTime(seenAt)
+  const escapedNodeID = escapeHtml(nodeID)
+  const link = `<a href="#" data-node-details-link="${escapedNodeID}" title="${escapedNodeID}" class="map-popup-node-link"><code>${escapeHtml(label)}</code></a>`
 
-  return age ? `${label}, ${age}` : label
+  return age ? `${link}, ${age}` : link
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
 }
 
 function row(label: string, value: string | null): PopupRow | null {
