@@ -535,6 +535,14 @@ components:
         last_seen_mqtt_gateway_at:
           type: string
           format: date-time
+        last_mqtt_uploader_node_id:
+          type: string
+        last_mqtt_uploader_display_name:
+          type: string
+          description: Resolved as `long_name -> short_name -> node_id`.
+        last_mqtt_uploader_at:
+          type: string
+          format: date-time
         last_seen_position_at:
           type: string
           format: date-time
@@ -567,6 +575,11 @@ components:
           enum: [channel_position, map_report]
         source_channel:
           type: string
+        mqtt_uploader_node_id:
+          type: string
+        mqtt_uploader_display_name:
+          type: string
+          description: Resolved as `long_name -> short_name -> node_id`.
         reported_at:
           type: string
           format: date-time
@@ -600,6 +613,11 @@ components:
         node_id:
           type: string
         node_display_name:
+          type: string
+          description: Resolved as `long_name -> short_name -> node_id`.
+        mqtt_uploader_node_id:
+          type: string
+        mqtt_uploader_display_name:
           type: string
           description: Resolved as `long_name -> short_name -> node_id`.
         system_code:
@@ -642,6 +660,11 @@ components:
         node_display_name:
           type: string
           description: Resolved display fallback for the node when available.
+        mqtt_uploader_node_id:
+          type: string
+        mqtt_uploader_display_name:
+          type: string
+          description: Resolved display fallback for the MQTT uploader node when available.
         event_kind_value:
           type: integer
           enum: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
@@ -735,6 +758,14 @@ components:
         last_seen_mqtt_gateway_at:
           type: string
           format: date-time
+        last_mqtt_uploader_node_id:
+          type: string
+        last_mqtt_uploader_display_name:
+          type: string
+          description: Resolved as `long_name -> short_name -> node_id`.
+        last_mqtt_uploader_at:
+          type: string
+          format: date-time
         has_position:
           type: boolean
         role:
@@ -755,6 +786,11 @@ components:
           $ref: '#/components/schemas/TelemetryAirQuality'
         source_channel:
           type: string
+        mqtt_uploader_node_id:
+          type: string
+        mqtt_uploader_display_name:
+          type: string
+          description: Resolved as `long_name -> short_name -> node_id`.
         reported_at:
           type: string
           format: date-time

@@ -61,6 +61,39 @@ describe('node state helpers', () => {
     ])
   })
 
+  it('merges minimal live node updates without clearing existing map metadata', () => {
+    const existing: MapNode = {
+      node: {
+        node_id: '!abcd',
+        long_name: 'Field Router',
+        role: 'ROUTER',
+        last_seen_any_event_at: '2026-03-11T10:00:00Z',
+        last_seen_position_at: '2026-03-11T09:58:00Z'
+      },
+      position: {
+        node_id: '!abcd',
+        latitude: 10,
+        longitude: 20,
+        source_kind: 'channel_position',
+        observed_at: '2026-03-11T09:58:00Z'
+      }
+    }
+
+    const next = upsertNode([existing], {
+      node_id: '!abcd',
+      last_seen_any_event_at: '2026-03-11T10:05:00Z',
+      last_mqtt_uploader_node_id: '!gateway',
+      last_mqtt_uploader_display_name: 'Gateway',
+      last_mqtt_uploader_at: '2026-03-11T10:05:00Z'
+    })
+
+    expect(next[0]?.node.long_name).toBe('Field Router')
+    expect(next[0]?.node.role).toBe('ROUTER')
+    expect(next[0]?.node.last_seen_position_at).toBe('2026-03-11T09:58:00Z')
+    expect(next[0]?.node.last_mqtt_uploader_node_id).toBe('!gateway')
+    expect(next[0]?.position).toBe(existing.position)
+  })
+
   it('replaces an existing map node entry on upsertMapNode', () => {
     expect(upsertMapNode([
       {

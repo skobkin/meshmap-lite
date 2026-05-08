@@ -47,10 +47,11 @@ function hoverTopologyEnabled(): boolean {
 
 interface ChatTimelineOptions {
   onSelectNode: (id: string) => void
+  onOpenNodeDetails: (id: string) => void
   systemText: (code?: string) => string
 }
 
-function renderChatTimeline(messages: ChatEvent[], { onSelectNode, systemText }: ChatTimelineOptions): JSX.Element[] {
+function renderChatTimeline(messages: ChatEvent[], { onOpenNodeDetails, onSelectNode, systemText }: ChatTimelineOptions): JSX.Element[] {
   let previousDay = ''
 
   return messages.map((m) => {
@@ -58,6 +59,9 @@ function renderChatTimeline(messages: ChatEvent[], { onSelectNode, systemText }:
     const needsSeparator = currentDay !== previousDay
     previousDay = currentDay
     const isNodeClickable = typeof m.node_id === 'string'
+    const showUploader = typeof m.mqtt_uploader_node_id === 'string' &&
+      m.mqtt_uploader_node_id.length > 0 &&
+      m.mqtt_uploader_node_id !== m.node_id
 
     return (
       <Fragment key={m.id}>
@@ -85,6 +89,26 @@ function renderChatTimeline(messages: ChatEvent[], { onSelectNode, systemText }:
             <mark>{m.node_display_name ?? 'system'}</mark>
           )}{' '}
           {m.event_type === 'system' ? systemText(m.system_code) : (m.message_text ?? '')}
+          {showUploader && (
+            <>
+              {' '}
+              <span className="chat-via">
+                via{' '}
+                <ResolvedNodeData nodeId={m.mqtt_uploader_node_id!} fallbackLabel={m.mqtt_uploader_display_name}>
+                  {({ label, title }) => (
+                    <button
+                      type="button"
+                      className="chat-node-link"
+                      title={title}
+                      onClick={() => onOpenNodeDetails(m.mqtt_uploader_node_id!)}
+                    >
+                      <code>{label}</code>
+                    </button>
+                  )}
+                </ResolvedNodeData>
+              </span>
+            </>
+          )}
         </p>
       </Fragment>
     )
@@ -263,6 +287,7 @@ export function MapPage({
           </div>
           <div className="chat-list">
             {renderChatTimeline(chat, {
+              onOpenNodeDetails,
               onSelectNode: focusNodeFromChat,
               systemText
             })}

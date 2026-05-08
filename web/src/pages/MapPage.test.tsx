@@ -143,6 +143,8 @@ describe('MapPage chat timeline', () => {
           event_type: 'message',
           node_id: '!bravo',
           node_display_name: 'Payload Bravo',
+          mqtt_uploader_node_id: '!gateway',
+          mqtt_uploader_display_name: 'Gateway',
           message_text: 'World',
           observed_at: '2026-03-11T18:00:00Z'
         },
@@ -179,13 +181,17 @@ describe('MapPage chat timeline', () => {
     const resolvedButton = screen.getByRole('button', { name: 'Field Router' })
     expect(resolvedButton.getAttribute('title')).toBe('!alpha')
     expect(screen.getByRole('button', { name: 'Payload Bravo' }).getAttribute('title')).toBe('!bravo')
+    expect(screen.getByText('via')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Gateway' }).getAttribute('title')).toBe('!gateway')
     expect(screen.getByText('system')).toBeTruthy()
 
     await user.click(resolvedButton)
     await user.click(screen.getByRole('button', { name: 'Payload Bravo' }))
+    await user.click(screen.getByRole('button', { name: 'Gateway' }))
 
     expect(onOpenNodeDetails).toHaveBeenNthCalledWith(1, '!alpha')
     expect(onOpenNodeDetails).toHaveBeenNthCalledWith(2, '!bravo')
+    expect(onOpenNodeDetails).toHaveBeenNthCalledWith(3, '!gateway')
   })
 
   it('renders chat pagination controls and calls the load handler', async () => {

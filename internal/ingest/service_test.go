@@ -22,6 +22,8 @@ type testStore struct {
 	lastNode      *domain.Node
 	nodesSeen     []domain.Node
 	lastPosition  *domain.NodePosition
+	lastTelemetry *domain.NodeTelemetrySnapshot
+	lastChat      *domain.ChatEvent
 	lastLogEvent  *domain.LogEvent
 	logEventsSeen []domain.LogEvent
 	topologySeen  []domain.TopologyEdge
@@ -43,7 +45,10 @@ func (s *testStore) UpsertPosition(_ context.Context, pos domain.NodePosition) e
 	return nil
 }
 
-func (*testStore) MergeTelemetry(_ context.Context, snap domain.NodeTelemetrySnapshot) (domain.NodeTelemetrySnapshot, error) {
+func (s *testStore) MergeTelemetry(_ context.Context, snap domain.NodeTelemetrySnapshot) (domain.NodeTelemetrySnapshot, error) {
+	telemetry := snap
+	s.lastTelemetry = &telemetry
+
 	return snap, nil
 }
 
@@ -53,7 +58,10 @@ func (s *testStore) UpsertTopologyEdges(_ context.Context, edges []domain.Topolo
 	return nil
 }
 
-func (*testStore) InsertChatEvent(context.Context, domain.ChatEvent) (int64, error) {
+func (s *testStore) InsertChatEvent(_ context.Context, event domain.ChatEvent) (int64, error) {
+	chat := event
+	s.lastChat = &chat
+
 	return 0, nil
 }
 
@@ -179,7 +187,7 @@ func TestLogEventFromParsedTracerouteUsesSemanticDetails(t *testing.T) {
 			HopLimit:            7,
 			Bitfield:            3,
 		},
-	}, "LongFast", now)
+	}, "LongFast", "", now)
 	if !ok {
 		t.Fatalf("expected traceroute log event")
 	}
@@ -218,7 +226,7 @@ func TestLogEventFromParsedRoutingKeepsTracerouteFailureSignal(t *testing.T) {
 			ErrorReason:   "NO_ROUTE",
 			TracerouteRef: true,
 		},
-	}, "LongFast", now)
+	}, "LongFast", "", now)
 	if !ok {
 		t.Fatalf("expected routing log event")
 	}
@@ -241,7 +249,7 @@ func TestLogEventFromParsedRoutingKeepsTracerouteFailureSignal(t *testing.T) {
 			ErrorReason:   "NONE",
 			TracerouteRef: true,
 		},
-	}, "LongFast", now)
+	}, "LongFast", "", now)
 	if !ok {
 		t.Fatalf("expected routing log event")
 	}
@@ -262,7 +270,7 @@ func TestLogEventFromParsedRangeTestUsesDedicatedKindWithoutFallbackDetails(t *t
 			PortnumValue: int32(generated.PortNum_RANGE_TEST_APP),
 			PortnumName:  generated.PortNum_RANGE_TEST_APP.String(),
 		},
-	}, "LongFast", now)
+	}, "LongFast", "", now)
 	if !ok {
 		t.Fatalf("expected range test log event")
 	}
@@ -286,7 +294,7 @@ func TestLogEventFromParsedOtherPortnumKeepsFallbackDetails(t *testing.T) {
 			PortnumValue: int32(generated.PortNum_SERIAL_APP),
 			PortnumName:  generated.PortNum_SERIAL_APP.String(),
 		},
-	}, "LongFast", now)
+	}, "LongFast", "", now)
 	if !ok {
 		t.Fatalf("expected other-portnum log event")
 	}
@@ -323,7 +331,7 @@ func TestLogEventFromParsedPKIUsesDedicatedKindWithOuterHeaderDetails(t *testing
 			HopLimit:          7,
 			Priority:          "UNSET",
 		},
-	}, "PKI", now)
+	}, "PKI", "", now)
 	if !ok {
 		t.Fatalf("expected PKI log event")
 	}
@@ -493,7 +501,7 @@ func TestHandleChatEmitsResolvedNodeDisplay(t *testing.T) {
 	ok := svc.handleChat(context.Background(), meshtastic.ParsedEvent{
 		NodeID: "!a55e5e56",
 		Chat:   &meshtastic.ChatPayload{Text: "hello"},
-	}, "LongFast", now)
+	}, "LongFast", "", now)
 	if !ok {
 		t.Fatalf("expected chat to be processed")
 	}
@@ -564,7 +572,7 @@ func TestCollectNodeEvidenceTracksMQTTGatewaySeparatelyFromSender(t *testing.T) 
 		Channel:    "LongFast",
 		GatewayID:  "!9028d008",
 		IsFromMQTT: true,
-	})
+	}, "!9028d008", time.Unix(1772296589, 0).UTC())
 
 	if len(evidences) != 2 {
 		t.Fatalf("expected sender and gateway evidence, got %#v", evidences)
@@ -574,6 +582,63 @@ func TestCollectNodeEvidenceTracksMQTTGatewaySeparatelyFromSender(t *testing.T) 
 	}
 	if evidences[1].NodeID != "!a55e5e56" || evidences[1].MQTTConnected {
 		t.Fatalf("unexpected sender evidence: %#v", evidences[1])
+	}
+	if evidences[1].MQTTUploaderNodeID != "!9028d008" || evidences[1].MQTTUploaderAt == nil {
+		t.Fatalf("expected sender uploader provenance, got %#v", evidences[1])
+	}
+	if evidences[0].MQTTUploaderNodeID != "" {
+		t.Fatalf("gateway evidence must not mark itself as packet uploader provenance: %#v", evidences[0])
+	}
+}
+
+func TestHandlersPersistMQTTUploaderProvenance(t *testing.T) {
+	store := &testStore{}
+	now := time.Unix(1772296589, 0).UTC()
+	svc := &Service{
+		store:   store,
+		emitter: testEmitter{},
+		log:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	if !svc.handleChat(context.Background(), meshtastic.ParsedEvent{
+		NodeID: "!sender",
+		Chat:   &meshtastic.ChatPayload{Text: "hello"},
+	}, "LongFast", "!gateway", now) {
+		t.Fatalf("expected chat to be processed")
+	}
+	if store.lastChat == nil || store.lastChat.MQTTUploaderNodeID != "!gateway" {
+		t.Fatalf("expected chat uploader provenance, got %#v", store.lastChat)
+	}
+
+	if !svc.handlePosition(context.Background(), meshtastic.ParsedEvent{
+		NodeID:   "!sender",
+		Position: &meshtastic.PositionPayload{Latitude: 64.5, Longitude: 40.6},
+	}, "LongFast", "!gateway", now, domain.PositionSourceChannel) {
+		t.Fatalf("expected position to be processed")
+	}
+	if store.lastPosition == nil || store.lastPosition.MQTTUploaderNodeID != "!gateway" {
+		t.Fatalf("expected position uploader provenance, got %#v", store.lastPosition)
+	}
+
+	if !svc.handleTelemetry(context.Background(), meshtastic.ParsedEvent{
+		NodeID:    "!sender",
+		Telemetry: &meshtastic.TelemetryPayload{},
+	}, "LongFast", "!gateway", now) {
+		t.Fatalf("expected telemetry to be processed")
+	}
+	if store.lastTelemetry == nil || store.lastTelemetry.MQTTUploaderNodeID != "!gateway" {
+		t.Fatalf("expected telemetry uploader provenance, got %#v", store.lastTelemetry)
+	}
+
+	logEvent, ok := svc.logEventFromParsed(meshtastic.ParsedEvent{
+		Kind:   meshtastic.ParsedTelemetry,
+		NodeID: "!sender",
+	}, "LongFast", "!gateway", now)
+	if !ok {
+		t.Fatalf("expected log event")
+	}
+	if logEvent.MQTTUploaderNodeID != "!gateway" {
+		t.Fatalf("expected log uploader provenance, got %#v", logEvent)
 	}
 }
 
@@ -601,7 +666,7 @@ func TestUpsertNodeEvidenceSetDiscoversIndirectNodesFromNeighborInfo(t *testing.
 		Channel:    "LongFast",
 		GatewayID:  "!9028d008",
 		IsFromMQTT: true,
-	}, "LongFast", now)
+	}, "LongFast", "!9028d008", now)
 	if !ok {
 		t.Fatalf("expected neighbor evidence upserts to succeed")
 	}
@@ -634,7 +699,7 @@ func TestLogEventFromParsedNeighborInfoIncludesNeighbors(t *testing.T) {
 				{NodeID: "!22222222", SNR: 7.25},
 			},
 		},
-	}, "LongFast", now)
+	}, "LongFast", "", now)
 	if !ok {
 		t.Fatalf("expected neighbor log event")
 	}
@@ -668,7 +733,7 @@ func TestUpsertNodeEvidenceSetDiscoversIndirectNodesFromTracerouteAndRouting(t *
 		Channel:    "LongFast",
 		GatewayID:  "!9028d008",
 		IsFromMQTT: true,
-	}, "LongFast", now) {
+	}, "LongFast", "!9028d008", now) {
 		t.Fatalf("expected traceroute evidence upserts to succeed")
 	}
 	if !svc.upsertNodeEvidenceSet(context.Background(), meshtastic.ParsedEvent{
@@ -686,7 +751,7 @@ func TestUpsertNodeEvidenceSetDiscoversIndirectNodesFromTracerouteAndRouting(t *
 		Channel:    "LongFast",
 		GatewayID:  "!9028d008",
 		IsFromMQTT: true,
-	}, "LongFast", now) {
+	}, "LongFast", "!9028d008", now) {
 		t.Fatalf("expected routing evidence upserts to succeed")
 	}
 

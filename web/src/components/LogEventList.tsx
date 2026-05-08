@@ -130,7 +130,7 @@ export function LogEventList({
   const mobileLayout = useMobileLogLayout()
   const dayGroups = groupLogItemsByDay(items)
   const firstRowIDs = new Set(dayGroups.map((group) => group.items[0]?.id).filter((id): id is number => typeof id === 'number'))
-  const colSpan = showNodeColumn ? 6 : 5
+  const colSpan = showNodeColumn ? 7 : 6
   const scrollStyle = maxBodyRows && maxBodyRows > 0
     ? { maxHeight: `${maxBodyRows * 2.45}rem`, overflowY: 'auto' }
     : undefined
@@ -170,6 +170,16 @@ export function LogEventList({
                           <dd>{row.channel_name ?? '-'}</dd>
                         </div>
                         <div>
+                          <dt>Gateway</dt>
+                          <dd>
+                            <LogNodeLabel
+                              nodeId={row.mqtt_uploader_node_id}
+                              fallbackLabel={row.mqtt_uploader_display_name}
+                              onOpenNodeDetails={onOpenNodeDetails}
+                            />
+                          </dd>
+                        </div>
+                        <div>
                           <dt>Encrypted</dt>
                           <dd>{row.encrypted ? 'yes' : 'no'}</dd>
                         </div>
@@ -206,6 +216,7 @@ export function LogEventList({
                 <th>Type</th>
                 <th>Encrypted</th>
                 <th>Channel</th>
+                <th>Gateway</th>
                 <th>Details</th>
               </tr>
             </thead>
@@ -238,6 +249,13 @@ export function LogEventList({
                       <td>{row.event_kind_title}</td>
                       <td>{row.encrypted ? 'yes' : 'no'}</td>
                       <td>{row.channel_name ?? '-'}</td>
+                      <td>
+                        <LogNodeLabel
+                          nodeId={row.mqtt_uploader_node_id}
+                          fallbackLabel={row.mqtt_uploader_display_name}
+                          onOpenNodeDetails={onOpenNodeDetails}
+                        />
+                      </td>
                       <td>
                         {hasLogDetails(row.details) ? (
                           <button

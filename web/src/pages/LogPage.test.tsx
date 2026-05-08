@@ -155,7 +155,13 @@ describe('LogPage', () => {
     mockViewport(true)
 
     renderPage([
-      event(1, { observed_at: '2026-03-11T12:00:00', event_kind_title: 'Position', encrypted: true }),
+      event(1, {
+        observed_at: '2026-03-11T12:00:00',
+        event_kind_title: 'Position',
+        encrypted: true,
+        mqtt_uploader_node_id: '!gateway',
+        mqtt_uploader_display_name: 'Gateway'
+      }),
       event(2, { observed_at: '2026-03-12T09:15:20', event_kind_title: 'Telemetry', channel_name: null, details: undefined })
     ])
 
@@ -169,7 +175,20 @@ describe('LogPage', () => {
     expect(cards[1]?.querySelector('.log-card-type')?.textContent).toBe('Telemetry')
     expect(cards[0]?.querySelector('.log-card-meta')?.textContent).toContain('Encrypted')
     expect(cards[0]?.querySelector('.log-card-meta')?.textContent).toContain('yes')
+    expect(cards[0]?.querySelector('.log-card-meta')?.textContent).toContain('Gateway')
     expect(cards[1]?.textContent).toContain('No details')
+  })
+
+  it('renders the gateway column in the desktop log table', () => {
+    renderPage([
+      event(1, {
+        mqtt_uploader_node_id: '!gateway',
+        mqtt_uploader_display_name: 'Gateway'
+      })
+    ])
+
+    expect(screen.getByRole('columnheader', { name: 'Gateway' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Gateway' }).getAttribute('title')).toBe('!gateway')
   })
 
   it('falls back to the raw timestamp string when parsing fails', () => {
@@ -189,7 +208,7 @@ describe('LogPage', () => {
 
     const viewButtons = screen.getAllByRole('button', { name: 'View details for Map report' })
     expect(viewButtons).toHaveLength(1)
-    expect(screen.getAllByText('-')).toHaveLength(2)
+    expect(document.querySelectorAll('.log-details-trigger')).toHaveLength(1)
   })
 
   it('opens a modal with prettified JSON for the selected row and closes it again', async () => {

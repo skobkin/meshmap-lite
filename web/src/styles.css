@@ -413,6 +413,15 @@ body {
   filter: brightness(0.95);
 }
 
+.chat-via {
+  color: var(--pico-muted-color);
+  font-size: 0.82rem;
+}
+
+.chat-via code {
+  color: inherit;
+}
+
 .map-popup-title {
   margin-bottom: 0.2rem;
 }

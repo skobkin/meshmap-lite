@@ -16,6 +16,12 @@ func MergeTelemetry(current NodeTelemetrySnapshot, incoming NodeTelemetrySnapsho
 	if incoming.SourceChannel != "" {
 		merged.SourceChannel = incoming.SourceChannel
 	}
+	if incoming.MQTTUploaderNodeID != "" {
+		merged.MQTTUploaderNodeID = incoming.MQTTUploaderNodeID
+	}
+	if incoming.MQTTUploaderDisplayName != "" {
+		merged.MQTTUploaderDisplayName = incoming.MQTTUploaderDisplayName
+	}
 	if incoming.ReportedAt != nil {
 		merged.ReportedAt = incoming.ReportedAt
 	}

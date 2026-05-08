@@ -37,6 +37,8 @@ type nodeEvidence struct {
 	NodeID             string
 	MQTTConnected      bool
 	MQTTGatewayCapable bool
+	MQTTUploaderNodeID string
+	MQTTUploaderAt     *time.Time
 	EmitSystemEvent    bool
 	Reason             string
 }
@@ -147,12 +149,13 @@ func (s *Service) HandleMessage(ctx context.Context, topic string, payload []byt
 		}
 	}
 	channel := strings.TrimSpace(topicInfo.Channel)
+	mqttUploaderNodeID := mqttUploaderFromTopic(topicInfo)
 	logAllowed := s.allowLogEvent(topicInfo.Kind, channel, evt.Kind)
 	tracerouteDecision := tracerouteLogDecision{}
 	if logAllowed {
 		tracerouteDecision = s.tracerouteLogDecision(evt, channel, now)
 	}
-	if logEvent, ok := s.logEventFromParsed(evt, channel, now); ok && logAllowed && !tracerouteDecision.suppressPacketLog {
+	if logEvent, ok := s.logEventFromParsed(evt, channel, mqttUploaderNodeID, now); ok && logAllowed && !tracerouteDecision.suppressPacketLog {
 		s.persistLogEvent(ctx, logEvent)
 	}
 	if logAllowed {
@@ -173,13 +176,13 @@ func (s *Service) HandleMessage(ctx context.Context, topic string, payload []byt
 	if evt.NodeID == "" {
 		return
 	}
-	if !s.upsertNodeEvidenceSet(ctx, evt, topicInfo, channel, now) {
+	if !s.upsertNodeEvidenceSet(ctx, evt, topicInfo, channel, mqttUploaderNodeID, now) {
 		return
 	}
 
 	switch evt.Kind {
 	case meshtastic.ParsedChat:
-		if s.handleChat(ctx, evt, channel, now) {
+		if s.handleChat(ctx, evt, channel, mqttUploaderNodeID, now) {
 			// Info logs are intentionally limited to decrypted Meshtastic chat only.
 			if evt.Format == "protobuf" && evt.Encrypted && evt.Decrypted && evt.Chat != nil {
 				s.log.Info("processed decrypted chat message",
@@ -214,7 +217,7 @@ func (s *Service) HandleMessage(ctx context.Context, topic string, payload []byt
 			)
 		}
 	case meshtastic.ParsedPosition:
-		if s.handlePosition(ctx, evt, channel, now, domain.PositionSourceChannel) {
+		if s.handlePosition(ctx, evt, channel, mqttUploaderNodeID, now, domain.PositionSourceChannel) {
 			s.log.Info("processed position",
 				"channel", channel,
 				"node_id", evt.NodeID,
@@ -227,7 +230,7 @@ func (s *Service) HandleMessage(ctx context.Context, topic string, payload []byt
 			)
 		}
 	case meshtastic.ParsedTelemetry:
-		if s.handleTelemetry(ctx, evt, channel, now) {
+		if s.handleTelemetry(ctx, evt, channel, mqttUploaderNodeID, now) {
 			s.log.Info("processed telemetry",
 				"channel", channel,
 				"node_id", evt.NodeID,
@@ -268,14 +271,16 @@ func (s *Service) persistLogEvent(ctx context.Context, logEvent domain.LogEvent)
 		return
 	}
 	view := domain.LogEventView{
-		ID:             id,
-		ObservedAt:     logEvent.ObservedAt,
-		NodeID:         logEvent.NodeID,
-		NodeDisplay:    s.resolveNodeDisplayName(ctx, logEvent.NodeID),
-		EventKindValue: logEvent.EventKind,
-		EventKindTitle: domain.LogEventKindTitle(logEvent.EventKind),
-		Encrypted:      logEvent.Encrypted,
-		Details:        logEvent.Details,
+		ID:                      id,
+		ObservedAt:              logEvent.ObservedAt,
+		NodeID:                  logEvent.NodeID,
+		NodeDisplay:             s.resolveNodeDisplayName(ctx, logEvent.NodeID),
+		MQTTUploaderNodeID:      logEvent.MQTTUploaderNodeID,
+		MQTTUploaderDisplayName: s.resolveNodeDisplayName(ctx, logEvent.MQTTUploaderNodeID),
+		EventKindValue:          logEvent.EventKind,
+		EventKindTitle:          domain.LogEventKindTitle(logEvent.EventKind),
+		Encrypted:               logEvent.Encrypted,
+		Details:                 logEvent.Details,
 	}
 	if logEvent.Channel != "" {
 		ch := logEvent.Channel
@@ -389,12 +394,13 @@ func tracerouteDecisionFromTracker(result tracerouteTrackerResult) tracerouteLog
 	return decision
 }
 
-func (s *Service) logEventFromParsed(evt meshtastic.ParsedEvent, channel string, now time.Time) (domain.LogEvent, bool) {
+func (s *Service) logEventFromParsed(evt meshtastic.ParsedEvent, channel, mqttUploaderNodeID string, now time.Time) (domain.LogEvent, bool) {
 	e := domain.LogEvent{
-		ObservedAt: now,
-		NodeID:     evt.NodeID,
-		Encrypted:  evt.Encrypted,
-		Channel:    channel,
+		ObservedAt:         now,
+		NodeID:             evt.NodeID,
+		MQTTUploaderNodeID: mqttUploaderNodeID,
+		Encrypted:          evt.Encrypted,
+		Channel:            channel,
 	}
 	switch evt.Kind {
 	case meshtastic.ParsedMapReport:
@@ -616,8 +622,8 @@ func (s *Service) allowEvent(channel string, kind meshtastic.ParsedKind) bool {
 	return ch.Primary
 }
 
-func (s *Service) upsertNodeEvidenceSet(ctx context.Context, evt meshtastic.ParsedEvent, topicInfo meshtastic.TopicInfo, channel string, now time.Time) bool {
-	evidences := collectNodeEvidence(evt, topicInfo)
+func (s *Service) upsertNodeEvidenceSet(ctx context.Context, evt meshtastic.ParsedEvent, topicInfo meshtastic.TopicInfo, channel, mqttUploaderNodeID string, now time.Time) bool {
+	evidences := collectNodeEvidence(evt, topicInfo, mqttUploaderNodeID, now)
 	for _, evidence := range evidences {
 		if !s.upsertNodeEvidence(ctx, evidence, channel, now) {
 			return false
@@ -627,7 +633,15 @@ func (s *Service) upsertNodeEvidenceSet(ctx context.Context, evt meshtastic.Pars
 	return true
 }
 
-func collectNodeEvidence(evt meshtastic.ParsedEvent, topicInfo meshtastic.TopicInfo) []nodeEvidence {
+func mqttUploaderFromTopic(topicInfo meshtastic.TopicInfo) string {
+	if topicInfo.Kind != meshtastic.TopicKindChannel || !topicInfo.IsFromMQTT {
+		return ""
+	}
+
+	return strings.TrimSpace(topicInfo.GatewayID)
+}
+
+func collectNodeEvidence(evt meshtastic.ParsedEvent, topicInfo meshtastic.TopicInfo, mqttUploaderNodeID string, now time.Time) []nodeEvidence {
 	byID := make(map[string]nodeEvidence)
 	add := func(e nodeEvidence) {
 		id := strings.TrimSpace(e.NodeID)
@@ -643,6 +657,10 @@ func collectNodeEvidence(evt meshtastic.ParsedEvent, topicInfo meshtastic.TopicI
 		}
 		current.MQTTConnected = current.MQTTConnected || e.MQTTConnected
 		current.MQTTGatewayCapable = current.MQTTGatewayCapable || e.MQTTGatewayCapable
+		if current.MQTTUploaderNodeID == "" {
+			current.MQTTUploaderNodeID = e.MQTTUploaderNodeID
+			current.MQTTUploaderAt = e.MQTTUploaderAt
+		}
 		current.EmitSystemEvent = current.EmitSystemEvent || e.EmitSystemEvent
 		if current.Reason == "" {
 			current.Reason = e.Reason
@@ -650,7 +668,12 @@ func collectNodeEvidence(evt meshtastic.ParsedEvent, topicInfo meshtastic.TopicI
 		byID[id] = current
 	}
 
-	add(nodeEvidence{NodeID: evt.NodeID, EmitSystemEvent: true, Reason: "packet_sender"})
+	senderEvidence := nodeEvidence{NodeID: evt.NodeID, EmitSystemEvent: true, Reason: "packet_sender"}
+	if mqttUploaderNodeID != "" {
+		senderEvidence.MQTTUploaderNodeID = mqttUploaderNodeID
+		senderEvidence.MQTTUploaderAt = &now
+	}
+	add(senderEvidence)
 
 	gatewayID := strings.TrimSpace(topicInfo.GatewayID)
 	if topicInfo.IsFromMQTT && gatewayID != "" {
@@ -894,12 +917,20 @@ func (s *Service) upsertNodeEvidence(ctx context.Context, evidence nodeEvidence,
 	if evidence.MQTTGatewayCapable {
 		node.MQTTGatewayCapable = boolPtr(true)
 	}
+	if evidence.MQTTUploaderNodeID != "" {
+		node.LastMQTTUploaderNodeID = evidence.MQTTUploaderNodeID
+		node.LastMQTTUploaderAt = evidence.MQTTUploaderAt
+	}
 
 	created, err := s.store.UpsertNode(ctx, node)
 	if err != nil {
 		s.log.Error("upsert node failed", "node_id", evidence.NodeID, "reason", evidence.Reason, "err", err)
 
 		return false
+	}
+	if evidence.MQTTUploaderNodeID != "" {
+		node.LastMQTTUploaderDisplayName = s.resolveNodeDisplayName(ctx, evidence.MQTTUploaderNodeID)
+		s.emitter.Emit(domain.RealtimeEvent{Type: "node.upsert", TS: now, Payload: node})
 	}
 	if !created {
 		return true
@@ -917,8 +948,8 @@ func (s *Service) upsertNodeEvidence(ctx context.Context, evidence nodeEvidence,
 	return true
 }
 
-func (s *Service) handleChat(ctx context.Context, evt meshtastic.ParsedEvent, channel string, now time.Time) bool {
-	ce := domain.ChatEvent{EventType: domain.ChatEventMessage, ChannelName: channel, NodeID: evt.NodeID, MessageText: evt.Chat.Text, MessageTime: now, ReportedAt: evt.Timestamp, ObservedAt: now, CreatedAt: now}
+func (s *Service) handleChat(ctx context.Context, evt meshtastic.ParsedEvent, channel, mqttUploaderNodeID string, now time.Time) bool {
+	ce := domain.ChatEvent{EventType: domain.ChatEventMessage, ChannelName: channel, NodeID: evt.NodeID, MQTTUploaderNodeID: mqttUploaderNodeID, MessageText: evt.Chat.Text, MessageTime: now, ReportedAt: evt.Timestamp, ObservedAt: now, CreatedAt: now}
 	if evt.PacketID > 0 {
 		v := evt.PacketID
 		ce.PacketID = &v
@@ -965,19 +996,21 @@ func (s *Service) handleNodeInfo(ctx context.Context, evt meshtastic.ParsedEvent
 	return true
 }
 
-func (s *Service) handlePosition(ctx context.Context, evt meshtastic.ParsedEvent, channel string, now time.Time, source domain.PositionSourceKind) bool {
+func (s *Service) handlePosition(ctx context.Context, evt meshtastic.ParsedEvent, channel, mqttUploaderNodeID string, now time.Time, source domain.PositionSourceKind) bool {
 	in := evt.Position
 	p := domain.NodePosition{
-		NodeID:            evt.NodeID,
-		Latitude:          in.Latitude,
-		Longitude:         in.Longitude,
-		AltitudeM:         in.AltitudeM,
-		PositionPrecision: in.PositionPrecision,
-		SourceKind:        source,
-		SourceChannel:     channel,
-		ReportedAt:        evt.Timestamp,
-		ObservedAt:        now,
-		UpdatedAt:         now,
+		NodeID:                  evt.NodeID,
+		Latitude:                in.Latitude,
+		Longitude:               in.Longitude,
+		AltitudeM:               in.AltitudeM,
+		PositionPrecision:       in.PositionPrecision,
+		SourceKind:              source,
+		SourceChannel:           channel,
+		MQTTUploaderNodeID:      mqttUploaderNodeID,
+		MQTTUploaderDisplayName: s.resolveNodeDisplayName(ctx, mqttUploaderNodeID),
+		ReportedAt:              evt.Timestamp,
+		ObservedAt:              now,
+		UpdatedAt:               now,
 	}
 	if err := s.store.UpsertPosition(ctx, p); err != nil {
 		s.log.Error("upsert position failed", "node_id", evt.NodeID, "err", err)
@@ -989,9 +1022,9 @@ func (s *Service) handlePosition(ctx context.Context, evt meshtastic.ParsedEvent
 	return true
 }
 
-func (s *Service) handleTelemetry(ctx context.Context, evt meshtastic.ParsedEvent, channel string, now time.Time) bool {
+func (s *Service) handleTelemetry(ctx context.Context, evt meshtastic.ParsedEvent, channel, mqttUploaderNodeID string, now time.Time) bool {
 	in := evt.Telemetry
-	t := domain.NodeTelemetrySnapshot{NodeID: evt.NodeID, SourceChannel: channel, ReportedAt: evt.Timestamp, ObservedAt: now, UpdatedAt: now}
+	t := domain.NodeTelemetrySnapshot{NodeID: evt.NodeID, SourceChannel: channel, MQTTUploaderNodeID: mqttUploaderNodeID, MQTTUploaderDisplayName: s.resolveNodeDisplayName(ctx, mqttUploaderNodeID), ReportedAt: evt.Timestamp, ObservedAt: now, UpdatedAt: now}
 	t.Power.Voltage = in.Power.Voltage
 	t.Power.BatteryLevel = in.Power.BatteryLevel
 	t.Environment.TemperatureC = in.Environment.TemperatureC
@@ -1039,7 +1072,7 @@ func (s *Service) handleMapReport(ctx context.Context, evt meshtastic.ParsedEven
 		AltitudeM:         evt.MapReport.AltitudeM,
 		PositionPrecision: evt.MapReport.PositionPrecision,
 	}
-	if !s.handlePosition(ctx, ev, "", now, domain.PositionSourceMapReport) {
+	if !s.handlePosition(ctx, ev, "", "", now, domain.PositionSourceMapReport) {
 		ok = false
 	}
 
@@ -1081,6 +1114,17 @@ func (s *Service) populateChatDisplay(ctx context.Context, ce *domain.ChatEvent)
 		return
 	}
 	ce.NodeDisplay = name
+	if ce.MQTTUploaderNodeID == "" {
+		return
+	}
+	name, err = s.store.ResolveNodeDisplay(ctx, ce.MQTTUploaderNodeID)
+	if err != nil {
+		s.log.Debug("resolve chat mqtt uploader display failed", "node_id", ce.MQTTUploaderNodeID, "err", err)
+		ce.MQTTUploaderDisplayName = ce.MQTTUploaderNodeID
+
+		return
+	}
+	ce.MQTTUploaderDisplayName = name
 }
 
 func boolPtr(v bool) *bool {

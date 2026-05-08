@@ -45,6 +45,12 @@ function displayRelativeTime(v?: string): string | null {
   return v ? relativeTime(v) : null
 }
 
+function displayNodeLabel(nodeID?: string, displayName?: string): ComponentChildren | null {
+  if (!nodeID) {return null}
+
+  return displayName && displayName !== nodeID ? <><span>{displayName}</span> <code>{nodeID}</code></> : <code>{nodeID}</code>
+}
+
 function row(label: string, value: ComponentChildren | null): DetailRow | null {
   return value === null ? null : { label, value }
 }
@@ -70,6 +76,8 @@ function detailSections(details: NodeDetails): DetailSection[] {
       rows: compactRows([
         row('MQTT gateway capable', displayValue(details.node.mqtt_gateway_capable)),
         row('Last MQTT seen', displayRelativeTime(details.node.last_seen_mqtt_gateway_at)),
+        row('Last MQTT via', displayNodeLabel(details.node.last_mqtt_uploader_node_id, details.node.last_mqtt_uploader_display_name)),
+        row('Last MQTT via at', displayRelativeTime(details.node.last_mqtt_uploader_at)),
         row('Last any event', displayRelativeTime(details.node.last_seen_any_event_at)),
         row('Last update write', displayRelativeTime(details.node.updated_at)),
         row('First seen', displayRelativeTime(details.node.first_seen_at))
@@ -96,6 +104,7 @@ function detailSections(details: NodeDetails): DetailSection[] {
         row('Altitude (m)', displayValue(details.position?.altitude_m)),
         row('Source kind', displayValue(details.position?.source_kind)),
         row('Source channel', displayValue(details.position?.source_channel)),
+        row('MQTT via', displayNodeLabel(details.position?.mqtt_uploader_node_id, details.position?.mqtt_uploader_display_name)),
         row('Reported at', displayRelativeTime(details.position?.reported_at)),
         row('Observed at', displayRelativeTime(details.position?.observed_at)),
         row('Last position update', displayRelativeTime(details.node.last_seen_position_at))
@@ -119,6 +128,7 @@ function detailSections(details: NodeDetails): DetailSection[] {
       title: 'Source / Timestamps',
       rows: compactRows([
         row('Telemetry source channel', displayValue(details.telemetry?.source_channel)),
+        row('Telemetry MQTT via', displayNodeLabel(details.telemetry?.mqtt_uploader_node_id, details.telemetry?.mqtt_uploader_display_name)),
         row('Telemetry reported at', displayRelativeTime(details.telemetry?.reported_at)),
         row('Telemetry observed at', displayRelativeTime(details.telemetry?.observed_at)),
         row('Telemetry updated at', displayRelativeTime(details.telemetry?.updated_at))

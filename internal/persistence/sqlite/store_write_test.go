@@ -363,6 +363,81 @@ func TestGetMapNodes_HidesStaleAndMissingPositions(t *testing.T) {
 	}
 }
 
+func TestNodeProvenancePersistsForMapDetailsPositionAndTelemetry(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, config.SQLConfig{URL: "file::memory:?cache=shared", AutoMigrate: true}, nil)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	if _, err := s.UpsertNode(ctx, domain.Node{
+		NodeID:                 "!sender",
+		LongName:               "Sender",
+		FirstSeenAt:            now,
+		LastSeenAnyEventAt:     now,
+		LastMQTTUploaderNodeID: "!gateway",
+		LastMQTTUploaderAt:     &now,
+		UpdatedAt:              now,
+	}); err != nil {
+		t.Fatalf("upsert sender: %v", err)
+	}
+	if _, err := s.UpsertNode(ctx, domain.Node{
+		NodeID:             "!gateway",
+		LongName:           "Gateway",
+		FirstSeenAt:        now,
+		LastSeenAnyEventAt: now,
+		UpdatedAt:          now,
+	}); err != nil {
+		t.Fatalf("upsert gateway: %v", err)
+	}
+	if err := s.UpsertPosition(ctx, domain.NodePosition{
+		NodeID:             "!sender",
+		Latitude:           10.1,
+		Longitude:          20.2,
+		ObservedAt:         now,
+		UpdatedAt:          now,
+		SourceKind:         domain.PositionSourceChannel,
+		MQTTUploaderNodeID: "!gateway",
+	}); err != nil {
+		t.Fatalf("upsert position: %v", err)
+	}
+	if _, err := s.MergeTelemetry(ctx, domain.NodeTelemetrySnapshot{
+		NodeID:             "!sender",
+		MQTTUploaderNodeID: "!gateway",
+		ObservedAt:         now,
+		UpdatedAt:          now,
+		Power: domain.TelemetrySectionPower{
+			Voltage: ptrFloat64(4.1),
+		},
+	}); err != nil {
+		t.Fatalf("merge telemetry: %v", err)
+	}
+
+	details, err := s.GetNodeDetails(ctx, "!sender")
+	if err != nil {
+		t.Fatalf("get node details: %v", err)
+	}
+	if details.Node.LastMQTTUploaderNodeID != "!gateway" || details.Node.LastMQTTUploaderDisplayName != "Gateway" {
+		t.Fatalf("unexpected node uploader: %#v", details.Node)
+	}
+	if details.Position == nil || details.Position.MQTTUploaderNodeID != "!gateway" || details.Position.MQTTUploaderDisplayName != "Gateway" {
+		t.Fatalf("unexpected position uploader: %#v", details.Position)
+	}
+	if details.Telemetry == nil || details.Telemetry.MQTTUploaderNodeID != "!gateway" || details.Telemetry.MQTTUploaderDisplayName != "Gateway" {
+		t.Fatalf("unexpected telemetry uploader: %#v", details.Telemetry)
+	}
+
+	mapNodes, err := s.GetMapNodes(ctx, 24*time.Hour)
+	if err != nil {
+		t.Fatalf("get map nodes: %v", err)
+	}
+	if len(mapNodes) != 1 || mapNodes[0].Node.LastMQTTUploaderDisplayName != "Gateway" {
+		t.Fatalf("unexpected map node uploader: %#v", mapNodes)
+	}
+}
+
 func TestUpsertNode_MinimalEvidenceDoesNotClearStructuredFields(t *testing.T) {
 	ctx := context.Background()
 	s, err := Open(ctx, config.SQLConfig{URL: "file::memory:?cache=shared", AutoMigrate: true}, nil)

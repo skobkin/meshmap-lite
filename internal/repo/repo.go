@@ -53,16 +53,19 @@ type MapNode struct {
 
 // NodeSummary is a compact record for node list views.
 type NodeSummary struct {
-	NodeID             string     `json:"node_id"`
-	DisplayName        string     `json:"display_name"`
-	LongName           string     `json:"long_name,omitempty"`
-	ShortName          string     `json:"short_name,omitempty"`
-	LastSeenAnyEventAt time.Time  `json:"last_seen_any_event_at"`
-	LastSeenPositionAt *time.Time `json:"last_seen_position_at,omitempty"`
-	LastSeenMQTTAt     *time.Time `json:"last_seen_mqtt_gateway_at,omitempty"`
-	HasPosition        bool       `json:"has_position"`
-	Role               string     `json:"role,omitempty"`
-	BoardModel         string     `json:"board_model,omitempty"`
+	NodeID                      string     `json:"node_id"`
+	DisplayName                 string     `json:"display_name"`
+	LongName                    string     `json:"long_name,omitempty"`
+	ShortName                   string     `json:"short_name,omitempty"`
+	LastSeenAnyEventAt          time.Time  `json:"last_seen_any_event_at"`
+	LastSeenPositionAt          *time.Time `json:"last_seen_position_at,omitempty"`
+	LastSeenMQTTAt              *time.Time `json:"last_seen_mqtt_gateway_at,omitempty"`
+	LastMQTTUploaderNodeID      string     `json:"last_mqtt_uploader_node_id,omitempty"`
+	LastMQTTUploaderDisplayName string     `json:"last_mqtt_uploader_display_name,omitempty"`
+	LastMQTTUploaderAt          *time.Time `json:"last_mqtt_uploader_at,omitempty"`
+	HasPosition                 bool       `json:"has_position"`
+	Role                        string     `json:"role,omitempty"`
+	BoardModel                  string     `json:"board_model,omitempty"`
 }
 
 // NodeDetails is the full node details payload.

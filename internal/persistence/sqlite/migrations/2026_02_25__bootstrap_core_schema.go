@@ -25,6 +25,8 @@ func migrateV1BootstrapCoreSchema(ctx context.Context, tx *sql.Tx) error {
   first_seen_at TEXT NOT NULL,
   last_seen_any_event_at TEXT NOT NULL,
   last_seen_mqtt_gateway_at TEXT,
+  last_mqtt_uploader_node_id TEXT,
+  last_mqtt_uploader_at TEXT,
   last_seen_position_at TEXT,
   updated_at TEXT NOT NULL
 );`,
@@ -36,6 +38,7 @@ func migrateV1BootstrapCoreSchema(ctx context.Context, tx *sql.Tx) error {
   position_precision INTEGER,
   source_kind TEXT NOT NULL,
   source_channel TEXT,
+  mqtt_uploader_node_id TEXT,
   reported_at TEXT,
   observed_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
@@ -52,6 +55,7 @@ func migrateV1BootstrapCoreSchema(ctx context.Context, tx *sql.Tx) error {
   air_co2 REAL,
   air_iaq REAL,
   source_channel TEXT,
+  mqtt_uploader_node_id TEXT,
   reported_at TEXT,
   observed_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
@@ -67,6 +71,7 @@ func migrateV1BootstrapCoreSchema(ctx context.Context, tx *sql.Tx) error {
   reported_at TEXT,
   observed_at TEXT NOT NULL,
   packet_id INTEGER,
+  mqtt_uploader_node_id TEXT,
   created_at TEXT NOT NULL
 );`,
 		`CREATE INDEX IF NOT EXISTS idx_chat_channel_id ON chat_events(channel_name, id DESC);`,
@@ -83,6 +88,7 @@ func migrateV1BootstrapCoreSchema(ctx context.Context, tx *sql.Tx) error {
   event_kind INTEGER NOT NULL,
   encrypted INTEGER NOT NULL,
   channel_id INTEGER REFERENCES log_channels(id) ON DELETE SET NULL,
+  mqtt_uploader_node_id TEXT,
   details_json TEXT,
   -- event_kind values:
   -- 1 map_report

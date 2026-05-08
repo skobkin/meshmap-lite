@@ -69,14 +69,24 @@ func TestListChatEvents_ResolvesNodeDisplayName(t *testing.T) {
 	if !created {
 		t.Fatalf("expected inserted node")
 	}
+	if _, err := s.UpsertNode(ctx, domain.Node{
+		NodeID:             "!9028d008",
+		LongName:           "gateway",
+		FirstSeenAt:        now,
+		LastSeenAnyEventAt: now,
+		UpdatedAt:          now,
+	}); err != nil {
+		t.Fatalf("upsert gateway node: %v", err)
+	}
 	if _, err := s.InsertChatEvent(ctx, domain.ChatEvent{
-		EventType:   domain.ChatEventMessage,
-		ChannelName: "LongFast",
-		NodeID:      "!a55e5e56",
-		MessageText: "hello",
-		MessageTime: now,
-		ObservedAt:  now,
-		CreatedAt:   now,
+		EventType:          domain.ChatEventMessage,
+		ChannelName:        "LongFast",
+		NodeID:             "!a55e5e56",
+		MQTTUploaderNodeID: "!9028d008",
+		MessageText:        "hello",
+		MessageTime:        now,
+		ObservedAt:         now,
+		CreatedAt:          now,
 	}); err != nil {
 		t.Fatalf("insert chat event: %v", err)
 	}
@@ -90,6 +100,9 @@ func TestListChatEvents_ResolvesNodeDisplayName(t *testing.T) {
 	}
 	if items[0].NodeDisplay != "skobkin-cap" {
 		t.Fatalf("expected long-name display, got %q", items[0].NodeDisplay)
+	}
+	if items[0].MQTTUploaderNodeID != "!9028d008" || items[0].MQTTUploaderDisplayName != "gateway" {
+		t.Fatalf("expected uploader display, got %#v", items[0])
 	}
 }
 

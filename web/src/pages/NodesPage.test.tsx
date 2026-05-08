@@ -49,6 +49,9 @@ function details(overrides: Partial<NodeDetails> = {}): NodeDetails {
       long_name: 'Zero Node',
       mqtt_gateway_capable: false,
       neighbor_nodes_count: 0,
+      last_mqtt_uploader_node_id: '!gateway',
+      last_mqtt_uploader_display_name: 'Gateway',
+      last_mqtt_uploader_at: '2026-03-11T12:00:00Z',
       last_seen_any_event_at: '2026-03-11T12:00:00Z'
     },
     position: {
@@ -57,6 +60,8 @@ function details(overrides: Partial<NodeDetails> = {}): NodeDetails {
       longitude: 0,
       altitude_m: 0,
       source_kind: 'telemetry',
+      mqtt_uploader_node_id: '!gateway',
+      mqtt_uploader_display_name: 'Gateway',
       observed_at: '2026-03-11T12:00:00Z'
     },
     telemetry: {
@@ -76,6 +81,8 @@ function details(overrides: Partial<NodeDetails> = {}): NodeDetails {
         co2: 0,
         iaq: 0
       },
+      mqtt_uploader_node_id: '!gateway',
+      mqtt_uploader_display_name: 'Gateway',
       observed_at: '2026-03-11T12:00:00Z',
       updated_at: '2026-03-11T12:00:00Z'
     },
@@ -96,6 +103,16 @@ function logEvent(id: number, overrides: Partial<LogEvent> = {}): LogEvent {
     channel_name: 'mesh',
     details: { telemetry: 'ok' },
     ...overrides
+  }
+}
+
+function hasTextPrefix(prefix: string): (_content: string, element: Element | null) => boolean {
+  return (_content, element) => {
+    if (!element) {
+      return false
+    }
+
+    return element.textContent.startsWith(prefix)
   }
 }
 
@@ -143,6 +160,9 @@ describe('NodesPage', () => {
     )
 
     expect(screen.getByText('MQTT gateway capable: no')).toBeTruthy()
+    expect(screen.getByText(hasTextPrefix('Last MQTT via:')).textContent).toContain('Gateway')
+    expect(screen.getByText(hasTextPrefix('MQTT via:')).textContent).toContain('Gateway')
+    expect(screen.getByText(hasTextPrefix('Telemetry MQTT via:')).textContent).toContain('Gateway')
     expect(screen.getByText('Online local nodes: 0')).toBeTruthy()
     expect(screen.getByText('Latitude: 0')).toBeTruthy()
     expect(screen.getByText('Voltage: 0')).toBeTruthy()
@@ -213,6 +233,7 @@ describe('NodesPage', () => {
 
     expect(screen.getByText('Recent events')).toBeTruthy()
     expect(screen.queryByRole('columnheader', { name: 'Node' })).toBeNull()
+    expect(screen.getByRole('columnheader', { name: 'Gateway' })).toBeTruthy()
     expect(screen.getByRole('columnheader', { name: 'Details' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'View details for Telemetry' })).toBeTruthy()
   })

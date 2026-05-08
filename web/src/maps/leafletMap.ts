@@ -126,6 +126,7 @@ export class LeafletMapAdapter {
         ])),
         section('Connectivity', compactRows([
           row('MQTT', `${mqtt.status}${mqtt.age ? ` (${mqtt.age})` : ''}`),
+          row('Last MQTT via', displayUploader(n.node.last_mqtt_uploader_node_id, n.node.last_mqtt_uploader_display_name, n.node.last_mqtt_uploader_at)),
           row('Last update', displayRelativeTime(n.node.last_seen_any_event_at)),
           row('Last position', displayRelativeTime(n.node.last_seen_position_at))
         ])),
@@ -445,6 +446,14 @@ function displayValue(v: string | number | boolean | undefined): string | null {
 
 function displayRelativeTime(v?: string): string | null {
   return v ? relativeTime(v) : null
+}
+
+function displayUploader(nodeID?: string, displayName?: string, seenAt?: string): string | null {
+  if (!nodeID) {return null}
+  const label = displayName && displayName !== nodeID ? `${displayName} (${nodeID})` : nodeID
+  const age = displayRelativeTime(seenAt)
+
+  return age ? `${label}, ${age}` : label
 }
 
 function row(label: string, value: string | null): PopupRow | null {

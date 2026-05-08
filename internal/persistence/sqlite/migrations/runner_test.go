@@ -484,6 +484,87 @@ CREATE TABLE log_events (
 	}
 }
 
+func TestApply_AddsMQTTUploaderProvenanceColumns(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite", "file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	_, err = db.ExecContext(ctx, `
+PRAGMA user_version = 10;
+CREATE TABLE nodes (
+  node_id TEXT PRIMARY KEY,
+  first_seen_at TEXT NOT NULL,
+  last_seen_any_event_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE node_positions (
+  node_id TEXT PRIMARY KEY,
+  latitude REAL NOT NULL,
+  longitude REAL NOT NULL,
+  source_kind TEXT NOT NULL,
+  observed_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE node_telemetry_snapshots (
+  node_id TEXT PRIMARY KEY,
+  observed_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE chat_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_type TEXT NOT NULL,
+  channel_name TEXT,
+  node_id TEXT,
+  message_text TEXT,
+  system_code TEXT,
+  message_time TEXT NOT NULL,
+  reported_at TEXT,
+  observed_at TEXT NOT NULL,
+  packet_id INTEGER,
+  created_at TEXT NOT NULL
+);
+CREATE TABLE log_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  observed_at TEXT NOT NULL,
+  node_id TEXT,
+  event_kind INTEGER NOT NULL,
+  encrypted INTEGER NOT NULL,
+  channel_id INTEGER,
+  details_json TEXT
+);
+`)
+	if err != nil {
+		t.Fatalf("seed schema: %v", err)
+	}
+
+	if err := Apply(ctx, db, nil); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	for _, tc := range []struct {
+		table  string
+		column string
+	}{
+		{"nodes", "last_mqtt_uploader_node_id"},
+		{"nodes", "last_mqtt_uploader_at"},
+		{"node_positions", "mqtt_uploader_node_id"},
+		{"node_telemetry_snapshots", "mqtt_uploader_node_id"},
+		{"chat_events", "mqtt_uploader_node_id"},
+		{"log_events", "mqtt_uploader_node_id"},
+	} {
+		hasColumn, err := tableHasColumn(ctx, db, tc.table, tc.column)
+		if err != nil {
+			t.Fatalf("check column %s.%s: %v", tc.table, tc.column, err)
+		}
+		if !hasColumn {
+			t.Fatalf("expected column %s.%s", tc.table, tc.column)
+		}
+	}
+}
+
 func tableHasColumn(ctx context.Context, db *sql.DB, table, column string) (bool, error) {
 	rows, err := db.QueryContext(ctx, "PRAGMA table_info("+table+")")
 	if err != nil {

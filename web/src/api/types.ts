@@ -38,6 +38,9 @@ export interface Node {
   first_seen_at?: string
   last_seen_any_event_at: string
   last_seen_mqtt_gateway_at?: string
+  last_mqtt_uploader_node_id?: string
+  last_mqtt_uploader_display_name?: string
+  last_mqtt_uploader_at?: string
   last_seen_position_at?: string
   updated_at?: string
 }
@@ -50,6 +53,8 @@ export interface NodePosition {
   position_precision?: number
   source_kind: string
   source_channel?: string
+  mqtt_uploader_node_id?: string
+  mqtt_uploader_display_name?: string
   reported_at?: string
   observed_at: string
   updated_at?: string
@@ -67,6 +72,8 @@ export interface ChatEvent {
   channel_name?: string
   node_id?: string
   node_display_name?: string
+  mqtt_uploader_node_id?: string
+  mqtt_uploader_display_name?: string
   system_code?: string
   message_text?: string
   observed_at: string
@@ -79,6 +86,9 @@ export interface NodeSummary {
   short_name?: string
   last_seen_any_event_at: string
   last_seen_mqtt_gateway_at?: string
+  last_mqtt_uploader_node_id?: string
+  last_mqtt_uploader_display_name?: string
+  last_mqtt_uploader_at?: string
   has_position: boolean
   role?: string
   board_model?: string
@@ -141,6 +151,8 @@ export interface NodeTelemetry {
     iaq?: number
   }
   source_channel?: string
+  mqtt_uploader_node_id?: string
+  mqtt_uploader_display_name?: string
   reported_at?: string
   observed_at: string
   updated_at: string
@@ -197,6 +209,8 @@ export interface LogEvent {
   observed_at: string
   node_id?: string
   node_display_name?: string
+  mqtt_uploader_node_id?: string
+  mqtt_uploader_display_name?: string
   event_kind_value: number
   event_kind_title: string
   encrypted: boolean

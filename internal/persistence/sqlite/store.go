@@ -163,8 +163,8 @@ func (s *Store) UpsertNode(ctx context.Context, n domain.Node) (bool, error) {
 	err := s.db.QueryRowContext(ctx, `
 INSERT INTO nodes (
  node_id,node_num,long_name,short_name,role,board_model,firmware_version,lora_region,lora_frequency_desc,modem_preset,
- has_default_channel,has_opted_report_location,neighbor_nodes_count,mqtt_gateway_capable,first_seen_at,last_seen_any_event_at,last_seen_mqtt_gateway_at,last_seen_position_at,updated_at
-) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+ has_default_channel,has_opted_report_location,neighbor_nodes_count,mqtt_gateway_capable,first_seen_at,last_seen_any_event_at,last_seen_mqtt_gateway_at,last_mqtt_uploader_node_id,last_mqtt_uploader_at,last_seen_position_at,updated_at
+) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(node_id) DO UPDATE SET
  node_num=COALESCE(excluded.node_num,nodes.node_num),
  long_name=CASE WHEN excluded.long_name<>'' THEN excluded.long_name ELSE nodes.long_name END,
@@ -181,13 +181,15 @@ ON CONFLICT(node_id) DO UPDATE SET
  mqtt_gateway_capable=COALESCE(excluded.mqtt_gateway_capable,nodes.mqtt_gateway_capable),
  last_seen_any_event_at=excluded.last_seen_any_event_at,
  last_seen_mqtt_gateway_at=COALESCE(excluded.last_seen_mqtt_gateway_at,nodes.last_seen_mqtt_gateway_at),
+ last_mqtt_uploader_node_id=COALESCE(NULLIF(excluded.last_mqtt_uploader_node_id,''),nodes.last_mqtt_uploader_node_id),
+ last_mqtt_uploader_at=COALESCE(excluded.last_mqtt_uploader_at,nodes.last_mqtt_uploader_at),
  last_seen_position_at=COALESCE(excluded.last_seen_position_at,nodes.last_seen_position_at),
  updated_at=excluded.updated_at
 RETURNING CASE WHEN first_seen_at = ? THEN 1 ELSE 0 END
 `, n.NodeID, ptrUint32(n.NodeNum), n.LongName, n.ShortName, n.Role, n.BoardModel, n.FirmwareVersion,
 		n.LoRaRegion, n.LoRaFrequencyDesc, n.ModemPreset, ptrBool(n.HasDefaultChannel), ptrBool(n.HasOptedReportLocation), ptrInt(n.NeighborNodesCount), ptrBool(n.MQTTGatewayCapable),
 		firstSeenAt, n.LastSeenAnyEventAt.UTC().Format(time.RFC3339Nano),
-		ptrTime(n.LastSeenMQTTGatewayAt), ptrTime(n.LastSeenPositionAt), n.UpdatedAt.UTC().Format(time.RFC3339Nano), firstSeenAt).Scan(&created)
+		ptrTime(n.LastSeenMQTTGatewayAt), n.LastMQTTUploaderNodeID, ptrTime(n.LastMQTTUploaderAt), ptrTime(n.LastSeenPositionAt), n.UpdatedAt.UTC().Format(time.RFC3339Nano), firstSeenAt).Scan(&created)
 	if err != nil {
 		return false, err
 	}
@@ -204,8 +206,8 @@ func (s *Store) UpsertPosition(ctx context.Context, p domain.NodePosition) error
 	defer func() { _ = tx.Rollback() }()
 
 	_, err = tx.ExecContext(ctx, `
-INSERT INTO node_positions(node_id,latitude,longitude,altitude_m,position_precision,source_kind,source_channel,reported_at,observed_at,updated_at)
-VALUES(?,?,?,?,?,?,?,?,?,?)
+INSERT INTO node_positions(node_id,latitude,longitude,altitude_m,position_precision,source_kind,source_channel,mqtt_uploader_node_id,reported_at,observed_at,updated_at)
+VALUES(?,?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(node_id) DO UPDATE SET
  latitude=excluded.latitude,
  longitude=excluded.longitude,
@@ -213,10 +215,11 @@ ON CONFLICT(node_id) DO UPDATE SET
  position_precision=excluded.position_precision,
  source_kind=excluded.source_kind,
  source_channel=excluded.source_channel,
+ mqtt_uploader_node_id=excluded.mqtt_uploader_node_id,
  reported_at=excluded.reported_at,
  observed_at=excluded.observed_at,
  updated_at=excluded.updated_at
-`, p.NodeID, p.Latitude, p.Longitude, ptrFloat(p.AltitudeM), ptrUint32(p.PositionPrecision), string(p.SourceKind), p.SourceChannel,
+`, p.NodeID, p.Latitude, p.Longitude, ptrFloat(p.AltitudeM), ptrUint32(p.PositionPrecision), string(p.SourceKind), p.SourceChannel, nullIfEmpty(p.MQTTUploaderNodeID),
 		ptrTime(p.ReportedAt), p.ObservedAt.UTC().Format(time.RFC3339Nano), p.UpdatedAt.UTC().Format(time.RFC3339Nano))
 	if err != nil {
 		return err
@@ -235,8 +238,8 @@ func (s *Store) MergeTelemetry(ctx context.Context, snap domain.NodeTelemetrySna
 	merged := domain.MergeTelemetry(cur, snap)
 	_, err := s.db.ExecContext(ctx, `
 INSERT INTO node_telemetry_snapshots(
- node_id,power_voltage,power_battery_level,env_temperature_c,env_humidity,env_pressure_hpa,air_pm25,air_pm10,air_co2,air_iaq,source_channel,reported_at,observed_at,updated_at
-) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+ node_id,power_voltage,power_battery_level,env_temperature_c,env_humidity,env_pressure_hpa,air_pm25,air_pm10,air_co2,air_iaq,source_channel,mqtt_uploader_node_id,reported_at,observed_at,updated_at
+) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(node_id) DO UPDATE SET
  power_voltage=excluded.power_voltage,
  power_battery_level=excluded.power_battery_level,
@@ -248,6 +251,7 @@ ON CONFLICT(node_id) DO UPDATE SET
  air_co2=excluded.air_co2,
  air_iaq=excluded.air_iaq,
  source_channel=excluded.source_channel,
+ mqtt_uploader_node_id=excluded.mqtt_uploader_node_id,
  reported_at=excluded.reported_at,
  observed_at=excluded.observed_at,
  updated_at=excluded.updated_at
@@ -255,7 +259,7 @@ ON CONFLICT(node_id) DO UPDATE SET
 		ptrFloat(merged.Power.Voltage), ptrFloat(merged.Power.BatteryLevel),
 		ptrFloat(merged.Environment.TemperatureC), ptrFloat(merged.Environment.Humidity), ptrFloat(merged.Environment.PressureHpa),
 		ptrFloat(merged.AirQuality.PM25), ptrFloat(merged.AirQuality.PM10), ptrFloat(merged.AirQuality.CO2), ptrFloat(merged.AirQuality.IAQ),
-		merged.SourceChannel, ptrTime(merged.ReportedAt), merged.ObservedAt.UTC().Format(time.RFC3339Nano), merged.UpdatedAt.UTC().Format(time.RFC3339Nano))
+		merged.SourceChannel, nullIfEmpty(merged.MQTTUploaderNodeID), ptrTime(merged.ReportedAt), merged.ObservedAt.UTC().Format(time.RFC3339Nano), merged.UpdatedAt.UTC().Format(time.RFC3339Nano))
 	if err != nil {
 		return domain.NodeTelemetrySnapshot{}, err
 	}
@@ -327,10 +331,10 @@ func (s *Store) InsertChatEvent(ctx context.Context, e domain.ChatEvent) (int64,
 		messageText = nil
 	}
 	res, err := s.db.ExecContext(ctx, `
-INSERT INTO chat_events(event_type,channel_name,node_id,message_text,system_code,message_time,reported_at,observed_at,packet_id,created_at)
-VALUES(?,?,?,?,?,?,?,?,?,?)
+INSERT INTO chat_events(event_type,channel_name,node_id,message_text,system_code,message_time,reported_at,observed_at,packet_id,mqtt_uploader_node_id,created_at)
+VALUES(?,?,?,?,?,?,?,?,?,?,?)
 `, string(e.EventType), e.ChannelName, nullIfEmpty(e.NodeID), messageText, nullIfEmpty(string(e.SystemCode)),
-		e.MessageTime.UTC().Format(time.RFC3339Nano), ptrTime(e.ReportedAt), e.ObservedAt.UTC().Format(time.RFC3339Nano), ptrUint32(e.PacketID), e.CreatedAt.UTC().Format(time.RFC3339Nano))
+		e.MessageTime.UTC().Format(time.RFC3339Nano), ptrTime(e.ReportedAt), e.ObservedAt.UTC().Format(time.RFC3339Nano), ptrUint32(e.PacketID), nullIfEmpty(e.MQTTUploaderNodeID), e.CreatedAt.UTC().Format(time.RFC3339Nano))
 	if err != nil {
 		return 0, err
 	}
@@ -363,9 +367,9 @@ func (s *Store) InsertLogEvent(ctx context.Context, e domain.LogEvent) (int64, e
 	}
 
 	res, err := s.db.ExecContext(ctx, `
-INSERT INTO log_events(observed_at,node_id,event_kind,encrypted,channel_id,details_json)
-VALUES(?,?,?,?,?,?)
-`, e.ObservedAt.UTC().Format(time.RFC3339Nano), nullIfEmpty(e.NodeID), int(e.EventKind), boolAsInt(e.Encrypted), channelID, detailsJSON)
+INSERT INTO log_events(observed_at,node_id,event_kind,encrypted,channel_id,mqtt_uploader_node_id,details_json)
+VALUES(?,?,?,?,?,?,?)
+`, e.ObservedAt.UTC().Format(time.RFC3339Nano), nullIfEmpty(e.NodeID), int(e.EventKind), boolAsInt(e.Encrypted), channelID, nullIfEmpty(e.MQTTUploaderNodeID), detailsJSON)
 	if err != nil {
 		return 0, err
 	}
@@ -468,12 +472,16 @@ func (s *Store) GetMapNodes(ctx context.Context, hidePositionAfter time.Duration
 	cutoff := time.Now().UTC().Add(-hidePositionAfter).Format(time.RFC3339Nano)
 	rows, err := s.db.QueryContext(ctx, `
 SELECT n.node_id,n.node_num,n.long_name,n.short_name,n.role,n.board_model,n.firmware_version,n.lora_region,n.lora_frequency_desc,
-       n.modem_preset,n.has_default_channel,n.has_opted_report_location,n.neighbor_nodes_count,n.mqtt_gateway_capable,n.first_seen_at,n.last_seen_any_event_at,n.last_seen_mqtt_gateway_at,n.last_seen_position_at,n.updated_at,
-       p.latitude,p.longitude,p.altitude_m,p.position_precision,p.source_kind,p.source_channel,p.reported_at,p.observed_at,p.updated_at,
-       t.node_id,t.power_voltage,t.power_battery_level,t.env_temperature_c,t.env_humidity,t.env_pressure_hpa,t.air_pm25,t.air_pm10,t.air_co2,t.air_iaq,t.source_channel,t.reported_at,t.observed_at,t.updated_at
+       n.modem_preset,n.has_default_channel,n.has_opted_report_location,n.neighbor_nodes_count,n.mqtt_gateway_capable,n.first_seen_at,n.last_seen_any_event_at,n.last_seen_mqtt_gateway_at,
+       n.last_mqtt_uploader_node_id,nu.long_name,nu.short_name,n.last_mqtt_uploader_at,n.last_seen_position_at,n.updated_at,
+       p.latitude,p.longitude,p.altitude_m,p.position_precision,p.source_kind,p.source_channel,p.mqtt_uploader_node_id,pu.long_name,pu.short_name,p.reported_at,p.observed_at,p.updated_at,
+       t.node_id,t.power_voltage,t.power_battery_level,t.env_temperature_c,t.env_humidity,t.env_pressure_hpa,t.air_pm25,t.air_pm10,t.air_co2,t.air_iaq,t.source_channel,t.mqtt_uploader_node_id,tu.long_name,tu.short_name,t.reported_at,t.observed_at,t.updated_at
 FROM nodes n
 LEFT JOIN node_positions p ON p.node_id=n.node_id
 LEFT JOIN node_telemetry_snapshots t ON t.node_id=n.node_id
+LEFT JOIN nodes nu ON nu.node_id=n.last_mqtt_uploader_node_id
+LEFT JOIN nodes pu ON pu.node_id=p.mqtt_uploader_node_id
+LEFT JOIN nodes tu ON tu.node_id=t.mqtt_uploader_node_id
 WHERE p.node_id IS NOT NULL
   AND p.observed_at >= ?
 ORDER BY n.updated_at DESC`, cutoff)
@@ -497,9 +505,11 @@ ORDER BY n.updated_at DESC`, cutoff)
 func (s *Store) ListNodes(ctx context.Context) ([]repo.NodeSummary, error) {
 	rows, err := s.db.QueryContext(ctx, `
 SELECT n.node_id,n.long_name,n.short_name,n.last_seen_any_event_at,n.last_seen_position_at,n.last_seen_mqtt_gateway_at,
+       n.last_mqtt_uploader_node_id,nu.long_name,nu.short_name,n.last_mqtt_uploader_at,
        (p.node_id IS NOT NULL) has_position,n.role,n.board_model
 FROM nodes n
 LEFT JOIN node_positions p ON p.node_id=n.node_id
+LEFT JOIN nodes nu ON nu.node_id=n.last_mqtt_uploader_node_id
 ORDER BY n.last_seen_any_event_at DESC`)
 	if err != nil {
 		return nil, err
@@ -508,23 +518,26 @@ ORDER BY n.last_seen_any_event_at DESC`)
 	items := make([]repo.NodeSummary, 0)
 	for rows.Next() {
 		var id, longName, shortName, lastAny, role, board string
-		var lastPos, lastMQTT sql.NullString
+		var lastPos, lastMQTT, uploaderID, uploaderLong, uploaderShort, uploaderAt sql.NullString
 		var hasPos bool
-		if err := rows.Scan(&id, &longName, &shortName, &lastAny, &lastPos, &lastMQTT, &hasPos, &role, &board); err != nil {
+		if err := rows.Scan(&id, &longName, &shortName, &lastAny, &lastPos, &lastMQTT, &uploaderID, &uploaderLong, &uploaderShort, &uploaderAt, &hasPos, &role, &board); err != nil {
 			return nil, err
 		}
 		la, _ := time.Parse(time.RFC3339Nano, lastAny)
 		items = append(items, repo.NodeSummary{
-			NodeID:             id,
-			DisplayName:        displayName(longName, shortName, id),
-			LongName:           longName,
-			ShortName:          shortName,
-			LastSeenAnyEventAt: la,
-			LastSeenPositionAt: parseNullableTime(lastPos),
-			LastSeenMQTTAt:     parseNullableTime(lastMQTT),
-			HasPosition:        hasPos,
-			Role:               role,
-			BoardModel:         board,
+			NodeID:                      id,
+			DisplayName:                 displayName(longName, shortName, id),
+			LongName:                    longName,
+			ShortName:                   shortName,
+			LastSeenAnyEventAt:          la,
+			LastSeenPositionAt:          parseNullableTime(lastPos),
+			LastSeenMQTTAt:              parseNullableTime(lastMQTT),
+			LastMQTTUploaderNodeID:      uploaderID.String,
+			LastMQTTUploaderDisplayName: displayName(uploaderLong.String, uploaderShort.String, uploaderID.String),
+			LastMQTTUploaderAt:          parseNullableTime(uploaderAt),
+			HasPosition:                 hasPos,
+			Role:                        role,
+			BoardModel:                  board,
 		})
 	}
 
@@ -536,10 +549,13 @@ func (s *Store) GetNodeDetails(ctx context.Context, nodeID string) (repo.NodeDet
 	var d repo.NodeDetails
 	rows, err := s.db.QueryContext(ctx, `
 SELECT n.node_id,n.node_num,n.long_name,n.short_name,n.role,n.board_model,n.firmware_version,n.lora_region,n.lora_frequency_desc,
-       n.modem_preset,n.has_default_channel,n.has_opted_report_location,n.neighbor_nodes_count,n.mqtt_gateway_capable,n.first_seen_at,n.last_seen_any_event_at,n.last_seen_mqtt_gateway_at,n.last_seen_position_at,n.updated_at,
-       p.latitude,p.longitude,p.altitude_m,p.position_precision,p.source_kind,p.source_channel,p.reported_at,p.observed_at,p.updated_at
+       n.modem_preset,n.has_default_channel,n.has_opted_report_location,n.neighbor_nodes_count,n.mqtt_gateway_capable,n.first_seen_at,n.last_seen_any_event_at,n.last_seen_mqtt_gateway_at,
+       n.last_mqtt_uploader_node_id,nu.long_name,nu.short_name,n.last_mqtt_uploader_at,n.last_seen_position_at,n.updated_at,
+       p.latitude,p.longitude,p.altitude_m,p.position_precision,p.source_kind,p.source_channel,p.mqtt_uploader_node_id,pu.long_name,pu.short_name,p.reported_at,p.observed_at,p.updated_at
 FROM nodes n
 LEFT JOIN node_positions p ON p.node_id=n.node_id
+LEFT JOIN nodes nu ON nu.node_id=n.last_mqtt_uploader_node_id
+LEFT JOIN nodes pu ON pu.node_id=p.mqtt_uploader_node_id
 WHERE n.node_id=?`, nodeID)
 	if err != nil {
 		return d, err
@@ -804,9 +820,10 @@ func (s *Store) ListChatEvents(ctx context.Context, q repo.ChatEventQuery) ([]do
 	}
 	query := `
 SELECT e.id,e.event_type,e.channel_name,e.node_id,n.long_name,n.short_name,
-       e.message_text,e.system_code,e.message_time,e.reported_at,e.observed_at,e.packet_id,e.created_at
+       e.message_text,e.system_code,e.message_time,e.reported_at,e.observed_at,e.packet_id,e.mqtt_uploader_node_id,mu.long_name,mu.short_name,e.created_at
 FROM chat_events e
 LEFT JOIN nodes n ON n.node_id=e.node_id
+LEFT JOIN nodes mu ON mu.node_id=e.mqtt_uploader_node_id
 WHERE (LOWER(channel_name)=LOWER(?) OR channel_name='')`
 	args := []interface{}{q.Channel}
 	if q.BeforeID > 0 {
@@ -852,10 +869,11 @@ func (s *Store) ListLogEvents(ctx context.Context, q domain.LogEventQuery) ([]do
 	)
 	b.WriteString(`
 SELECT e.id,e.observed_at,e.node_id,e.event_kind,e.encrypted,c.name,
-       n.long_name,n.short_name,e.details_json
+       n.long_name,n.short_name,e.mqtt_uploader_node_id,mu.long_name,mu.short_name,e.details_json
 FROM log_events e
 LEFT JOIN log_channels c ON c.id=e.channel_id
-LEFT JOIN nodes n ON n.node_id=e.node_id`)
+LEFT JOIN nodes n ON n.node_id=e.node_id
+LEFT JOIN nodes mu ON mu.node_id=e.mqtt_uploader_node_id`)
 	if q.BeforeID > 0 {
 		w = append(w, `e.id < ?`)
 		a = append(a, q.BeforeID)
@@ -1052,7 +1070,7 @@ func (s *Store) Stats(ctx context.Context, threshold time.Duration) (domain.Stat
 // scanTelemetryValues unpacks telemetry fields from nullable SQL types into a NodeTelemetrySnapshot.
 // It consolidates telemetry unpacking logic to avoid inconsistencies across different scanner functions.
 func scanTelemetryValues(nodeID string, pv, pbl, etc, eh, eph, ap25, ap10, aco2, aiaq sql.NullFloat64,
-	source sql.NullString, reported sql.NullString, observed, updated sql.NullString) *domain.NodeTelemetrySnapshot {
+	source, uploaderID, uploaderLong, uploaderShort sql.NullString, reported sql.NullString, observed, updated sql.NullString) *domain.NodeTelemetrySnapshot {
 	// Return nil if nodeID is empty (no row found)
 	if nodeID == "" {
 		return nil
@@ -1071,6 +1089,8 @@ func scanTelemetryValues(nodeID string, pv, pbl, etc, eh, eph, ap25, ap10, aco2,
 	out.AirQuality.CO2 = parseNullableFloat(aco2)
 	out.AirQuality.IAQ = parseNullableFloat(aiaq)
 	out.SourceChannel = source.String
+	out.MQTTUploaderNodeID = uploaderID.String
+	out.MQTTUploaderDisplayName = displayName(uploaderLong.String, uploaderShort.String, uploaderID.String)
 	out.ReportedAt = parseNullableTime(reported)
 	if observed.Valid {
 		out.ObservedAt = mustTime(observed)
@@ -1085,12 +1105,15 @@ func scanTelemetryValues(nodeID string, pv, pbl, etc, eh, eph, ap25, ap10, aco2,
 func (s *Store) getTelemetry(ctx context.Context, nodeID string) (domain.NodeTelemetrySnapshot, error) {
 	var nodeID2 string
 	var pv, pbl, etc, eh, eph, ap25, ap10, aco2, aiaq sql.NullFloat64
-	var source, reported sql.NullString
+	var source, uploaderID, uploaderLong, uploaderShort, reported sql.NullString
 	var observed, updated sql.NullString
 	err := s.db.QueryRowContext(ctx, `
-SELECT node_id,power_voltage,power_battery_level,env_temperature_c,env_humidity,env_pressure_hpa,air_pm25,air_pm10,air_co2,air_iaq,source_channel,reported_at,observed_at,updated_at
-FROM node_telemetry_snapshots WHERE node_id=?`, nodeID).Scan(
-		&nodeID2, &pv, &pbl, &etc, &eh, &eph, &ap25, &ap10, &aco2, &aiaq, &source, &reported, &observed, &updated)
+SELECT t.node_id,t.power_voltage,t.power_battery_level,t.env_temperature_c,t.env_humidity,t.env_pressure_hpa,t.air_pm25,t.air_pm10,t.air_co2,t.air_iaq,
+       t.source_channel,t.mqtt_uploader_node_id,mu.long_name,mu.short_name,t.reported_at,t.observed_at,t.updated_at
+FROM node_telemetry_snapshots t
+LEFT JOIN nodes mu ON mu.node_id=t.mqtt_uploader_node_id
+WHERE t.node_id=?`, nodeID).Scan(
+		&nodeID2, &pv, &pbl, &etc, &eh, &eph, &ap25, &ap10, &aco2, &aiaq, &source, &uploaderID, &uploaderLong, &uploaderShort, &reported, &observed, &updated)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return domain.NodeTelemetrySnapshot{}, nil
@@ -1098,7 +1121,7 @@ FROM node_telemetry_snapshots WHERE node_id=?`, nodeID).Scan(
 
 		return domain.NodeTelemetrySnapshot{}, err
 	}
-	telemetry := scanTelemetryValues(nodeID2, pv, pbl, etc, eh, eph, ap25, ap10, aco2, aiaq, source, reported, observed, updated)
+	telemetry := scanTelemetryValues(nodeID2, pv, pbl, etc, eh, eph, ap25, ap10, aco2, aiaq, source, uploaderID, uploaderLong, uploaderShort, reported, observed, updated)
 	if telemetry == nil {
 		return domain.NodeTelemetrySnapshot{}, nil
 	}
@@ -1113,13 +1136,14 @@ func scanMapNode(rows *sql.Rows) (domain.Node, *domain.NodePosition, error) {
 	var hasOptedReportLoc sql.NullInt64
 	var neighbor sql.NullInt64
 	var gw sql.NullInt64
-	var firstSeen, lastAny, lastMQTT, lastPos, updated sql.NullString
+	var firstSeen, lastAny, lastMQTT, lastUploaderID, lastUploaderLong, lastUploaderShort, lastUploaderAt, lastPos, updated sql.NullString
 	var pLat, pLon, pAlt sql.NullFloat64
 	var pPrec sql.NullInt64
-	var pKind, pChannel, pReported, pObserved, pUpdated sql.NullString
+	var pKind, pChannel, pUploaderID, pUploaderLong, pUploaderShort, pReported, pObserved, pUpdated sql.NullString
 	err := rows.Scan(&n.NodeID, &nodeNum, &n.LongName, &n.ShortName, &n.Role, &n.BoardModel, &n.FirmwareVersion, &n.LoRaRegion, &n.LoRaFrequencyDesc,
-		&n.ModemPreset, &hasDefaultCh, &hasOptedReportLoc, &neighbor, &gw, &firstSeen, &lastAny, &lastMQTT, &lastPos, &updated,
-		&pLat, &pLon, &pAlt, &pPrec, &pKind, &pChannel, &pReported, &pObserved, &pUpdated)
+		&n.ModemPreset, &hasDefaultCh, &hasOptedReportLoc, &neighbor, &gw, &firstSeen, &lastAny, &lastMQTT,
+		&lastUploaderID, &lastUploaderLong, &lastUploaderShort, &lastUploaderAt, &lastPos, &updated,
+		&pLat, &pLon, &pAlt, &pPrec, &pKind, &pChannel, &pUploaderID, &pUploaderLong, &pUploaderShort, &pReported, &pObserved, &pUpdated)
 	if err != nil {
 		return n, nil, err
 	}
@@ -1147,12 +1171,15 @@ func scanMapNode(rows *sql.Rows) (domain.Node, *domain.NodePosition, error) {
 	n.FirstSeenAt = mustTime(firstSeen)
 	n.LastSeenAnyEventAt = mustTime(lastAny)
 	n.LastSeenMQTTGatewayAt = parseNullableTime(lastMQTT)
+	n.LastMQTTUploaderNodeID = lastUploaderID.String
+	n.LastMQTTUploaderDisplayName = displayName(lastUploaderLong.String, lastUploaderShort.String, lastUploaderID.String)
+	n.LastMQTTUploaderAt = parseNullableTime(lastUploaderAt)
 	n.LastSeenPositionAt = parseNullableTime(lastPos)
 	n.UpdatedAt = mustTime(updated)
 	if !pLat.Valid || !pLon.Valid {
 		return n, nil, nil
 	}
-	pos := &domain.NodePosition{NodeID: n.NodeID, Latitude: pLat.Float64, Longitude: pLon.Float64, SourceKind: domain.PositionSourceKind(pKind.String), SourceChannel: pChannel.String, ReportedAt: parseNullableTime(pReported), ObservedAt: mustTime(pObserved), UpdatedAt: mustTime(pUpdated)}
+	pos := &domain.NodePosition{NodeID: n.NodeID, Latitude: pLat.Float64, Longitude: pLon.Float64, SourceKind: domain.PositionSourceKind(pKind.String), SourceChannel: pChannel.String, MQTTUploaderNodeID: pUploaderID.String, MQTTUploaderDisplayName: displayName(pUploaderLong.String, pUploaderShort.String, pUploaderID.String), ReportedAt: parseNullableTime(pReported), ObservedAt: mustTime(pObserved), UpdatedAt: mustTime(pUpdated)}
 	if pAlt.Valid {
 		v := pAlt.Float64
 		pos.AltitudeM = &v
@@ -1173,18 +1200,19 @@ func scanMapNodeWithTelemetry(rows *sql.Rows) (domain.Node, *domain.NodePosition
 	var hasOptedReportLoc sql.NullInt64
 	var neighbor sql.NullInt64
 	var gw sql.NullInt64
-	var firstSeen, lastAny, lastMQTT, lastPos, updated sql.NullString
+	var firstSeen, lastAny, lastMQTT, lastUploaderID, lastUploaderLong, lastUploaderShort, lastUploaderAt, lastPos, updated sql.NullString
 	var pLat, pLon, pAlt sql.NullFloat64
 	var pPrec sql.NullInt64
-	var pKind, pChannel, pReported, pObserved, pUpdated sql.NullString
+	var pKind, pChannel, pUploaderID, pUploaderLong, pUploaderShort, pReported, pObserved, pUpdated sql.NullString
 	var tNodeID sql.NullString
 	var tPv, tPbl, tEtc, tEh, tEph, tAp25, tAp10, tAco2, tAiaq sql.NullFloat64
-	var tSource, tReported, tObserved, tUpdated sql.NullString
+	var tSource, tUploaderID, tUploaderLong, tUploaderShort, tReported, tObserved, tUpdated sql.NullString
 
 	err := rows.Scan(&n.NodeID, &nodeNum, &n.LongName, &n.ShortName, &n.Role, &n.BoardModel, &n.FirmwareVersion, &n.LoRaRegion, &n.LoRaFrequencyDesc,
-		&n.ModemPreset, &hasDefaultCh, &hasOptedReportLoc, &neighbor, &gw, &firstSeen, &lastAny, &lastMQTT, &lastPos, &updated,
-		&pLat, &pLon, &pAlt, &pPrec, &pKind, &pChannel, &pReported, &pObserved, &pUpdated,
-		&tNodeID, &tPv, &tPbl, &tEtc, &tEh, &tEph, &tAp25, &tAp10, &tAco2, &tAiaq, &tSource, &tReported, &tObserved, &tUpdated)
+		&n.ModemPreset, &hasDefaultCh, &hasOptedReportLoc, &neighbor, &gw, &firstSeen, &lastAny, &lastMQTT,
+		&lastUploaderID, &lastUploaderLong, &lastUploaderShort, &lastUploaderAt, &lastPos, &updated,
+		&pLat, &pLon, &pAlt, &pPrec, &pKind, &pChannel, &pUploaderID, &pUploaderLong, &pUploaderShort, &pReported, &pObserved, &pUpdated,
+		&tNodeID, &tPv, &tPbl, &tEtc, &tEh, &tEph, &tAp25, &tAp10, &tAco2, &tAiaq, &tSource, &tUploaderID, &tUploaderLong, &tUploaderShort, &tReported, &tObserved, &tUpdated)
 	if err != nil {
 		return n, nil, nil, err
 	}
@@ -1214,13 +1242,16 @@ func scanMapNodeWithTelemetry(rows *sql.Rows) (domain.Node, *domain.NodePosition
 	n.FirstSeenAt = mustTime(firstSeen)
 	n.LastSeenAnyEventAt = mustTime(lastAny)
 	n.LastSeenMQTTGatewayAt = parseNullableTime(lastMQTT)
+	n.LastMQTTUploaderNodeID = lastUploaderID.String
+	n.LastMQTTUploaderDisplayName = displayName(lastUploaderLong.String, lastUploaderShort.String, lastUploaderID.String)
+	n.LastMQTTUploaderAt = parseNullableTime(lastUploaderAt)
 	n.LastSeenPositionAt = parseNullableTime(lastPos)
 	n.UpdatedAt = mustTime(updated)
 
 	if !pLat.Valid || !pLon.Valid {
 		return n, nil, nil, nil
 	}
-	pos := &domain.NodePosition{NodeID: n.NodeID, Latitude: pLat.Float64, Longitude: pLon.Float64, SourceKind: domain.PositionSourceKind(pKind.String), SourceChannel: pChannel.String, ReportedAt: parseNullableTime(pReported), ObservedAt: mustTime(pObserved), UpdatedAt: mustTime(pUpdated)}
+	pos := &domain.NodePosition{NodeID: n.NodeID, Latitude: pLat.Float64, Longitude: pLon.Float64, SourceKind: domain.PositionSourceKind(pKind.String), SourceChannel: pChannel.String, MQTTUploaderNodeID: pUploaderID.String, MQTTUploaderDisplayName: displayName(pUploaderLong.String, pUploaderShort.String, pUploaderID.String), ReportedAt: parseNullableTime(pReported), ObservedAt: mustTime(pObserved), UpdatedAt: mustTime(pUpdated)}
 	if pAlt.Valid {
 		v := pAlt.Float64
 		pos.AltitudeM = &v
@@ -1237,15 +1268,15 @@ func scanMapNodeWithTelemetry(rows *sql.Rows) (domain.Node, *domain.NodePosition
 		telemetryNodeID = tNodeID.String
 	}
 	telemetry := scanTelemetryValues(telemetryNodeID, tPv, tPbl, tEtc, tEh, tEph, tAp25, tAp10, tAco2, tAiaq,
-		tSource, tReported, tObserved, tUpdated)
+		tSource, tUploaderID, tUploaderLong, tUploaderShort, tReported, tObserved, tUpdated)
 
 	return n, pos, telemetry, nil
 }
 
 func scanChat(rows *sql.Rows) (domain.ChatEvent, error) {
 	var e domain.ChatEvent
-	var eventType, channel, nodeID, longName, shortName, messageText, systemCode, msgTime, reported, observed, packetID, created sql.NullString
-	if err := rows.Scan(&e.ID, &eventType, &channel, &nodeID, &longName, &shortName, &messageText, &systemCode, &msgTime, &reported, &observed, &packetID, &created); err != nil {
+	var eventType, channel, nodeID, longName, shortName, messageText, systemCode, msgTime, reported, observed, packetID, uploaderID, uploaderLong, uploaderShort, created sql.NullString
+	if err := rows.Scan(&e.ID, &eventType, &channel, &nodeID, &longName, &shortName, &messageText, &systemCode, &msgTime, &reported, &observed, &packetID, &uploaderID, &uploaderLong, &uploaderShort, &created); err != nil {
 		return e, err
 	}
 	e.EventType = domain.ChatEventType(eventType.String)
@@ -1259,6 +1290,8 @@ func scanChat(rows *sql.Rows) (domain.ChatEvent, error) {
 	e.MessageTime = mustTime(msgTime)
 	e.ReportedAt = parseNullableTime(reported)
 	e.ObservedAt = mustTime(observed)
+	e.MQTTUploaderNodeID = uploaderID.String
+	e.MQTTUploaderDisplayName = displayName(uploaderLong.String, uploaderShort.String, uploaderID.String)
 	e.CreatedAt = mustTime(created)
 	if packetID.Valid {
 		if v, err := parseUint32(packetID.String); err == nil {
@@ -1271,9 +1304,9 @@ func scanChat(rows *sql.Rows) (domain.ChatEvent, error) {
 
 func scanLogEvent(rows *sql.Rows) (domain.LogEventView, error) {
 	var out domain.LogEventView
-	var observed, nodeID, channel, longName, shortName, detailsJSON sql.NullString
+	var observed, nodeID, channel, longName, shortName, uploaderID, uploaderLong, uploaderShort, detailsJSON sql.NullString
 	var kind, encrypted int
-	if err := rows.Scan(&out.ID, &observed, &nodeID, &kind, &encrypted, &channel, &longName, &shortName, &detailsJSON); err != nil {
+	if err := rows.Scan(&out.ID, &observed, &nodeID, &kind, &encrypted, &channel, &longName, &shortName, &uploaderID, &uploaderLong, &uploaderShort, &detailsJSON); err != nil {
 		return out, err
 	}
 	out.ObservedAt = mustTime(observed)
@@ -1290,6 +1323,8 @@ func scanLogEvent(rows *sql.Rows) (domain.LogEventView, error) {
 	if out.NodeID != "" {
 		out.NodeDisplay = displayName(longName.String, shortName.String, out.NodeID)
 	}
+	out.MQTTUploaderNodeID = uploaderID.String
+	out.MQTTUploaderDisplayName = displayName(uploaderLong.String, uploaderShort.String, uploaderID.String)
 	if detailsJSON.Valid && detailsJSON.String != "" {
 		var details map[string]any
 		if err := json.Unmarshal([]byte(detailsJSON.String), &details); err == nil && len(details) > 0 {

@@ -27,13 +27,23 @@ func TestListLogEvents_WithFiltersAndDisplayName(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("upsert node: %v", err)
 	}
+	if _, err := s.UpsertNode(ctx, domain.Node{
+		NodeID:             "!99999999",
+		LongName:           "Gateway",
+		FirstSeenAt:        now,
+		LastSeenAnyEventAt: now,
+		UpdatedAt:          now,
+	}); err != nil {
+		t.Fatalf("upsert gateway node: %v", err)
+	}
 
 	if _, err := s.InsertLogEvent(ctx, domain.LogEvent{
-		ObservedAt: now,
-		NodeID:     "!11111111",
-		EventKind:  domain.LogEventKindPositionValue,
-		Encrypted:  true,
-		Channel:    "LongFast",
+		ObservedAt:         now,
+		NodeID:             "!11111111",
+		MQTTUploaderNodeID: "!99999999",
+		EventKind:          domain.LogEventKindPositionValue,
+		Encrypted:          true,
+		Channel:            "LongFast",
 	}); err != nil {
 		t.Fatalf("insert log event #1: %v", err)
 	}
@@ -68,6 +78,9 @@ func TestListLogEvents_WithFiltersAndDisplayName(t *testing.T) {
 	}
 	if items[0].NodeDisplay != "Alpha" {
 		t.Fatalf("expected node display from nodes table, got %q", items[0].NodeDisplay)
+	}
+	if items[0].MQTTUploaderNodeID != "!99999999" || items[0].MQTTUploaderDisplayName != "Gateway" {
+		t.Fatalf("expected uploader display from nodes table, got %#v", items[0])
 	}
 }
 

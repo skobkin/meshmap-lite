@@ -4,25 +4,28 @@ import "time"
 
 // Node stores merged identity and liveness details for a Meshtastic node.
 type Node struct {
-	NodeID                 string     `json:"node_id"`
-	NodeNum                *uint32    `json:"node_num,omitempty"`
-	LongName               string     `json:"long_name,omitempty"`
-	ShortName              string     `json:"short_name,omitempty"`
-	Role                   string     `json:"role,omitempty"`
-	BoardModel             string     `json:"board_model,omitempty"`
-	FirmwareVersion        string     `json:"firmware_version,omitempty"`
-	LoRaRegion             string     `json:"lora_region,omitempty"`
-	LoRaFrequencyDesc      string     `json:"lora_frequency_desc,omitempty"`
-	ModemPreset            string     `json:"modem_preset,omitempty"`
-	HasDefaultChannel      *bool      `json:"has_default_channel,omitempty"`
-	HasOptedReportLocation *bool      `json:"has_opted_report_location,omitempty"`
-	NeighborNodesCount     *int       `json:"neighbor_nodes_count,omitempty"`
-	MQTTGatewayCapable     *bool      `json:"mqtt_gateway_capable,omitempty"`
-	FirstSeenAt            time.Time  `json:"first_seen_at"`
-	LastSeenAnyEventAt     time.Time  `json:"last_seen_any_event_at"`
-	LastSeenMQTTGatewayAt  *time.Time `json:"last_seen_mqtt_gateway_at,omitempty"`
-	LastSeenPositionAt     *time.Time `json:"last_seen_position_at,omitempty"`
-	UpdatedAt              time.Time  `json:"updated_at"`
+	NodeID                      string     `json:"node_id"`
+	NodeNum                     *uint32    `json:"node_num,omitempty"`
+	LongName                    string     `json:"long_name,omitempty"`
+	ShortName                   string     `json:"short_name,omitempty"`
+	Role                        string     `json:"role,omitempty"`
+	BoardModel                  string     `json:"board_model,omitempty"`
+	FirmwareVersion             string     `json:"firmware_version,omitempty"`
+	LoRaRegion                  string     `json:"lora_region,omitempty"`
+	LoRaFrequencyDesc           string     `json:"lora_frequency_desc,omitempty"`
+	ModemPreset                 string     `json:"modem_preset,omitempty"`
+	HasDefaultChannel           *bool      `json:"has_default_channel,omitempty"`
+	HasOptedReportLocation      *bool      `json:"has_opted_report_location,omitempty"`
+	NeighborNodesCount          *int       `json:"neighbor_nodes_count,omitempty"`
+	MQTTGatewayCapable          *bool      `json:"mqtt_gateway_capable,omitempty"`
+	FirstSeenAt                 time.Time  `json:"first_seen_at"`
+	LastSeenAnyEventAt          time.Time  `json:"last_seen_any_event_at"`
+	LastSeenMQTTGatewayAt       *time.Time `json:"last_seen_mqtt_gateway_at,omitempty"`
+	LastMQTTUploaderNodeID      string     `json:"last_mqtt_uploader_node_id,omitempty"`
+	LastMQTTUploaderDisplayName string     `json:"last_mqtt_uploader_display_name,omitempty"`
+	LastMQTTUploaderAt          *time.Time `json:"last_mqtt_uploader_at,omitempty"`
+	LastSeenPositionAt          *time.Time `json:"last_seen_position_at,omitempty"`
+	UpdatedAt                   time.Time  `json:"updated_at"`
 }
 
 // PositionSourceKind identifies which ingest source produced a position update.
@@ -36,16 +39,18 @@ const (
 
 // NodePosition stores the latest known position for a node.
 type NodePosition struct {
-	NodeID            string             `json:"node_id"`
-	Latitude          float64            `json:"latitude"`
-	Longitude         float64            `json:"longitude"`
-	AltitudeM         *float64           `json:"altitude_m,omitempty"`
-	PositionPrecision *uint32            `json:"position_precision,omitempty"`
-	SourceKind        PositionSourceKind `json:"source_kind"`
-	SourceChannel     string             `json:"source_channel,omitempty"`
-	ReportedAt        *time.Time         `json:"reported_at,omitempty"`
-	ObservedAt        time.Time          `json:"observed_at"`
-	UpdatedAt         time.Time          `json:"updated_at"`
+	NodeID                  string             `json:"node_id"`
+	Latitude                float64            `json:"latitude"`
+	Longitude               float64            `json:"longitude"`
+	AltitudeM               *float64           `json:"altitude_m,omitempty"`
+	PositionPrecision       *uint32            `json:"position_precision,omitempty"`
+	SourceKind              PositionSourceKind `json:"source_kind"`
+	SourceChannel           string             `json:"source_channel,omitempty"`
+	MQTTUploaderNodeID      string             `json:"mqtt_uploader_node_id,omitempty"`
+	MQTTUploaderDisplayName string             `json:"mqtt_uploader_display_name,omitempty"`
+	ReportedAt              *time.Time         `json:"reported_at,omitempty"`
+	ObservedAt              time.Time          `json:"observed_at"`
+	UpdatedAt               time.Time          `json:"updated_at"`
 }
 
 // TelemetrySectionPower stores power-related telemetry values.
@@ -71,14 +76,16 @@ type TelemetrySectionAirQuality struct {
 
 // NodeTelemetrySnapshot stores merged telemetry readings for a node.
 type NodeTelemetrySnapshot struct {
-	NodeID        string                      `json:"node_id"`
-	Power         TelemetrySectionPower       `json:"power"`
-	Environment   TelemetrySectionEnvironment `json:"environment"`
-	AirQuality    TelemetrySectionAirQuality  `json:"air_quality"`
-	SourceChannel string                      `json:"source_channel,omitempty"`
-	ReportedAt    *time.Time                  `json:"reported_at,omitempty"`
-	ObservedAt    time.Time                   `json:"observed_at"`
-	UpdatedAt     time.Time                   `json:"updated_at"`
+	NodeID                  string                      `json:"node_id"`
+	Power                   TelemetrySectionPower       `json:"power"`
+	Environment             TelemetrySectionEnvironment `json:"environment"`
+	AirQuality              TelemetrySectionAirQuality  `json:"air_quality"`
+	SourceChannel           string                      `json:"source_channel,omitempty"`
+	MQTTUploaderNodeID      string                      `json:"mqtt_uploader_node_id,omitempty"`
+	MQTTUploaderDisplayName string                      `json:"mqtt_uploader_display_name,omitempty"`
+	ReportedAt              *time.Time                  `json:"reported_at,omitempty"`
+	ObservedAt              time.Time                   `json:"observed_at"`
+	UpdatedAt               time.Time                   `json:"updated_at"`
 }
 
 // ChatEventType classifies chat entries as user message or system event.
@@ -100,18 +107,20 @@ const (
 
 // ChatEvent stores message and system events in a unified timeline.
 type ChatEvent struct {
-	ID          int64          `json:"id"`
-	EventType   ChatEventType  `json:"event_type"`
-	ChannelName string         `json:"channel_name,omitempty"`
-	NodeID      string         `json:"node_id,omitempty"`
-	NodeDisplay string         `json:"node_display_name,omitempty"`
-	SystemCode  ChatSystemCode `json:"system_code,omitempty"`
-	MessageText string         `json:"message_text,omitempty"`
-	MessageTime time.Time      `json:"message_time"`
-	ReportedAt  *time.Time     `json:"reported_at,omitempty"`
-	ObservedAt  time.Time      `json:"observed_at"`
-	PacketID    *uint32        `json:"packet_id,omitempty"`
-	CreatedAt   time.Time      `json:"created_at"`
+	ID                      int64          `json:"id"`
+	EventType               ChatEventType  `json:"event_type"`
+	ChannelName             string         `json:"channel_name,omitempty"`
+	NodeID                  string         `json:"node_id,omitempty"`
+	NodeDisplay             string         `json:"node_display_name,omitempty"`
+	MQTTUploaderNodeID      string         `json:"mqtt_uploader_node_id,omitempty"`
+	MQTTUploaderDisplayName string         `json:"mqtt_uploader_display_name,omitempty"`
+	SystemCode              ChatSystemCode `json:"system_code,omitempty"`
+	MessageText             string         `json:"message_text,omitempty"`
+	MessageTime             time.Time      `json:"message_time"`
+	ReportedAt              *time.Time     `json:"reported_at,omitempty"`
+	ObservedAt              time.Time      `json:"observed_at"`
+	PacketID                *uint32        `json:"packet_id,omitempty"`
+	CreatedAt               time.Time      `json:"created_at"`
 }
 
 // Stats is an operational snapshot exposed over API and websocket.
@@ -305,26 +314,29 @@ func LogEventKindFromInt(v int) (LogEventKind, bool) {
 
 // LogEvent is a compact persisted row of mesh activity for Log tab.
 type LogEvent struct {
-	ID         int64          `json:"id"`
-	ObservedAt time.Time      `json:"observed_at"`
-	NodeID     string         `json:"node_id,omitempty"`
-	EventKind  LogEventKind   `json:"event_kind_value"`
-	Encrypted  bool           `json:"encrypted"`
-	Channel    string         `json:"channel_name,omitempty"`
-	Details    map[string]any `json:"details,omitempty"`
+	ID                 int64          `json:"id"`
+	ObservedAt         time.Time      `json:"observed_at"`
+	NodeID             string         `json:"node_id,omitempty"`
+	MQTTUploaderNodeID string         `json:"mqtt_uploader_node_id,omitempty"`
+	EventKind          LogEventKind   `json:"event_kind_value"`
+	Encrypted          bool           `json:"encrypted"`
+	Channel            string         `json:"channel_name,omitempty"`
+	Details            map[string]any `json:"details,omitempty"`
 }
 
 // LogEventView is API-ready row enriched with titles and display name fallback.
 type LogEventView struct {
-	ID             int64          `json:"id"`
-	ObservedAt     time.Time      `json:"observed_at"`
-	NodeID         string         `json:"node_id,omitempty"`
-	NodeDisplay    string         `json:"node_display_name,omitempty"`
-	EventKindValue LogEventKind   `json:"event_kind_value"`
-	EventKindTitle string         `json:"event_kind_title"`
-	Encrypted      bool           `json:"encrypted"`
-	ChannelName    *string        `json:"channel_name"`
-	Details        map[string]any `json:"details,omitempty"`
+	ID                      int64          `json:"id"`
+	ObservedAt              time.Time      `json:"observed_at"`
+	NodeID                  string         `json:"node_id,omitempty"`
+	NodeDisplay             string         `json:"node_display_name,omitempty"`
+	MQTTUploaderNodeID      string         `json:"mqtt_uploader_node_id,omitempty"`
+	MQTTUploaderDisplayName string         `json:"mqtt_uploader_display_name,omitempty"`
+	EventKindValue          LogEventKind   `json:"event_kind_value"`
+	EventKindTitle          string         `json:"event_kind_title"`
+	Encrypted               bool           `json:"encrypted"`
+	ChannelName             *string        `json:"channel_name"`
+	Details                 map[string]any `json:"details,omitempty"`
 }
 
 // LogEventQuery controls log-list pagination and filtering.
