@@ -150,6 +150,9 @@ func (s *Service) HandleMessage(ctx context.Context, topic string, payload []byt
 	}
 	channel := strings.TrimSpace(topicInfo.Channel)
 	mqttUploaderNodeID := mqttUploaderFromTopic(topicInfo)
+	if mqttUploaderNodeID == "" && topicInfo.Kind == meshtastic.TopicKindMapReport {
+		mqttUploaderNodeID = strings.TrimSpace(evt.NodeID)
+	}
 	logAllowed := s.allowLogEvent(topicInfo.Kind, channel, evt.Kind)
 	tracerouteDecision := tracerouteLogDecision{}
 	if logAllowed {
@@ -241,7 +244,7 @@ func (s *Service) HandleMessage(ctx context.Context, topic string, payload []byt
 			)
 		}
 	case meshtastic.ParsedMapReport:
-		if s.handleMapReport(ctx, evt, now) {
+		if s.handleMapReport(ctx, evt, mqttUploaderNodeID, now) {
 			s.log.Info("processed position",
 				"channel", "",
 				"node_id", evt.NodeID,
@@ -634,6 +637,9 @@ func (s *Service) upsertNodeEvidenceSet(ctx context.Context, evt meshtastic.Pars
 }
 
 func mqttUploaderFromTopic(topicInfo meshtastic.TopicInfo) string {
+	if topicInfo.Kind == meshtastic.TopicKindMapReport {
+		return strings.TrimSpace(topicInfo.MapNodeID)
+	}
 	if topicInfo.Kind != meshtastic.TopicKindChannel || !topicInfo.IsFromMQTT {
 		return ""
 	}
@@ -672,6 +678,10 @@ func collectNodeEvidence(evt meshtastic.ParsedEvent, topicInfo meshtastic.TopicI
 	if mqttUploaderNodeID != "" {
 		senderEvidence.MQTTUploaderNodeID = mqttUploaderNodeID
 		senderEvidence.MQTTUploaderAt = &now
+		if topicInfo.Kind == meshtastic.TopicKindMapReport && strings.TrimSpace(evt.NodeID) == mqttUploaderNodeID {
+			senderEvidence.MQTTConnected = true
+			senderEvidence.MQTTGatewayCapable = true
+		}
 	}
 	add(senderEvidence)
 
@@ -1045,7 +1055,7 @@ func (s *Service) handleTelemetry(ctx context.Context, evt meshtastic.ParsedEven
 	return true
 }
 
-func (s *Service) handleMapReport(ctx context.Context, evt meshtastic.ParsedEvent, now time.Time) bool {
+func (s *Service) handleMapReport(ctx context.Context, evt meshtastic.ParsedEvent, mqttUploaderNodeID string, now time.Time) bool {
 	if evt.MapReport == nil {
 		return false
 	}
@@ -1072,7 +1082,7 @@ func (s *Service) handleMapReport(ctx context.Context, evt meshtastic.ParsedEven
 		AltitudeM:         evt.MapReport.AltitudeM,
 		PositionPrecision: evt.MapReport.PositionPrecision,
 	}
-	if !s.handlePosition(ctx, ev, "", "", now, domain.PositionSourceMapReport) {
+	if !s.handlePosition(ctx, ev, "", mqttUploaderNodeID, now, domain.PositionSourceMapReport) {
 		ok = false
 	}
 

@@ -158,6 +158,9 @@ func TestHandleMapReportMergesNodeAndPositionFields(t *testing.T) {
 	if store.lastPosition.PositionPrecision == nil || *store.lastPosition.PositionPrecision != 12 {
 		t.Fatalf("unexpected position precision: %v", store.lastPosition.PositionPrecision)
 	}
+	if store.lastPosition.MQTTUploaderNodeID != "!11223344" {
+		t.Fatalf("expected map report uploader provenance, got %#v", store.lastPosition)
+	}
 }
 
 func TestLogEventFromParsedTracerouteUsesSemanticDetails(t *testing.T) {
@@ -588,6 +591,27 @@ func TestCollectNodeEvidenceTracksMQTTGatewaySeparatelyFromSender(t *testing.T) 
 	}
 	if evidences[0].MQTTUploaderNodeID != "" {
 		t.Fatalf("gateway evidence must not mark itself as packet uploader provenance: %#v", evidences[0])
+	}
+}
+
+func TestCollectNodeEvidenceMarksMapReportSenderAsMQTTGateway(t *testing.T) {
+	now := time.Unix(1772296589, 0).UTC()
+	evidences := collectNodeEvidence(meshtastic.ParsedEvent{
+		Kind:   meshtastic.ParsedMapReport,
+		NodeID: "!11223344",
+	}, meshtastic.TopicInfo{
+		Kind:      meshtastic.TopicKindMapReport,
+		MapNodeID: "!11223344",
+	}, "!11223344", now)
+
+	if len(evidences) != 1 {
+		t.Fatalf("expected only map report sender evidence, got %#v", evidences)
+	}
+	if evidences[0].NodeID != "!11223344" || !evidences[0].MQTTConnected || !evidences[0].MQTTGatewayCapable {
+		t.Fatalf("expected map report sender to be marked as MQTT gateway, got %#v", evidences[0])
+	}
+	if evidences[0].MQTTUploaderNodeID != "!11223344" || evidences[0].MQTTUploaderAt == nil {
+		t.Fatalf("expected map report uploader provenance, got %#v", evidences[0])
 	}
 }
 
