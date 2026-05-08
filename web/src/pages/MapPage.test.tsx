@@ -181,13 +181,14 @@ describe('MapPage chat timeline', () => {
     const resolvedButton = screen.getByRole('button', { name: 'Field Router' })
     expect(resolvedButton.getAttribute('title')).toBe('!alpha')
     expect(screen.getByRole('button', { name: 'Payload Bravo' }).getAttribute('title')).toBe('!bravo')
-    expect(screen.getByText('via')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Gateway' }).getAttribute('title')).toBe('!gateway')
+    expect(screen.queryByText('via')).toBeNull()
+    const gatewayButton = screen.getByRole('button', { name: 'Gateway: Gateway (!gateway)' })
+    expect(gatewayButton.getAttribute('title')).toBe('Gateway: Gateway (!gateway)')
     expect(screen.getByText('system')).toBeTruthy()
 
     await user.click(resolvedButton)
     await user.click(screen.getByRole('button', { name: 'Payload Bravo' }))
-    await user.click(screen.getByRole('button', { name: 'Gateway' }))
+    await user.click(gatewayButton)
 
     expect(onOpenNodeDetails).toHaveBeenNthCalledWith(1, '!alpha')
     expect(onOpenNodeDetails).toHaveBeenNthCalledWith(2, '!bravo')

@@ -51,6 +51,41 @@ interface ChatTimelineOptions {
   systemText: (code?: string) => string
 }
 
+function ChatGatewayLink({
+  nodeId,
+  fallbackLabel,
+  onOpenNodeDetails
+}: {
+  nodeId: string
+  fallbackLabel?: string
+  onOpenNodeDetails: (id: string) => void
+}): JSX.Element {
+  return (
+    <ResolvedNodeData nodeId={nodeId} fallbackLabel={fallbackLabel}>
+      {({ label, title }) => {
+        const tooltip = `Gateway: ${title ? `${label} (${title})` : label}`
+
+        return (
+          <button
+            type="button"
+            className="chat-gateway-link"
+            title={tooltip}
+            aria-label={tooltip}
+            onClick={() => onOpenNodeDetails(nodeId)}
+          >
+            <svg aria-hidden="true" viewBox="0 0 16 16" focusable="false">
+              <path d="M8 9.2 5.8 14h4.4L8 9.2Z" />
+              <path d="M8 2.2v7" />
+              <path d="M5.5 4.2a3.5 3.5 0 0 0 0 4.9M10.5 4.2a3.5 3.5 0 0 1 0 4.9" />
+              <path d="M3.5 2.4a6.2 6.2 0 0 0 0 8.6M12.5 2.4a6.2 6.2 0 0 1 0 8.6" />
+            </svg>
+          </button>
+        )
+      }}
+    </ResolvedNodeData>
+  )
+}
+
 function renderChatTimeline(messages: ChatEvent[], { onOpenNodeDetails, onSelectNode, systemText }: ChatTimelineOptions): JSX.Element[] {
   let previousDay = ''
 
@@ -87,28 +122,15 @@ function renderChatTimeline(messages: ChatEvent[], { onOpenNodeDetails, onSelect
             </ResolvedNodeData>
           ) : (
             <mark>{m.node_display_name ?? 'system'}</mark>
+          )}
+          {showUploader && (
+            <ChatGatewayLink
+              nodeId={m.mqtt_uploader_node_id!}
+              fallbackLabel={m.mqtt_uploader_display_name}
+              onOpenNodeDetails={onOpenNodeDetails}
+            />
           )}{' '}
           {m.event_type === 'system' ? systemText(m.system_code) : (m.message_text ?? '')}
-          {showUploader && (
-            <>
-              {' '}
-              <span className="chat-via">
-                via{' '}
-                <ResolvedNodeData nodeId={m.mqtt_uploader_node_id!} fallbackLabel={m.mqtt_uploader_display_name}>
-                  {({ label, title }) => (
-                    <button
-                      type="button"
-                      className="chat-node-link"
-                      title={title}
-                      onClick={() => onOpenNodeDetails(m.mqtt_uploader_node_id!)}
-                    >
-                      <code>{label}</code>
-                    </button>
-                  )}
-                </ResolvedNodeData>
-              </span>
-            </>
-          )}
         </p>
       </Fragment>
     )

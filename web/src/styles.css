@@ -413,13 +413,34 @@ body {
   filter: brightness(0.95);
 }
 
-.chat-via {
+.chat-gateway-link {
+  display: inline-flex;
+  width: 1.05rem;
+  height: 1.05rem;
+  align-items: center;
+  justify-content: center;
+  margin: 0 0.12rem;
+  padding: 0;
+  border: 0;
+  vertical-align: -0.12rem;
   color: var(--pico-muted-color);
-  font-size: 0.82rem;
+  background: transparent;
+  cursor: pointer;
 }
 
-.chat-via code {
-  color: inherit;
+.chat-gateway-link:hover,
+.chat-gateway-link:focus-visible {
+  color: var(--pico-primary);
+}
+
+.chat-gateway-link svg {
+  width: 0.95rem;
+  height: 0.95rem;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.45;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .map-popup-title {
