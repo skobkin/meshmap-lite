@@ -8,9 +8,9 @@ func TestNormalizeNodeID(t *testing.T) {
 		input string
 		want  string
 	}{
-		{name: "already normalized", input: "!9028d008", want: "!9028d008"},
-		{name: "hex without prefix", input: "9028D008", want: "!9028d008"},
-		{name: "decimal", input: "2418593800", want: "!9028d008"},
+		{name: "already normalized", input: "!11223344", want: "!11223344"},
+		{name: "hex without prefix", input: "11223344", want: "!11223344"},
+		{name: "decimal", input: "287454020", want: "!11223344"},
 		{name: "trimmed text", input: "  custom-node  ", want: "custom-node"},
 	}
 

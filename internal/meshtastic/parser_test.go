@@ -7,7 +7,7 @@ func TestParsePayloadFallsBackToJSON(t *testing.T) {
 
 	payload := []byte(`{
 		"type":"chat",
-		"node_id":"9028d008",
+		"node_id":"11223344",
 		"packet_id":42,
 		"chat":{"text":"hello"}
 	}`)
@@ -22,7 +22,7 @@ func TestParsePayloadFallsBackToJSON(t *testing.T) {
 	if evt.Kind != ParsedChat {
 		t.Fatalf("expected chat, got %s", evt.Kind)
 	}
-	if evt.NodeID != "!9028d008" {
+	if evt.NodeID != "!11223344" {
 		t.Fatalf("unexpected node id: %q", evt.NodeID)
 	}
 	if evt.Chat == nil || evt.Chat.Text != "hello" {

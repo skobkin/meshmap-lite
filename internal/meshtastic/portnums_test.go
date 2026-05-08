@@ -213,7 +213,7 @@ func TestDecodeTraceroutePayloadClassifiesRequest(t *testing.T) {
 	}
 
 	traceroute, err := decodeTraceroutePayload(&generated.MeshPacket{
-		From:     0x9028d008,
+		From:     0x11223344,
 		To:       0xa55e5e56,
 		Id:       321,
 		HopStart: 7,
@@ -247,7 +247,7 @@ func TestDecodeTraceroutePayloadReconstructsDirectReply(t *testing.T) {
 	}
 
 	traceroute, err := decodeTraceroutePayload(&generated.MeshPacket{
-		From:     0x9028d008,
+		From:     0x11223344,
 		To:       0xa55e5e56,
 		Id:       654,
 		HopStart: 7,
@@ -265,7 +265,7 @@ func TestDecodeTraceroutePayloadReconstructsDirectReply(t *testing.T) {
 	if traceroute.Role != "reply" || traceroute.Status != "completed" {
 		t.Fatalf("unexpected traceroute reply semantics: %#v", traceroute)
 	}
-	if want := []string{"!a55e5e56", "!9028d008"}; len(traceroute.ForwardPath) != len(want) || traceroute.ForwardPath[0] != want[0] || traceroute.ForwardPath[1] != want[1] {
+	if want := []string{"!a55e5e56", "!11223344"}; len(traceroute.ForwardPath) != len(want) || traceroute.ForwardPath[0] != want[0] || traceroute.ForwardPath[1] != want[1] {
 		t.Fatalf("unexpected forward path: got %#v want %#v", traceroute.ForwardPath, want)
 	}
 	if !traceroute.InferredForwardPath || !traceroute.InferredDirect {
@@ -286,7 +286,7 @@ func TestDecodeTraceroutePayloadKeepsReturnPathConditional(t *testing.T) {
 	}
 
 	withoutEvidence, err := decodeTraceroutePayload(&generated.MeshPacket{
-		From: 0x9028d008,
+		From: 0x11223344,
 		To:   0xa55e5e56,
 	}, &generated.Data{
 		Portnum:   generated.PortNum_TRACEROUTE_APP,
@@ -304,7 +304,7 @@ func TestDecodeTraceroutePayloadKeepsReturnPathConditional(t *testing.T) {
 	}
 
 	withEvidence, err := decodeTraceroutePayload(&generated.MeshPacket{
-		From:     0x9028d008,
+		From:     0x11223344,
 		To:       0xa55e5e56,
 		HopStart: 1,
 	}, &generated.Data{
@@ -315,7 +315,7 @@ func TestDecodeTraceroutePayloadKeepsReturnPathConditional(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"!9028d008", "!01020304", "!a55e5e56"}; len(withEvidence.ReturnPath) != len(want) || withEvidence.ReturnPath[0] != want[0] || withEvidence.ReturnPath[2] != want[2] {
+	if want := []string{"!11223344", "!01020304", "!a55e5e56"}; len(withEvidence.ReturnPath) != len(want) || withEvidence.ReturnPath[0] != want[0] || withEvidence.ReturnPath[2] != want[2] {
 		t.Fatalf("unexpected reconstructed return path: got %#v want %#v", withEvidence.ReturnPath, want)
 	}
 	if !withEvidence.InferredReturnPath {

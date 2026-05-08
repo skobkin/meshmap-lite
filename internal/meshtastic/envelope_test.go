@@ -1,7 +1,6 @@
 package meshtastic
 
 import (
-	"encoding/hex"
 	"testing"
 
 	generated "meshmap-lite/internal/meshtasticpb"
@@ -13,7 +12,7 @@ func TestParseServiceEnvelopeChat(t *testing.T) {
 	ConfigureChannelKeys(nil)
 
 	packet := &generated.MeshPacket{
-		From: 0x9028d008,
+		From: 0x11223344,
 		Id:   42,
 		PayloadVariant: &generated.MeshPacket_Decoded{Decoded: &generated.Data{
 			Portnum: generated.PortNum_TEXT_MESSAGE_APP,
@@ -33,7 +32,7 @@ func TestParseServiceEnvelopeChat(t *testing.T) {
 	if evt.Kind != ParsedChat {
 		t.Fatalf("expected chat, got %s", evt.Kind)
 	}
-	if evt.NodeID != "!9028d008" {
+	if evt.NodeID != "!11223344" {
 		t.Fatalf("unexpected node id: %q", evt.NodeID)
 	}
 	if evt.Chat == nil || evt.Chat.Text != "hello" {
@@ -55,7 +54,7 @@ func TestParseServiceEnvelopeTraceroute(t *testing.T) {
 	}
 
 	packet := &generated.MeshPacket{
-		From:     0x9028d008,
+		From:     0x11223344,
 		To:       0xa55e5e56,
 		Id:       900,
 		HopStart: 1,
@@ -86,10 +85,10 @@ func TestParseServiceEnvelopeTraceroute(t *testing.T) {
 	if evt.Traceroute.Role != "reply" || evt.Traceroute.RequestID != 777 {
 		t.Fatalf("unexpected traceroute semantics: %#v", evt.Traceroute)
 	}
-	if len(evt.Traceroute.ForwardPath) != 3 || evt.Traceroute.ForwardPath[0] != "!a55e5e56" || evt.Traceroute.ForwardPath[2] != "!9028d008" {
+	if len(evt.Traceroute.ForwardPath) != 3 || evt.Traceroute.ForwardPath[0] != "!a55e5e56" || evt.Traceroute.ForwardPath[2] != "!11223344" {
 		t.Fatalf("unexpected forward path: %#v", evt.Traceroute.ForwardPath)
 	}
-	if len(evt.Traceroute.ReturnPath) != 3 || evt.Traceroute.ReturnPath[0] != "!9028d008" || evt.Traceroute.ReturnPath[2] != "!a55e5e56" {
+	if len(evt.Traceroute.ReturnPath) != 3 || evt.Traceroute.ReturnPath[0] != "!11223344" || evt.Traceroute.ReturnPath[2] != "!a55e5e56" {
 		t.Fatalf("unexpected return path: %#v", evt.Traceroute.ReturnPath)
 	}
 }
@@ -98,7 +97,7 @@ func TestParseServiceEnvelopeUnknownEncryptedWhenNoKey(t *testing.T) {
 	ConfigureChannelKeys(nil)
 
 	packet := &generated.MeshPacket{
-		From:    0x9028d008,
+		From:    0x11223344,
 		Id:      123,
 		Channel: 7,
 		PayloadVariant: &generated.MeshPacket_Encrypted{
@@ -137,7 +136,7 @@ func TestParseServiceEnvelopePKIBecomesOpaquePKIEvent(t *testing.T) {
 			Encrypted: []byte{0xde, 0xad, 0xbe, 0xef, 0xca},
 		},
 	}
-	env := &generated.ServiceEnvelope{Packet: packet, ChannelId: "PKI", GatewayId: "!9028d008"}
+	env := &generated.ServiceEnvelope{Packet: packet, ChannelId: "PKI", GatewayId: "!11223344"}
 	payload, err := proto.Marshal(env)
 	if err != nil {
 		t.Fatal(err)
@@ -165,7 +164,7 @@ func TestParseServiceEnvelopePKIBecomesOpaquePKIEvent(t *testing.T) {
 	if evt.PKI.DestinationNodeID != "!698509f8" {
 		t.Fatalf("unexpected destination: %#v", evt.PKI)
 	}
-	if evt.PKI.GatewayID != "!9028d008" || evt.PKI.TopicChannel != "PKI" {
+	if evt.PKI.GatewayID != "!11223344" || evt.PKI.TopicChannel != "PKI" {
 		t.Fatalf("unexpected PKI routing metadata: %#v", evt.PKI)
 	}
 	if !evt.PKI.PKIEncrypted || evt.PKI.PayloadSizeBytes != 5 {
@@ -176,7 +175,18 @@ func TestParseServiceEnvelopePKIBecomesOpaquePKIEvent(t *testing.T) {
 func TestParseServiceEnvelopePKITopicWithoutPKIFlagStillBecomesPKIEvent(t *testing.T) {
 	ConfigureChannelKeys(nil)
 
-	payload, err := hex.DecodeString("0a560d565e5ea51508d028902a213c06179e0d2c422b09497c5c755718e628910c611cb568a1cc244d5e722ed63e3935024db3c73d453dc369450000e8404807500160ceffffffffffffffff017807900108980156a801011203504b491a09213930323864303038")
+	packet := &generated.MeshPacket{
+		From:     0xa55e5e56,
+		To:       0x11223344,
+		Id:       3350416642,
+		HopStart: 7,
+		HopLimit: 7,
+		PayloadVariant: &generated.MeshPacket_Encrypted{
+			Encrypted: []byte{0xde, 0xad, 0xbe, 0xef, 0xca},
+		},
+	}
+	env := &generated.ServiceEnvelope{Packet: packet, ChannelId: "PKI", GatewayId: "!11223344"}
+	payload, err := proto.Marshal(env)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +207,7 @@ func TestParseServiceEnvelopePKITopicWithoutPKIFlagStillBecomesPKIEvent(t *testi
 	if evt.PKI == nil {
 		t.Fatalf("expected PKI payload details")
 	}
-	if evt.PKI.DestinationNodeID != "!9028d008" {
+	if evt.PKI.DestinationNodeID != "!11223344" {
 		t.Fatalf("unexpected destination: %#v", evt.PKI)
 	}
 	if evt.PKI.TopicChannel != "PKI" || evt.PKI.EnvelopeChannelID != "PKI" {

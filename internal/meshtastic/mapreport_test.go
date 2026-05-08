@@ -61,7 +61,7 @@ func TestParseMapReportEnvelope(t *testing.T) {
 		Payload: mapPayload,
 	}
 	packet := &generated.MeshPacket{
-		From: 0x9028d008,
+		From: 0x11223344,
 		Id:   321,
 		PayloadVariant: &generated.MeshPacket_Decoded{
 			Decoded: data,
@@ -80,7 +80,7 @@ func TestParseMapReportEnvelope(t *testing.T) {
 	if evt.Kind != ParsedMapReport {
 		t.Fatalf("expected map_report, got %s", evt.Kind)
 	}
-	if evt.NodeID != "!9028d008" {
+	if evt.NodeID != "!11223344" {
 		t.Fatalf("unexpected node id: %q", evt.NodeID)
 	}
 	if evt.PacketID != 321 {

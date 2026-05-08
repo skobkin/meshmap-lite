@@ -25,7 +25,7 @@ func TestTracerouteTrackerRequestReplyCompletesOnce(t *testing.T) {
 			Role:       "request",
 			RequestID:  321,
 			FromNodeID: "!a55e5e56",
-			ToNodeID:   "!9028d008",
+			ToNodeID:   "!11223344",
 		},
 	})
 	if !request.suppressPacketLog || request.lifecycle != nil {
@@ -41,10 +41,10 @@ func TestTracerouteTrackerRequestReplyCompletesOnce(t *testing.T) {
 			Status:              "completed",
 			RequestID:           321,
 			ReplyID:             101,
-			FromNodeID:          "!9028d008",
+			FromNodeID:          "!11223344",
 			ToNodeID:            "!a55e5e56",
-			ForwardPath:         []string{"!a55e5e56", "!01020304", "!9028d008"},
-			ReturnPath:          []string{"!9028d008", "!0a0b0c0d", "!a55e5e56"},
+			ForwardPath:         []string{"!a55e5e56", "!01020304", "!11223344"},
+			ReturnPath:          []string{"!11223344", "!0a0b0c0d", "!a55e5e56"},
 			SnrTowards:          []int32{22},
 			SnrBack:             []int32{12},
 			InferredForwardPath: true,
@@ -75,7 +75,7 @@ func TestTracerouteTrackerRequestReplyCompletesOnce(t *testing.T) {
 			Status:      "completed",
 			RequestID:   321,
 			ReplyID:     101,
-			ForwardPath: []string{"!a55e5e56", "!01020304", "!9028d008"},
+			ForwardPath: []string{"!a55e5e56", "!01020304", "!11223344"},
 		},
 	})
 	if !dup.suppressPacketLog || dup.lifecycle != nil {
@@ -99,7 +99,7 @@ func TestTracerouteTrackerRoutingFailureAndNoneHandling(t *testing.T) {
 			Role:       "request",
 			RequestID:  321,
 			FromNodeID: "!a55e5e56",
-			ToNodeID:   "!9028d008",
+			ToNodeID:   "!11223344",
 		},
 	})
 
@@ -123,7 +123,7 @@ func TestTracerouteTrackerRoutingFailureAndNoneHandling(t *testing.T) {
 		payload: &meshtastic.RoutingPayload{
 			RequestID:   321,
 			FromNodeID:  "!a55e5e56",
-			ToNodeID:    "!9028d008",
+			ToNodeID:    "!11223344",
 			ErrorReason: "NO_ROUTE",
 		},
 	})
@@ -167,7 +167,7 @@ func TestTracerouteTrackerTimeoutAndRetention(t *testing.T) {
 			Role:       "request",
 			RequestID:  321,
 			FromNodeID: "!a55e5e56",
-			ToNodeID:   "!9028d008",
+			ToNodeID:   "!11223344",
 		},
 	})
 
@@ -210,9 +210,9 @@ func TestTracerouteTrackerUnmatchedReplyRemainsRawEvidence(t *testing.T) {
 			Role:        "reply",
 			Status:      "partial",
 			RequestID:   321,
-			FromNodeID:  "!9028d008",
+			FromNodeID:  "!11223344",
 			ToNodeID:    "!a55e5e56",
-			ForwardPath: []string{"!a55e5e56", "!9028d008"},
+			ForwardPath: []string{"!a55e5e56", "!11223344"},
 		},
 	})
 	if reply.suppressPacketLog || reply.lifecycle != nil {
@@ -290,7 +290,7 @@ func TestServiceTracerouteLogDecisionSuppressesMatchedPacketRows(t *testing.T) {
 			Role:       "request",
 			RequestID:  321,
 			FromNodeID: "!a55e5e56",
-			ToNodeID:   "!9028d008",
+			ToNodeID:   "!11223344",
 		},
 		PacketID: 101,
 	}, "LongFast", start)
@@ -305,7 +305,7 @@ func TestServiceTracerouteLogDecisionSuppressesMatchedPacketRows(t *testing.T) {
 			Status:      "completed",
 			RequestID:   321,
 			ReplyID:     101,
-			ForwardPath: []string{"!a55e5e56", "!01020304", "!9028d008"},
+			ForwardPath: []string{"!a55e5e56", "!01020304", "!11223344"},
 		},
 		PacketID: 202,
 	}, "LongFast", start.Add(time.Second))

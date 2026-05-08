@@ -570,7 +570,7 @@ describe('LogPage', () => {
         details: {
           sender_node_id: '!a55e5e56',
           destination_node_id: '!698509f8',
-          gateway_id: '!9028d008',
+          gateway_id: '!11223344',
           packet_id: 3350416627,
           pki_encrypted: true
         }

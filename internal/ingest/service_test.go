@@ -105,7 +105,7 @@ func TestHandleMapReportMergesNodeAndPositionFields(t *testing.T) {
 	alt := 131.0
 	now := time.Now().UTC()
 	evt := meshtastic.ParsedEvent{
-		NodeID: "!9028d008",
+		NodeID: "!11223344",
 		MapReport: &meshtastic.MapReportPayload{
 			LongName:               "arkh-07",
 			ShortName:              "am07",
@@ -124,7 +124,7 @@ func TestHandleMapReportMergesNodeAndPositionFields(t *testing.T) {
 		},
 	}
 
-	ok := svc.handleMapReport(context.Background(), evt, now)
+	ok := svc.handleMapReport(context.Background(), evt, "!11223344", now)
 	if !ok {
 		t.Fatalf("expected map report to be processed")
 	}
@@ -169,20 +169,20 @@ func TestLogEventFromParsedTracerouteUsesSemanticDetails(t *testing.T) {
 
 	event, ok := svc.logEventFromParsed(meshtastic.ParsedEvent{
 		Kind:   meshtastic.ParsedTraceroute,
-		NodeID: "!9028d008",
+		NodeID: "!11223344",
 		Traceroute: &meshtastic.TraceroutePayload{
 			Role:                "reply",
 			Status:              "completed",
 			RequestID:           321,
 			ReplyID:             654,
-			FromNodeID:          "!9028d008",
+			FromNodeID:          "!11223344",
 			ToNodeID:            "!a55e5e56",
 			Route:               []string{"!01020304"},
 			SnrTowards:          []int32{22},
 			RouteBack:           []string{"!0a0b0c0d"},
 			SnrBack:             []int32{12},
-			ForwardPath:         []string{"!a55e5e56", "!01020304", "!9028d008"},
-			ReturnPath:          []string{"!9028d008", "!0a0b0c0d", "!a55e5e56"},
+			ForwardPath:         []string{"!a55e5e56", "!01020304", "!11223344"},
+			ReturnPath:          []string{"!11223344", "!0a0b0c0d", "!a55e5e56"},
 			InferredForwardPath: true,
 			InferredDirect:      false,
 			WantResponse:        false,
@@ -220,11 +220,11 @@ func TestLogEventFromParsedRoutingKeepsTracerouteFailureSignal(t *testing.T) {
 
 	event, ok := svc.logEventFromParsed(meshtastic.ParsedEvent{
 		Kind:   meshtastic.ParsedRouting,
-		NodeID: "!9028d008",
+		NodeID: "!11223344",
 		Routing: &meshtastic.RoutingPayload{
 			Variant:       meshtastic.RoutingVariantError,
 			RequestID:     321,
-			FromNodeID:    "!9028d008",
+			FromNodeID:    "!11223344",
 			ToNodeID:      "!a55e5e56",
 			ErrorReason:   "NO_ROUTE",
 			TracerouteRef: true,
@@ -245,7 +245,7 @@ func TestLogEventFromParsedRoutingKeepsTracerouteFailureSignal(t *testing.T) {
 
 	event, ok = svc.logEventFromParsed(meshtastic.ParsedEvent{
 		Kind:   meshtastic.ParsedRouting,
-		NodeID: "!9028d008",
+		NodeID: "!11223344",
 		Routing: &meshtastic.RoutingPayload{
 			Variant:       meshtastic.RoutingVariantError,
 			RequestID:     321,
@@ -267,7 +267,7 @@ func TestLogEventFromParsedRangeTestUsesDedicatedKindWithoutFallbackDetails(t *t
 
 	event, ok := svc.logEventFromParsed(meshtastic.ParsedEvent{
 		Kind:    meshtastic.ParsedOtherPortnum,
-		NodeID:  "!9028d008",
+		NodeID:  "!11223344",
 		Portnum: generated.PortNum_RANGE_TEST_APP,
 		Other: &meshtastic.OtherPortnumPayload{
 			PortnumValue: int32(generated.PortNum_RANGE_TEST_APP),
@@ -291,7 +291,7 @@ func TestLogEventFromParsedOtherPortnumKeepsFallbackDetails(t *testing.T) {
 
 	event, ok := svc.logEventFromParsed(meshtastic.ParsedEvent{
 		Kind:    meshtastic.ParsedOtherPortnum,
-		NodeID:  "!9028d008",
+		NodeID:  "!11223344",
 		Portnum: generated.PortNum_SERIAL_APP,
 		Other: &meshtastic.OtherPortnumPayload{
 			PortnumValue: int32(generated.PortNum_SERIAL_APP),
@@ -322,7 +322,7 @@ func TestLogEventFromParsedPKIUsesDedicatedKindWithOuterHeaderDetails(t *testing
 		PKI: &meshtastic.PKIPayload{
 			SenderNodeID:      "!a55e5e56",
 			DestinationNodeID: "!698509f8",
-			GatewayID:         "!9028d008",
+			GatewayID:         "!11223344",
 			TopicChannel:      "PKI",
 			EnvelopeChannelID: "PKI",
 			PacketID:          3350416627,
@@ -341,7 +341,7 @@ func TestLogEventFromParsedPKIUsesDedicatedKindWithOuterHeaderDetails(t *testing
 	if event.EventKind != domain.LogEventKindPKIValue {
 		t.Fatalf("unexpected event kind: %v", event.EventKind)
 	}
-	if event.Details["gateway_id"] != "!9028d008" || event.Details["destination_node_id"] != "!698509f8" {
+	if event.Details["gateway_id"] != "!11223344" || event.Details["destination_node_id"] != "!698509f8" {
 		t.Fatalf("unexpected PKI details: %#v", event.Details)
 	}
 	if event.Details["pki_encrypted"] != true || event.Details["payload_size_bytes"] != 79 {
@@ -361,7 +361,7 @@ func TestHandleMessagePersistsPKILogEvent(t *testing.T) {
 
 	envelopePayload, err := proto.Marshal(&generated.ServiceEnvelope{
 		ChannelId: "PKI",
-		GatewayId: "!9028d008",
+		GatewayId: "!11223344",
 		Packet: &generated.MeshPacket{
 			From:         0xa55e5e56,
 			To:           0x698509f8,
@@ -378,7 +378,7 @@ func TestHandleMessagePersistsPKILogEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	svc.HandleMessage(context.Background(), "msh/RU/ARKH/2/e/PKI/!9028d008", envelopePayload)
+	svc.HandleMessage(context.Background(), "msh/RU/ARKH/2/e/PKI/!11223344", envelopePayload)
 
 	if store.lastLogEvent == nil {
 		t.Fatalf("expected PKI log event to persist")
@@ -386,7 +386,7 @@ func TestHandleMessagePersistsPKILogEvent(t *testing.T) {
 	if store.lastLogEvent.EventKind != domain.LogEventKindPKIValue {
 		t.Fatalf("unexpected event kind: %#v", store.lastLogEvent)
 	}
-	if store.lastLogEvent.Details["gateway_id"] != "!9028d008" {
+	if store.lastLogEvent.Details["gateway_id"] != "!11223344" {
 		t.Fatalf("unexpected gateway details: %#v", store.lastLogEvent.Details)
 	}
 	if store.lastLogEvent.Details["topic_channel"] != "PKI" {
@@ -409,10 +409,10 @@ func TestHandleMessagePersistsPKILogEventForPKITopicWithoutPKIFlag(t *testing.T)
 
 	envelopePayload, err := proto.Marshal(&generated.ServiceEnvelope{
 		ChannelId: "PKI",
-		GatewayId: "!9028d008",
+		GatewayId: "!11223344",
 		Packet: &generated.MeshPacket{
 			From:     0xa55e5e56,
-			To:       0x9028d008,
+			To:       0x11223344,
 			Id:       3350416642,
 			HopStart: 7,
 			HopLimit: 7,
@@ -425,7 +425,7 @@ func TestHandleMessagePersistsPKILogEventForPKITopicWithoutPKIFlag(t *testing.T)
 		t.Fatal(err)
 	}
 
-	svc.HandleMessage(context.Background(), "msh/RU/ARKH/2/e/PKI/!9028d008", envelopePayload)
+	svc.HandleMessage(context.Background(), "msh/RU/ARKH/2/e/PKI/!11223344", envelopePayload)
 
 	if store.lastLogEvent == nil {
 		t.Fatalf("expected PKI log event to persist")
@@ -436,10 +436,10 @@ func TestHandleMessagePersistsPKILogEventForPKITopicWithoutPKIFlag(t *testing.T)
 	if store.lastLogEvent.Details["pki_encrypted"] != false {
 		t.Fatalf("expected PKI log details to preserve wire flag, got %#v", store.lastLogEvent.Details)
 	}
-	if store.lastLogEvent.Details["destination_node_id"] != "!9028d008" {
+	if store.lastLogEvent.Details["destination_node_id"] != "!11223344" {
 		t.Fatalf("unexpected destination details: %#v", store.lastLogEvent.Details)
 	}
-	if !sawNode(store.nodesSeen, "!9028d008") {
+	if !sawNode(store.nodesSeen, "!11223344") {
 		t.Fatalf("expected destination node evidence, got %#v", store.nodesSeen)
 	}
 }
@@ -454,9 +454,9 @@ func TestHandleMessagePersistsPKILogEventWithoutConfiguredPKIChannel(t *testing.
 
 	envelopePayload, err := proto.Marshal(&generated.ServiceEnvelope{
 		ChannelId: "PKI",
-		GatewayId: "!9028d008",
+		GatewayId: "!11223344",
 		Packet: &generated.MeshPacket{
-			From:         0x9028d008,
+			From:         0x11223344,
 			To:           0xa55e5e56,
 			Id:           3986283477,
 			HopStart:     2,
@@ -472,7 +472,7 @@ func TestHandleMessagePersistsPKILogEventWithoutConfiguredPKIChannel(t *testing.
 		t.Fatal(err)
 	}
 
-	svc.HandleMessage(context.Background(), "msh/RU/ARKH/2/e/PKI/!9028d008", envelopePayload)
+	svc.HandleMessage(context.Background(), "msh/RU/ARKH/2/e/PKI/!11223344", envelopePayload)
 
 	if store.lastLogEvent == nil {
 		t.Fatalf("expected PKI log event to persist")
@@ -486,7 +486,7 @@ func TestHandleMessagePersistsPKILogEventWithoutConfiguredPKIChannel(t *testing.
 	if !sawNode(store.nodesSeen, "!a55e5e56") {
 		t.Fatalf("expected destination node evidence, got %#v", store.nodesSeen)
 	}
-	if !sawNode(store.nodesSeen, "!9028d008") {
+	if !sawNode(store.nodesSeen, "!11223344") {
 		t.Fatalf("expected sender/gateway node evidence, got %#v", store.nodesSeen)
 	}
 }
@@ -523,7 +523,7 @@ func TestHandleChatEmitsResolvedNodeDisplay(t *testing.T) {
 func TestPersistLogEvent_EmitsResolvedNodeDisplayName(t *testing.T) {
 	store := &testStore{}
 	store.GetNodeDetailsFn = func(_ context.Context, nodeID string) (repo.NodeDetails, error) {
-		if nodeID != "!9028d008" {
+		if nodeID != "!11223344" {
 			t.Fatalf("unexpected node id lookup: %q", nodeID)
 		}
 
@@ -548,7 +548,7 @@ func TestPersistLogEvent_EmitsResolvedNodeDisplayName(t *testing.T) {
 
 	svc.persistLogEvent(context.Background(), domain.LogEvent{
 		ObservedAt: now,
-		NodeID:     "!9028d008",
+		NodeID:     "!11223344",
 		EventKind:  domain.LogEventKindRoutingValue,
 		Encrypted:  true,
 		Channel:    "LongFast",
@@ -573,20 +573,20 @@ func TestCollectNodeEvidenceTracksMQTTGatewaySeparatelyFromSender(t *testing.T) 
 	}, meshtastic.TopicInfo{
 		Kind:       meshtastic.TopicKindChannel,
 		Channel:    "LongFast",
-		GatewayID:  "!9028d008",
+		GatewayID:  "!11223344",
 		IsFromMQTT: true,
-	}, "!9028d008", time.Unix(1772296589, 0).UTC())
+	}, "!11223344", time.Unix(1772296589, 0).UTC())
 
 	if len(evidences) != 2 {
 		t.Fatalf("expected sender and gateway evidence, got %#v", evidences)
 	}
-	if evidences[0].NodeID != "!9028d008" || !evidences[0].MQTTConnected || !evidences[0].MQTTGatewayCapable {
+	if evidences[0].NodeID != "!11223344" || !evidences[0].MQTTConnected || !evidences[0].MQTTGatewayCapable {
 		t.Fatalf("unexpected gateway evidence: %#v", evidences[0])
 	}
 	if evidences[1].NodeID != "!a55e5e56" || evidences[1].MQTTConnected {
 		t.Fatalf("unexpected sender evidence: %#v", evidences[1])
 	}
-	if evidences[1].MQTTUploaderNodeID != "!9028d008" || evidences[1].MQTTUploaderAt == nil {
+	if evidences[1].MQTTUploaderNodeID != "!11223344" || evidences[1].MQTTUploaderAt == nil {
 		t.Fatalf("expected sender uploader provenance, got %#v", evidences[1])
 	}
 	if evidences[0].MQTTUploaderNodeID != "" {
@@ -688,9 +688,9 @@ func TestUpsertNodeEvidenceSetDiscoversIndirectNodesFromNeighborInfo(t *testing.
 	}, meshtastic.TopicInfo{
 		Kind:       meshtastic.TopicKindChannel,
 		Channel:    "LongFast",
-		GatewayID:  "!9028d008",
+		GatewayID:  "!11223344",
 		IsFromMQTT: true,
-	}, "LongFast", "!9028d008", now)
+	}, "LongFast", "!11223344", now)
 	if !ok {
 		t.Fatalf("expected neighbor evidence upserts to succeed")
 	}
@@ -698,7 +698,7 @@ func TestUpsertNodeEvidenceSetDiscoversIndirectNodesFromNeighborInfo(t *testing.
 	if len(store.nodesSeen) != 4 {
 		t.Fatalf("expected reporter, gateway, and two neighbors, got %#v", store.nodesSeen)
 	}
-	for _, nodeID := range []string{"!49b5976c", "!9028d008", "!11111111", "!22222222"} {
+	for _, nodeID := range []string{"!49b5976c", "!11223344", "!11111111", "!22222222"} {
 		if !sawNode(store.nodesSeen, nodeID) {
 			t.Fatalf("expected node %s in evidence upserts: %#v", nodeID, store.nodesSeen)
 		}
@@ -743,29 +743,29 @@ func TestUpsertNodeEvidenceSetDiscoversIndirectNodesFromTracerouteAndRouting(t *
 	now := time.Unix(1772296589, 0).UTC()
 	if !svc.upsertNodeEvidenceSet(context.Background(), meshtastic.ParsedEvent{
 		Kind:   meshtastic.ParsedTraceroute,
-		NodeID: "!9028d008",
+		NodeID: "!11223344",
 		Traceroute: &meshtastic.TraceroutePayload{
 			Role:        "reply",
 			Status:      "completed",
-			FromNodeID:  "!9028d008",
+			FromNodeID:  "!11223344",
 			ToNodeID:    "!a55e5e56",
-			ForwardPath: []string{"!a55e5e56", "!01020304", "!9028d008"},
-			ReturnPath:  []string{"!9028d008", "!0a0b0c0d", "!a55e5e56"},
+			ForwardPath: []string{"!a55e5e56", "!01020304", "!11223344"},
+			ReturnPath:  []string{"!11223344", "!0a0b0c0d", "!a55e5e56"},
 		},
 	}, meshtastic.TopicInfo{
 		Kind:       meshtastic.TopicKindChannel,
 		Channel:    "LongFast",
-		GatewayID:  "!9028d008",
+		GatewayID:  "!11223344",
 		IsFromMQTT: true,
-	}, "LongFast", "!9028d008", now) {
+	}, "LongFast", "!11223344", now) {
 		t.Fatalf("expected traceroute evidence upserts to succeed")
 	}
 	if !svc.upsertNodeEvidenceSet(context.Background(), meshtastic.ParsedEvent{
 		Kind:   meshtastic.ParsedRouting,
-		NodeID: "!9028d008",
+		NodeID: "!11223344",
 		Routing: &meshtastic.RoutingPayload{
 			Variant:    meshtastic.RoutingVariantReply,
-			FromNodeID: "!9028d008",
+			FromNodeID: "!11223344",
 			ToNodeID:   "!abcdef01",
 			Route:      []string{"!22222222"},
 			RouteBack:  []string{"!33333333"},
@@ -773,13 +773,13 @@ func TestUpsertNodeEvidenceSetDiscoversIndirectNodesFromTracerouteAndRouting(t *
 	}, meshtastic.TopicInfo{
 		Kind:       meshtastic.TopicKindChannel,
 		Channel:    "LongFast",
-		GatewayID:  "!9028d008",
+		GatewayID:  "!11223344",
 		IsFromMQTT: true,
-	}, "LongFast", "!9028d008", now) {
+	}, "LongFast", "!11223344", now) {
 		t.Fatalf("expected routing evidence upserts to succeed")
 	}
 
-	for _, nodeID := range []string{"!9028d008", "!a55e5e56", "!01020304", "!0a0b0c0d", "!abcdef01", "!22222222", "!33333333"} {
+	for _, nodeID := range []string{"!11223344", "!a55e5e56", "!01020304", "!0a0b0c0d", "!abcdef01", "!22222222", "!33333333"} {
 		if !sawNode(store.nodesSeen, nodeID) {
 			t.Fatalf("expected node %s in indirect discovery set: %#v", nodeID, store.nodesSeen)
 		}
@@ -826,10 +826,10 @@ func TestTopologyEdgesFromParsedTracerouteAndRoutingStayDistinct(t *testing.T) {
 
 	tracerouteEdges := topologyEdgesFromParsed(meshtastic.ParsedEvent{
 		Kind:   meshtastic.ParsedTraceroute,
-		NodeID: "!9028d008",
+		NodeID: "!11223344",
 		Traceroute: &meshtastic.TraceroutePayload{
-			ForwardPath:         []string{"!a55e5e56", "!01020304", "!9028d008"},
-			ReturnPath:          []string{"!9028d008", "!0a0b0c0d", "!a55e5e56"},
+			ForwardPath:         []string{"!a55e5e56", "!01020304", "!11223344"},
+			ReturnPath:          []string{"!11223344", "!0a0b0c0d", "!a55e5e56"},
 			InferredForwardPath: true,
 		},
 	}, "LongFast", now)
@@ -845,9 +845,9 @@ func TestTopologyEdgesFromParsedTracerouteAndRoutingStayDistinct(t *testing.T) {
 
 	routingEdges := topologyEdgesFromParsed(meshtastic.ParsedEvent{
 		Kind:   meshtastic.ParsedRouting,
-		NodeID: "!9028d008",
+		NodeID: "!11223344",
 		Routing: &meshtastic.RoutingPayload{
-			FromNodeID: "!9028d008",
+			FromNodeID: "!11223344",
 			ToNodeID:   "!abcdef01",
 			Route:      []string{"!22222222"},
 			RouteBack:  []string{"!33333333"},
@@ -856,7 +856,7 @@ func TestTopologyEdgesFromParsedTracerouteAndRoutingStayDistinct(t *testing.T) {
 	if len(routingEdges) != 4 {
 		t.Fatalf("expected 4 routing edges, got %#v", routingEdges)
 	}
-	if routingEdges[0].SourceKind != domain.TopologySourceRoutingForward || routingEdges[0].FromNodeID != "!9028d008" || routingEdges[0].ToNodeID != "!22222222" {
+	if routingEdges[0].SourceKind != domain.TopologySourceRoutingForward || routingEdges[0].FromNodeID != "!11223344" || routingEdges[0].ToNodeID != "!22222222" {
 		t.Fatalf("unexpected routing forward edge: %#v", routingEdges[0])
 	}
 	if routingEdges[2].SourceKind != domain.TopologySourceRoutingReturn || routingEdges[2].FromNodeID != "!abcdef01" || routingEdges[2].ToNodeID != "!33333333" {
@@ -869,10 +869,10 @@ func TestTopologyEdgesFromParsedRoutingErrorWithoutRouteSkipsTopology(t *testing
 
 	edges := topologyEdgesFromParsed(meshtastic.ParsedEvent{
 		Kind:   meshtastic.ParsedRouting,
-		NodeID: "!9028d008",
+		NodeID: "!11223344",
 		Routing: &meshtastic.RoutingPayload{
 			Variant:     meshtastic.RoutingVariantError,
-			FromNodeID:  "!9028d008",
+			FromNodeID:  "!11223344",
 			ToNodeID:    "!abcdef01",
 			ErrorReason: "NO_ROUTE",
 		},
@@ -934,7 +934,7 @@ func TestHandleMessagePersistsTopologyEdgesForSecondaryChannel(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	svc.HandleMessage(context.Background(), "msh/RU/ARKH/e/LongSlow/!9028d008", envelopePayload)
+	svc.HandleMessage(context.Background(), "msh/RU/ARKH/e/LongSlow/!11223344", envelopePayload)
 
 	if len(store.topologySeen) != 1 {
 		t.Fatalf("expected topology edge to persist for secondary channel, got %#v", store.topologySeen)

@@ -23,7 +23,7 @@ func TestParseServiceEnvelopeEncryptedLongFast(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	from := uint32(0x9028d008)
+	from := uint32(0x11223344)
 	packetID := uint32(77)
 	key := append([]byte(nil), defaultChannelKeyExpandedBytes[:]...)
 	ciphertext := encryptCTR(plain, from, packetID, key)
@@ -53,7 +53,7 @@ func TestParseServiceEnvelopeEncryptedLongFast(t *testing.T) {
 	if evt.Kind != ParsedChat {
 		t.Fatalf("expected chat, got %s", evt.Kind)
 	}
-	if evt.NodeID != "!9028d008" {
+	if evt.NodeID != "!11223344" {
 		t.Fatalf("unexpected node id: %q", evt.NodeID)
 	}
 	if evt.Chat == nil || evt.Chat.Text != "secret hello" {
