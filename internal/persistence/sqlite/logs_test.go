@@ -84,6 +84,38 @@ func TestListLogEvents_WithFiltersAndDisplayName(t *testing.T) {
 	}
 }
 
+func TestInsertLogEvent_CachesChannelIDs(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, config.SQLConfig{URL: "file::memory:?cache=shared", AutoMigrate: true}, nil)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	now := time.Now().UTC()
+	for i := 0; i < 2; i++ {
+		if _, err := s.InsertLogEvent(ctx, domain.LogEvent{
+			ObservedAt: now.Add(time.Duration(i) * time.Second),
+			NodeID:     "!cccc3333",
+			EventKind:  domain.LogEventKindTelemetryValue,
+			Channel:    "LongFast",
+		}); err != nil {
+			t.Fatalf("insert log event #%d: %v", i+1, err)
+		}
+	}
+
+	var channels int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM log_channels`).Scan(&channels); err != nil {
+		t.Fatalf("count log channels: %v", err)
+	}
+	if channels != 1 {
+		t.Fatalf("expected exactly one log channel row, got %d", channels)
+	}
+	if len(s.logChannelIDs) != 1 {
+		t.Fatalf("expected one cached log channel id, got %d", len(s.logChannelIDs))
+	}
+}
+
 func TestInsertLogEvent_PrunesByMaxRows(t *testing.T) {
 	ctx := context.Background()
 	s, err := Open(ctx, config.SQLConfig{

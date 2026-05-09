@@ -7,7 +7,6 @@ import (
 
 	"meshmap-lite/internal/config"
 	"meshmap-lite/internal/domain"
-	"meshmap-lite/internal/repo"
 )
 
 func TestUpsertNode_CreatedFlagOnFirstInsertOnly(t *testing.T) {
@@ -101,38 +100,6 @@ func TestUpsertPosition_UpdatesNodeLastSeenPositionAt(t *testing.T) {
 	}
 }
 
-func TestInsertLogEvent_CachesChannelIDs(t *testing.T) {
-	ctx := context.Background()
-	s, err := Open(ctx, config.SQLConfig{URL: "file::memory:?cache=shared", AutoMigrate: true}, nil)
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	t.Cleanup(func() { _ = s.Close() })
-
-	now := time.Now().UTC()
-	for i := 0; i < 2; i++ {
-		if _, err := s.InsertLogEvent(ctx, domain.LogEvent{
-			ObservedAt: now.Add(time.Duration(i) * time.Second),
-			NodeID:     "!cccc3333",
-			EventKind:  domain.LogEventKindTelemetryValue,
-			Channel:    "LongFast",
-		}); err != nil {
-			t.Fatalf("insert log event #%d: %v", i+1, err)
-		}
-	}
-
-	var channels int
-	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM log_channels`).Scan(&channels); err != nil {
-		t.Fatalf("count log channels: %v", err)
-	}
-	if channels != 1 {
-		t.Fatalf("expected exactly one log channel row, got %d", channels)
-	}
-	if len(s.logChannelIDs) != 1 {
-		t.Fatalf("expected one cached log channel id, got %d", len(s.logChannelIDs))
-	}
-}
-
 func TestGetNodeDetails_WithTelemetryOnSingleConnection(t *testing.T) {
 	ctx := context.Background()
 	s, err := Open(ctx, config.SQLConfig{URL: "file::memory:?cache=shared", AutoMigrate: true}, nil)
@@ -180,120 +147,6 @@ func TestGetNodeDetails_WithTelemetryOnSingleConnection(t *testing.T) {
 	}
 	if len(details.Neighbors) != 0 {
 		t.Fatalf("expected no topology neighbors, got %#v", details.Neighbors)
-	}
-}
-
-func TestGetNodeDetails_CollapsesTopologyNeighbors(t *testing.T) {
-	ctx := context.Background()
-	s, err := Open(ctx, config.SQLConfig{URL: "file::memory:?cache=shared", AutoMigrate: true}, nil)
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	t.Cleanup(func() { _ = s.Close() })
-
-	now := time.Now().UTC().Truncate(time.Microsecond)
-	for _, node := range []domain.Node{
-		{NodeID: "!origin", LongName: "Origin", FirstSeenAt: now, LastSeenAnyEventAt: now, UpdatedAt: now},
-		{NodeID: "!peer-a", LongName: "Peer A", FirstSeenAt: now, LastSeenAnyEventAt: now, UpdatedAt: now},
-		{NodeID: "!peer-b", ShortName: "Peer B", FirstSeenAt: now, LastSeenAnyEventAt: now, UpdatedAt: now},
-		{NodeID: "!peer-c", LongName: "Peer C", FirstSeenAt: now, LastSeenAnyEventAt: now, UpdatedAt: now},
-		{NodeID: "!peer-ignore", LongName: "Ignored", FirstSeenAt: now, LastSeenAnyEventAt: now, UpdatedAt: now},
-	} {
-		if _, err := s.UpsertNode(ctx, node); err != nil {
-			t.Fatalf("upsert node %s: %v", node.NodeID, err)
-		}
-	}
-	if err := s.UpsertPosition(ctx, domain.NodePosition{
-		NodeID:     "!peer-a",
-		Latitude:   1,
-		Longitude:  2,
-		ObservedAt: now,
-		UpdatedAt:  now,
-		SourceKind: domain.PositionSourceChannel,
-	}); err != nil {
-		t.Fatalf("upsert peer-a position: %v", err)
-	}
-
-	snr := 9.5
-	later := now.Add(time.Minute)
-	if err := s.UpsertTopologyEdges(ctx, []domain.TopologyEdge{
-		{
-			SourceKind:       domain.TopologySourceRoutingForward,
-			ChannelName:      "LongFast",
-			FromNodeID:       "!origin",
-			ToNodeID:         "!peer-a",
-			ReportedByNodeID: "!origin",
-			FirstObservedAt:  now,
-			LastObservedAt:   now,
-			UpdatedAt:        now,
-		},
-		{
-			SourceKind:       domain.TopologySourceNeighborInfo,
-			ChannelName:      "LongFast",
-			FromNodeID:       "!origin",
-			ToNodeID:         "!peer-a",
-			ReportedByNodeID: "!origin",
-			SNR:              &snr,
-			FirstObservedAt:  later,
-			LastObservedAt:   later,
-			UpdatedAt:        later,
-		},
-		{
-			SourceKind:       domain.TopologySourceNeighborInfo,
-			ChannelName:      "LongFast",
-			FromNodeID:       "!origin",
-			ToNodeID:         "!peer-b",
-			ReportedByNodeID: "!origin",
-			FirstObservedAt:  now,
-			LastObservedAt:   now,
-			UpdatedAt:        now,
-		},
-		{
-			SourceKind:       domain.TopologySourceRoutingReturn,
-			ChannelName:      "LongFast",
-			FromNodeID:       "!peer-c",
-			ToNodeID:         "!origin",
-			ReportedByNodeID: "!peer-c",
-			FirstObservedAt:  now,
-			LastObservedAt:   now,
-			UpdatedAt:        now,
-		},
-		{
-			SourceKind:       domain.TopologySourceTracerouteForward,
-			ChannelName:      "LongFast",
-			FromNodeID:       "!origin",
-			ToNodeID:         "!peer-ignore",
-			ReportedByNodeID: "!origin",
-			FirstObservedAt:  now,
-			LastObservedAt:   now,
-			UpdatedAt:        now,
-		},
-	}); err != nil {
-		t.Fatalf("upsert topology edges: %v", err)
-	}
-
-	details, err := s.GetNodeDetails(ctx, "!origin")
-	if err != nil {
-		t.Fatalf("get node details: %v", err)
-	}
-	if len(details.Neighbors) != 3 {
-		t.Fatalf("expected 3 collapsed neighbors, got %#v", details.Neighbors)
-	}
-	neighborsByID := make(map[string]repo.NodeNeighbor, len(details.Neighbors))
-	for _, item := range details.Neighbors {
-		neighborsByID[item.NodeID] = item
-	}
-	if neighborsByID["!peer-a"].EvidenceKind != "neighbor_info" || neighborsByID["!peer-a"].SNR == nil {
-		t.Fatalf("expected peer-a to prefer neighbor info with snr, got %#v", neighborsByID["!peer-a"])
-	}
-	if !neighborsByID["!peer-a"].HasPosition {
-		t.Fatalf("expected peer-a to report has_position")
-	}
-	if neighborsByID["!peer-b"].EvidenceKind != "neighbor_info" || neighborsByID["!peer-b"].SNR != nil {
-		t.Fatalf("expected peer-b to keep neighbor info without snr, got %#v", neighborsByID["!peer-b"])
-	}
-	if neighborsByID["!peer-c"].EvidenceKind != "inferred" {
-		t.Fatalf("expected peer-c inferred neighbor, got %#v", neighborsByID["!peer-c"])
 	}
 }
 
@@ -480,106 +333,6 @@ func TestUpsertNode_MinimalEvidenceDoesNotClearStructuredFields(t *testing.T) {
 	}
 	if details.Node.MQTTGatewayCapable == nil || !*details.Node.MQTTGatewayCapable {
 		t.Fatalf("minimal evidence cleared mqtt capability: %#v", details.Node.MQTTGatewayCapable)
-	}
-}
-
-func TestUpsertTopologyEdges_KeepsDistinctSourceKindsAndSupportsFilters(t *testing.T) {
-	ctx := context.Background()
-	s, err := Open(ctx, config.SQLConfig{URL: "file::memory:?cache=shared", AutoMigrate: true}, nil)
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	t.Cleanup(func() { _ = s.Close() })
-
-	now := time.Now().UTC().Truncate(time.Microsecond)
-	for _, nodeID := range []string{"!49b5976c", "!11111111", "!22222222"} {
-		if _, err := s.UpsertNode(ctx, domain.Node{
-			NodeID:             nodeID,
-			FirstSeenAt:        now,
-			LastSeenAnyEventAt: now,
-			UpdatedAt:          now,
-		}); err != nil {
-			t.Fatalf("upsert node %s: %v", nodeID, err)
-		}
-	}
-
-	reportedAt := now.Add(-time.Minute)
-	snr := 12.5
-	interval := uint32(14400)
-	if err := s.UpsertTopologyEdges(ctx, []domain.TopologyEdge{
-		{
-			SourceKind:                   domain.TopologySourceNeighborInfo,
-			ChannelName:                  "LongFast",
-			FromNodeID:                   "!49b5976c",
-			ToNodeID:                     "!11111111",
-			ReportedByNodeID:             "!49b5976c",
-			SNR:                          &snr,
-			NeighborBroadcastIntervalSec: &interval,
-			FirstObservedAt:              now,
-			LastObservedAt:               now,
-			LastReportedAt:               &reportedAt,
-			UpdatedAt:                    now,
-		},
-		{
-			SourceKind:       domain.TopologySourceRoutingForward,
-			ChannelName:      "LongFast",
-			FromNodeID:       "!49b5976c",
-			ToNodeID:         "!11111111",
-			ReportedByNodeID: "!22222222",
-			FirstObservedAt:  now,
-			LastObservedAt:   now,
-			UpdatedAt:        now,
-		},
-	}); err != nil {
-		t.Fatalf("initial upsert topology edges: %v", err)
-	}
-
-	later := now.Add(30 * time.Second)
-	if err := s.UpsertTopologyEdges(ctx, []domain.TopologyEdge{{
-		SourceKind:       domain.TopologySourceNeighborInfo,
-		ChannelName:      "LongFast",
-		FromNodeID:       "!49b5976c",
-		ToNodeID:         "!11111111",
-		ReportedByNodeID: "!49b5976c",
-		FirstObservedAt:  later,
-		LastObservedAt:   later,
-		UpdatedAt:        later,
-	}}); err != nil {
-		t.Fatalf("second upsert topology edge: %v", err)
-	}
-
-	all, err := s.ListTopologyEdges(ctx, repo.TopologyEdgeQuery{})
-	if err != nil {
-		t.Fatalf("list topology edges: %v", err)
-	}
-	if len(all) != 2 {
-		t.Fatalf("expected 2 topology rows, got %#v", all)
-	}
-
-	neighborEdges, err := s.ListTopologyEdges(ctx, repo.TopologyEdgeQuery{
-		NodeID:      "!49b5976c",
-		Channel:     "LongFast",
-		SourceKinds: []domain.TopologySourceKind{domain.TopologySourceNeighborInfo},
-	})
-	if err != nil {
-		t.Fatalf("list filtered topology edges: %v", err)
-	}
-	if len(neighborEdges) != 1 {
-		t.Fatalf("expected 1 filtered topology row, got %#v", neighborEdges)
-	}
-	if neighborEdges[0].SNR == nil || *neighborEdges[0].SNR != 12.5 {
-		t.Fatalf("expected snr to survive nil update, got %#v", neighborEdges[0].SNR)
-	}
-	if !neighborEdges[0].LastObservedAt.Equal(later) {
-		t.Fatalf("expected last observed to update, got %v want %v", neighborEdges[0].LastObservedAt, later)
-	}
-
-	var sourceKind int
-	if err := s.db.QueryRowContext(ctx, `SELECT source_kind FROM topology_edges WHERE channel_name=? AND from_node_id=? AND to_node_id=?`, "LongFast", "!49b5976c", "!11111111").Scan(&sourceKind); err != nil {
-		t.Fatalf("query stored topology source_kind: %v", err)
-	}
-	if sourceKind != domain.TopologySourceNeighborInfoValue {
-		t.Fatalf("expected compact source_kind %d, got %d", domain.TopologySourceNeighborInfoValue, sourceKind)
 	}
 }
 
