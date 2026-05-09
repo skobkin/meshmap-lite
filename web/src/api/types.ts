@@ -99,6 +99,15 @@ export interface NodeDetails {
   position?: NodePosition
   telemetry?: NodeTelemetry
   neighbors?: NodeNeighbor[]
+  previous_names?: NodeNameHistory[]
+}
+
+export interface NodeNameHistory {
+  previous_long_name?: string
+  previous_short_name?: string
+  new_long_name?: string
+  new_short_name?: string
+  changed_at: string
 }
 
 export interface TopologyEdge {

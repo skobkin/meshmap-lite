@@ -1,3 +1,4 @@
+import { Fragment } from 'preact'
 import { useState } from 'preact/hooks'
 
 import { LogEventList } from '../components/LogEventList'
@@ -57,6 +58,15 @@ function row(label: string, value: ComponentChildren | null): DetailRow | null {
 
 function compactRows(rows: (DetailRow | null)[]): DetailRow[] {
   return rows.filter((item): item is DetailRow => item !== null)
+}
+
+function previousNameLabel(item: NonNullable<NodeDetails['previous_names']>[number]): string | null {
+  const parts = [
+    item.previous_long_name ? `Long: ${item.previous_long_name}` : null,
+    item.previous_short_name ? `Short: ${item.previous_short_name}` : null
+  ].filter((part): part is string => part !== null)
+
+  return parts.length > 0 ? parts.join(' / ') : null
 }
 
 function detailSections(details: NodeDetails): DetailSection[] {
@@ -163,6 +173,9 @@ export function NodesPage({
 }: Props): JSX.Element {
   const [filter, setFilter] = useState('')
   const sections = details ? detailSections(details) : []
+  const previousNames = (details?.previous_names ?? [])
+    .map((item) => ({ item, label: previousNameLabel(item) }))
+    .filter((entry): entry is { item: NonNullable<NodeDetails['previous_names']>[number]; label: string } => entry.label !== null)
   const neighbors = sortedNeighbors(details)
   const filteredItems = items.filter((item) => matchesFilter(item, filter))
 
@@ -198,27 +211,37 @@ export function NodesPage({
           <>
             <h3>{details.node.long_name ?? details.node.short_name ?? details.node.node_id}</h3>
             {sections.map((section) => (
-              <section key={section.title}>
-                {section.title === 'Position' && details.position ? (
-                  <div className="node-section-heading">
+              <Fragment key={section.title}>
+                <section>
+                  {section.title === 'Position' && details.position ? (
+                    <div className="node-section-heading">
+                      <h4>{section.title}</h4>
+                      <button
+                        type="button"
+                        className="node-section-map-link"
+                        aria-label="Open node on map"
+                        title="Open node on map"
+                        onClick={() => onOpenMap(details.node.node_id)}
+                      >
+                        <img className="node-section-map-icon" src={defaultMapMarkerIconURL} alt="" aria-hidden="true" />
+                      </button>
+                    </div>
+                  ) : (
                     <h4>{section.title}</h4>
-                    <button
-                      type="button"
-                      className="node-section-map-link"
-                      aria-label="Open node on map"
-                      title="Open node on map"
-                      onClick={() => onOpenMap(details.node.node_id)}
-                    >
-                      <img className="node-section-map-icon" src={defaultMapMarkerIconURL} alt="" aria-hidden="true" />
-                    </button>
-                  </div>
-                ) : (
-                  <h4>{section.title}</h4>
+                  )}
+                  {section.rows.map((item) => (
+                    <p key={item.label}>{item.label}: {item.value}</p>
+                  ))}
+                </section>
+                {section.title === 'Identity' && previousNames.length > 0 && (
+                  <section>
+                    <h4>Previously known as</h4>
+                    {previousNames.map(({ item, label }) => (
+                      <p key={`${item.changed_at}:${label}`}>{label} <span className="muted">({relativeTime(item.changed_at)})</span></p>
+                    ))}
+                  </section>
                 )}
-                {section.rows.map((item) => (
-                  <p key={item.label}>{item.label}: {item.value}</p>
-                ))}
-              </section>
+              </Fragment>
             ))}
             <section>
               <h4>Neighbors</h4>

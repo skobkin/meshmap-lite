@@ -125,7 +125,8 @@ function mergeNodeDetails(current: NodeDetails | undefined, incoming: NodeDetail
     },
     position: incoming.position ?? current?.position,
     telemetry: incoming.telemetry ?? current?.telemetry,
-    neighbors: mergedNeighbors
+    neighbors: mergedNeighbors,
+    previous_names: incoming.previous_names ?? current?.previous_names
   }
 }
 

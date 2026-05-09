@@ -56,6 +56,142 @@ func TestUpsertNode_CreatedFlagOnFirstInsertOnly(t *testing.T) {
 	}
 }
 
+func TestUpsertNode_FirstInsertWithNamesCreatesNoNameHistory(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, config.SQLConfig{URL: "file::memory:?cache=shared", AutoMigrate: true}, nil)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	if _, err := s.UpsertNode(ctx, domain.Node{
+		NodeID:             "!aaaa1111",
+		LongName:           "Alpha",
+		ShortName:          "A",
+		FirstSeenAt:        now,
+		LastSeenAnyEventAt: now,
+		UpdatedAt:          now,
+	}); err != nil {
+		t.Fatalf("upsert node: %v", err)
+	}
+
+	if got := countNodeNameHistory(t, ctx, s, "!aaaa1111"); got != 0 {
+		t.Fatalf("expected no name history on first insert, got %d", got)
+	}
+}
+
+func TestUpsertNode_RecordsNameHistoryForEffectiveChanges(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, config.SQLConfig{URL: "file::memory:?cache=shared", AutoMigrate: true}, nil)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	firstSeen := time.Now().UTC().Truncate(time.Microsecond)
+	if _, err := s.UpsertNode(ctx, domain.Node{
+		NodeID:             "!aaaa1111",
+		LongName:           "Alpha",
+		ShortName:          "A",
+		FirstSeenAt:        firstSeen,
+		LastSeenAnyEventAt: firstSeen,
+		UpdatedAt:          firstSeen,
+	}); err != nil {
+		t.Fatalf("initial upsert node: %v", err)
+	}
+
+	longChangedAt := firstSeen.Add(time.Minute)
+	if _, err := s.UpsertNode(ctx, domain.Node{
+		NodeID:             "!aaaa1111",
+		LongName:           "Bravo",
+		FirstSeenAt:        longChangedAt,
+		LastSeenAnyEventAt: longChangedAt,
+		UpdatedAt:          longChangedAt,
+	}); err != nil {
+		t.Fatalf("long-name upsert node: %v", err)
+	}
+
+	shortChangedAt := firstSeen.Add(2 * time.Minute)
+	if _, err := s.UpsertNode(ctx, domain.Node{
+		NodeID:             "!aaaa1111",
+		ShortName:          "B",
+		FirstSeenAt:        shortChangedAt,
+		LastSeenAnyEventAt: shortChangedAt,
+		UpdatedAt:          shortChangedAt,
+	}); err != nil {
+		t.Fatalf("short-name upsert node: %v", err)
+	}
+
+	details, err := s.GetNodeDetails(ctx, "!aaaa1111")
+	if err != nil {
+		t.Fatalf("get node details: %v", err)
+	}
+	if len(details.PreviousNames) != 2 {
+		t.Fatalf("expected 2 history rows, got %#v", details.PreviousNames)
+	}
+	if got := details.PreviousNames[0]; got.PreviousLongName != "Bravo" || got.PreviousShortName != "A" || got.NewLongName != "Bravo" || got.NewShortName != "B" || !got.ChangedAt.Equal(shortChangedAt) {
+		t.Fatalf("unexpected newest history row: %#v", got)
+	}
+	if got := details.PreviousNames[1]; got.PreviousLongName != "Alpha" || got.PreviousShortName != "A" || got.NewLongName != "Bravo" || got.NewShortName != "A" || !got.ChangedAt.Equal(longChangedAt) {
+		t.Fatalf("unexpected older history row: %#v", got)
+	}
+}
+
+func TestUpsertNode_NameHistoryIgnoresEmptyAndDuplicateEvidence(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, config.SQLConfig{URL: "file::memory:?cache=shared", AutoMigrate: true}, nil)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	firstSeen := time.Now().UTC().Truncate(time.Microsecond)
+	if _, err := s.UpsertNode(ctx, domain.Node{
+		NodeID:             "!aaaa1111",
+		LongName:           "Alpha",
+		ShortName:          "A",
+		FirstSeenAt:        firstSeen,
+		LastSeenAnyEventAt: firstSeen,
+		UpdatedAt:          firstSeen,
+	}); err != nil {
+		t.Fatalf("initial upsert node: %v", err)
+	}
+
+	for _, node := range []domain.Node{
+		{
+			NodeID:             "!aaaa1111",
+			FirstSeenAt:        firstSeen.Add(time.Minute),
+			LastSeenAnyEventAt: firstSeen.Add(time.Minute),
+			UpdatedAt:          firstSeen.Add(time.Minute),
+		},
+		{
+			NodeID:             "!aaaa1111",
+			LongName:           "Alpha",
+			ShortName:          "A",
+			FirstSeenAt:        firstSeen.Add(2 * time.Minute),
+			LastSeenAnyEventAt: firstSeen.Add(2 * time.Minute),
+			UpdatedAt:          firstSeen.Add(2 * time.Minute),
+		},
+	} {
+		if _, err := s.UpsertNode(ctx, node); err != nil {
+			t.Fatalf("upsert node: %v", err)
+		}
+	}
+
+	if got := countNodeNameHistory(t, ctx, s, "!aaaa1111"); got != 0 {
+		t.Fatalf("expected no name history from empty or duplicate names, got %d", got)
+	}
+
+	details, err := s.GetNodeDetails(ctx, "!aaaa1111")
+	if err != nil {
+		t.Fatalf("get node details: %v", err)
+	}
+	if details.Node.LongName != "Alpha" || details.Node.ShortName != "A" {
+		t.Fatalf("unexpected effective names: %#v", details.Node)
+	}
+}
+
 func TestUpsertPosition_UpdatesNodeLastSeenPositionAt(t *testing.T) {
 	ctx := context.Background()
 	s, err := Open(ctx, config.SQLConfig{URL: "file::memory:?cache=shared", AutoMigrate: true}, nil)
@@ -338,4 +474,15 @@ func TestUpsertNode_MinimalEvidenceDoesNotClearStructuredFields(t *testing.T) {
 
 func ptrFloat64(v float64) *float64 {
 	return &v
+}
+
+func countNodeNameHistory(t *testing.T, ctx context.Context, s *Store, nodeID string) int {
+	t.Helper()
+
+	var count int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM node_name_history WHERE node_id = ?`, nodeID).Scan(&count); err != nil {
+		t.Fatalf("count node name history: %v", err)
+	}
+
+	return count
 }

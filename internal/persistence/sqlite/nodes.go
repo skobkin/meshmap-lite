@@ -14,9 +14,52 @@ import (
 // UpsertNode inserts or updates node identity and liveness fields.
 func (s *Store) UpsertNode(ctx context.Context, n domain.Node) (bool, error) {
 	firstSeenAt := n.FirstSeenAt.UTC().Format(time.RFC3339Nano)
+	now := time.Now().UTC()
 
-	var created int
-	err := s.db.QueryRowContext(ctx, `
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var currentLongName, currentShortName sql.NullString
+	err = tx.QueryRowContext(ctx, `SELECT long_name, short_name FROM nodes WHERE node_id = ?`, n.NodeID).Scan(&currentLongName, &currentShortName)
+	exists := true
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return false, err
+		}
+		exists = false
+	}
+
+	if exists {
+		previousLongName := currentLongName.String
+		previousShortName := currentShortName.String
+		nextLongName := previousLongName
+		if n.LongName != "" {
+			nextLongName = n.LongName
+		}
+		nextShortName := previousShortName
+		if n.ShortName != "" {
+			nextShortName = n.ShortName
+		}
+		if nextLongName != previousLongName || nextShortName != previousShortName {
+			changedAt := n.LastSeenAnyEventAt
+			if changedAt.IsZero() {
+				changedAt = n.UpdatedAt
+			}
+			if changedAt.IsZero() {
+				changedAt = now
+			}
+			if _, err := tx.ExecContext(ctx, `
+INSERT INTO node_name_history(node_id,previous_long_name,previous_short_name,new_long_name,new_short_name,changed_at,created_at)
+VALUES(?,?,?,?,?,?,?)`, n.NodeID, previousLongName, previousShortName, nextLongName, nextShortName, changedAt.UTC().Format(time.RFC3339Nano), now.Format(time.RFC3339Nano)); err != nil {
+				return false, err
+			}
+		}
+	}
+
+	if _, err := tx.ExecContext(ctx, `
 INSERT INTO nodes (
  node_id,node_num,long_name,short_name,role,board_model,firmware_version,lora_region,lora_frequency_desc,modem_preset,
  has_default_channel,has_opted_report_location,neighbor_nodes_count,mqtt_gateway_capable,first_seen_at,last_seen_any_event_at,last_seen_mqtt_gateway_at,last_mqtt_uploader_node_id,last_mqtt_uploader_at,last_seen_position_at,updated_at
@@ -41,16 +84,17 @@ ON CONFLICT(node_id) DO UPDATE SET
  last_mqtt_uploader_at=COALESCE(excluded.last_mqtt_uploader_at,nodes.last_mqtt_uploader_at),
  last_seen_position_at=COALESCE(excluded.last_seen_position_at,nodes.last_seen_position_at),
  updated_at=excluded.updated_at
-RETURNING CASE WHEN first_seen_at = ? THEN 1 ELSE 0 END
-`, n.NodeID, ptrUint32(n.NodeNum), n.LongName, n.ShortName, n.Role, n.BoardModel, n.FirmwareVersion,
+	`, n.NodeID, ptrUint32(n.NodeNum), n.LongName, n.ShortName, n.Role, n.BoardModel, n.FirmwareVersion,
 		n.LoRaRegion, n.LoRaFrequencyDesc, n.ModemPreset, ptrBool(n.HasDefaultChannel), ptrBool(n.HasOptedReportLocation), ptrInt(n.NeighborNodesCount), ptrBool(n.MQTTGatewayCapable),
 		firstSeenAt, n.LastSeenAnyEventAt.UTC().Format(time.RFC3339Nano),
-		ptrTime(n.LastSeenMQTTGatewayAt), n.LastMQTTUploaderNodeID, ptrTime(n.LastMQTTUploaderAt), ptrTime(n.LastSeenPositionAt), n.UpdatedAt.UTC().Format(time.RFC3339Nano), firstSeenAt).Scan(&created)
-	if err != nil {
+		ptrTime(n.LastSeenMQTTGatewayAt), n.LastMQTTUploaderNodeID, ptrTime(n.LastMQTTUploaderAt), ptrTime(n.LastSeenPositionAt), n.UpdatedAt.UTC().Format(time.RFC3339Nano)); err != nil {
+		return false, err
+	}
+	if err := tx.Commit(); err != nil {
 		return false, err
 	}
 
-	return created == 1, nil
+	return !exists, nil
 }
 
 // UpsertPosition inserts or updates a node's latest position.
@@ -226,6 +270,36 @@ WHERE n.node_id=?`, nodeID)
 		return d, err
 	}
 	d.Neighbors = neighbors
+	previousNames, err := s.getNodeNameHistory(ctx, nodeID)
+	if err != nil {
+		return d, err
+	}
+	d.PreviousNames = previousNames
 
 	return d, nil
+}
+
+func (s *Store) getNodeNameHistory(ctx context.Context, nodeID string) ([]repo.NodeNameHistory, error) {
+	rows, err := s.db.QueryContext(ctx, `
+SELECT previous_long_name,previous_short_name,new_long_name,new_short_name,changed_at
+FROM node_name_history
+WHERE node_id=?
+ORDER BY changed_at DESC, id DESC`, nodeID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	items := make([]repo.NodeNameHistory, 0)
+	for rows.Next() {
+		var item repo.NodeNameHistory
+		var changedAt sql.NullString
+		if err := rows.Scan(&item.PreviousLongName, &item.PreviousShortName, &item.NewLongName, &item.NewShortName, &changedAt); err != nil {
+			return nil, err
+		}
+		item.ChangedAt = mustTime(changedAt)
+		items = append(items, item)
+	}
+
+	return items, rows.Err()
 }

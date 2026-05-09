@@ -313,7 +313,7 @@ paths:
       responses:
         '200':
           description: |
-            Returns `{node, position?, telemetry?, neighbors?}`.
+            Returns `{node, position?, telemetry?, neighbors?, previous_names?}`.
 
             `neighbors` is a collapsed per-peer topology view built from
             `neighbor_info`, `routing_forward`, and `routing_return` edges for the
@@ -876,6 +876,25 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/NodeNeighbor'
+        previous_names:
+          type: array
+          items:
+            $ref: '#/components/schemas/NodeNameHistory'
+    NodeNameHistory:
+      type: object
+      required: [changed_at]
+      properties:
+        previous_long_name:
+          type: string
+        previous_short_name:
+          type: string
+        new_long_name:
+          type: string
+        new_short_name:
+          type: string
+        changed_at:
+          type: string
+          format: date-time
     Stats:
       type: object
       required: [known_nodes_count, online_nodes_count, ws_clients_count]

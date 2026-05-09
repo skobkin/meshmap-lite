@@ -170,6 +170,75 @@ describe('NodesPage', () => {
     expect(screen.getByText('Temperature (C): 0')).toBeTruthy()
   })
 
+  it('renders previous node names when history exists', () => {
+    render(
+      <NodesPage
+        items={[summary('!zero', { display_name: 'Zero Node' })]}
+        selected="!zero"
+        details={details({
+          previous_names: [
+            {
+              previous_long_name: 'Old Zero',
+              previous_short_name: 'OZ',
+              new_long_name: 'Zero Node',
+              new_short_name: 'ZN',
+              changed_at: '2026-03-11T12:00:00Z'
+            }
+          ]
+        })}
+        onOpenMap={() => undefined}
+        onSelect={() => undefined}
+      />
+    )
+
+    expect(screen.getByText('Previously known as')).toBeTruthy()
+    expect(screen.getByText(/Long: Old Zero \/ Short: OZ/)).toBeTruthy()
+    expect(screen.queryByText(/Long: Zero Node/)).toBeNull()
+  })
+
+  it('hides previous node names when history is empty', () => {
+    render(
+      <NodesPage
+        items={[summary('!zero', { display_name: 'Zero Node' })]}
+        selected="!zero"
+        details={details({ previous_names: [] })}
+        onOpenMap={() => undefined}
+        onSelect={() => undefined}
+      />
+    )
+
+    expect(screen.queryByText('Previously known as')).toBeNull()
+  })
+
+  it('renders partial previous node names cleanly', () => {
+    render(
+      <NodesPage
+        items={[summary('!zero', { display_name: 'Zero Node' })]}
+        selected="!zero"
+        details={details({
+          previous_names: [
+            {
+              previous_long_name: 'Long Only',
+              new_long_name: 'Zero Node',
+              changed_at: '2026-03-11T12:00:00Z'
+            },
+            {
+              previous_short_name: 'SO',
+              new_short_name: 'ZN',
+              changed_at: '2026-03-11T11:00:00Z'
+            }
+          ]
+        })}
+        onOpenMap={() => undefined}
+        onSelect={() => undefined}
+      />
+    )
+
+    expect(screen.getByText(/Long: Long Only/)).toBeTruthy()
+    expect(screen.getByText(/Short: SO/)).toBeTruthy()
+    expect(screen.queryByText(/undefined/)).toBeNull()
+  })
+
   it('renders neighbors ordered by evidence quality and exposes map actions for positioned peers', () => {
     render(
       <NodesPage

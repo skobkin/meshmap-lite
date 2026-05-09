@@ -94,4 +94,23 @@ describe('nodeDetailsCache', () => {
     ]))
     expect(cache['!x']?.details.neighbors?.find((neighbor) => neighbor.node_id === '!z')).not.toHaveProperty('snr')
   })
+
+  it('preserves previous names when merging refreshed partial details', () => {
+    let cache = upsertNodeDetailsCache({}, {
+      ...details('!alpha'),
+      previous_names: [{
+        previous_long_name: 'Old Alpha',
+        new_long_name: 'Alpha',
+        changed_at: '2026-03-11T12:00:00Z'
+      }]
+    }, 1000)
+
+    cache = upsertNodeDetailsCache(cache, details('!alpha'), 2000)
+
+    expect(cache['!alpha']?.details.previous_names).toEqual([{
+      previous_long_name: 'Old Alpha',
+      new_long_name: 'Alpha',
+      changed_at: '2026-03-11T12:00:00Z'
+    }])
+  })
 })

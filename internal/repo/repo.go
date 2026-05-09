@@ -70,10 +70,20 @@ type NodeSummary struct {
 
 // NodeDetails is the full node details payload.
 type NodeDetails struct {
-	Node      domain.Node                   `json:"node"`
-	Position  *domain.NodePosition          `json:"position,omitempty"`
-	Telemetry *domain.NodeTelemetrySnapshot `json:"telemetry,omitempty"`
-	Neighbors []NodeNeighbor                `json:"neighbors,omitempty"`
+	Node          domain.Node                   `json:"node"`
+	Position      *domain.NodePosition          `json:"position,omitempty"`
+	Telemetry     *domain.NodeTelemetrySnapshot `json:"telemetry,omitempty"`
+	Neighbors     []NodeNeighbor                `json:"neighbors,omitempty"`
+	PreviousNames []NodeNameHistory             `json:"previous_names,omitempty"`
+}
+
+// NodeNameHistory records one effective node name change.
+type NodeNameHistory struct {
+	PreviousLongName  string    `json:"previous_long_name,omitempty"`
+	PreviousShortName string    `json:"previous_short_name,omitempty"`
+	NewLongName       string    `json:"new_long_name,omitempty"`
+	NewShortName      string    `json:"new_short_name,omitempty"`
+	ChangedAt         time.Time `json:"changed_at"`
 }
 
 // NodeNeighbor is a collapsed topology view for one peer of the selected node.

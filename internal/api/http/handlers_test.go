@@ -212,7 +212,7 @@ func TestStatsActivityHandlerReturnsConfiguredPeriodsAndReusesCache(t *testing.T
 	}
 }
 
-func TestNodeByIDReturnsNeighbors(t *testing.T) {
+func TestNodeByIDReturnsNodeDetails(t *testing.T) {
 	now := time.Unix(1772296589, 0).UTC()
 	store := &testkit.FakeStore{
 		GetNodeDetailsFn: func(_ context.Context, nodeID string) (repo.NodeDetails, error) {
@@ -234,6 +234,13 @@ func TestNodeByIDReturnsNeighbors(t *testing.T) {
 					EvidenceKind:   "neighbor_info",
 					LastObservedAt: now,
 				}},
+				PreviousNames: []repo.NodeNameHistory{{
+					PreviousLongName:  "Old Alpha",
+					PreviousShortName: "OA",
+					NewLongName:       "Alpha",
+					NewShortName:      "ALP",
+					ChangedAt:         now,
+				}},
 			}, nil
 		},
 	}
@@ -253,5 +260,8 @@ func TestNodeByIDReturnsNeighbors(t *testing.T) {
 	}
 	if len(item.Neighbors) != 1 || item.Neighbors[0].DisplayName != "Alpha" {
 		t.Fatalf("unexpected neighbors payload: %#v", item.Neighbors)
+	}
+	if len(item.PreviousNames) != 1 || item.PreviousNames[0].PreviousLongName != "Old Alpha" {
+		t.Fatalf("unexpected previous names payload: %#v", item.PreviousNames)
 	}
 }
