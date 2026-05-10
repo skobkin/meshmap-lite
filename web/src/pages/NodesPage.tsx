@@ -284,18 +284,18 @@ export function NodesPage({
                             fallbackLabel={neighbor.display_name}
                             onOpenNodeDetails={onOpenNodeDetails}
                           />
+                          {neighbor.has_position && (
+                            <button
+                              type="button"
+                              className="node-section-map-link"
+                              aria-label={`Open ${neighbor.display_name} on map`}
+                              title="Open neighbor on map"
+                              onClick={() => onOpenMap(neighbor.node_id)}
+                            >
+                              <img className="node-section-map-icon" src={defaultMapMarkerIconURL} alt="" aria-hidden="true" />
+                            </button>
+                          )}
                         </span>
-                        {neighbor.has_position && (
-                          <button
-                            type="button"
-                            className="node-section-map-link"
-                            aria-label={`Open ${neighbor.display_name} on map`}
-                            title="Open neighbor on map"
-                            onClick={() => onOpenMap(neighbor.node_id)}
-                          >
-                            <img className="node-section-map-icon" src={defaultMapMarkerIconURL} alt="" aria-hidden="true" />
-                          </button>
-                        )}
                       </div>
                       <p>Evidence: {topologyEvidenceLabel(neighbor)}</p>
                       <p>Signal: {topologySignalLabel(neighbor)}</p>
