@@ -22,6 +22,9 @@ import type { MapNode, MapPrecisionCirclesMode, NodeNeighbor } from '../api/type
 import type { Map } from 'leaflet'
 
 type MarkerMap = Record<string, L.Marker>
+type SpiderfiedMarker = L.Marker & {
+  _preSpiderfyLatlng?: L.LatLng
+}
 
 interface LeafletMapOptions {
   clustering?: boolean
@@ -43,6 +46,8 @@ interface PopupSection {
 }
 
 const MARKER_SHADOW_URL = '/static/images/node-marker-shadow.svg'
+export const OVERLAP_CLUSTER_RADIUS_PX = 18
+export const OVERLAP_SPIDERFY_DISTANCE_MULTIPLIER = 1.15
 const markerIconCache = new globalThis.Map<string, L.Icon>()
 const VISUAL_COLD_NODE_AGE_MS = 7 * 24 * 60 * 60 * 1000
 const MARKER_CACHE_VARIANT = {
@@ -77,13 +82,7 @@ export class LeafletMapAdapter {
     }).addTo(this.map)
     this.precisionCircleLayer = L.featureGroup().addTo(this.map)
     this.topologyLayer = L.featureGroup().addTo(this.map)
-    this.markerLayer = opts.clustering
-      ? L.markerClusterGroup({
-          chunkedLoading: true,
-          removeOutsideVisibleBounds: true,
-          showCoverageOnHover: false
-        })
-      : L.featureGroup()
+    this.markerLayer = L.markerClusterGroup(markerClusterOptions(opts.clustering ?? true))
     this.markerLayer.addTo(this.map)
     if (opts.onViewChange) {
       this.map.on('moveend', () => {
@@ -143,10 +142,12 @@ export class LeafletMapAdapter {
       const markerIcon = buildMarkerIcon(markerIconKey, markerFreshness, this.selectedID === id)
       const m = this.markers[id]
       if (m) {
-        m.setLatLng(latlng)
+        if (!sameLatLng(storedMarkerLatLng(m), latlng)) {
+          m.setLatLng(latlng)
+        }
         m.setIcon(markerIcon)
         m.getPopup()?.setContent(html)
-        if (this.selectedID === id) {
+        if (this.selectedID === id && !m.getPopup()?.isOpen()) {
           m.openPopup()
         }
       } else {
@@ -157,19 +158,13 @@ export class LeafletMapAdapter {
         marker.on('popupopen', () => {
           const popupEl = marker.getPopup()?.getElement()
           popupEl?.addEventListener('click', this.handlePopupClick)
-          marker.setIcon(buildMarkerIcon(markerIconKey, markerFreshness, true))
-          this.selectedID = id
-          this.render(Array.from(this.mapNodesByID.values()), this.lastDisconnectedThreshold)
-          this.onSelectNode?.(id)
+          this.setSelection(id)
         })
         marker.on('popupclose', () => {
           const popupEl = marker.getPopup()?.getElement()
           popupEl?.removeEventListener('click', this.handlePopupClick)
           if (this.selectedID !== id) {return}
-          marker.setIcon(buildMarkerIcon(markerIconKey, markerFreshness, false))
-          this.selectedID = undefined
-          this.render(Array.from(this.mapNodesByID.values()), this.lastDisconnectedThreshold)
-          this.onSelectNode?.(undefined)
+          this.setSelection(undefined)
         })
         marker.on('mouseover', () => {
           this.onHoverNode?.(id)
@@ -183,33 +178,9 @@ export class LeafletMapAdapter {
         }
       }
 
-      if (!this.shouldRenderPrecisionCircle(id, n.position.position_precision)) {
-        continue
+      if (this.shouldRenderPrecisionCircle(id, n.position.position_precision)) {
+        visibleCircleIDs.add(id)
       }
-
-      visibleCircleIDs.add(id)
-      const circle = this.precisionCircles.get(id)
-      const circleLatLng: L.LatLngExpression = [n.position.latitude, n.position.longitude]
-      const radiusMeters = precisionBitsToRadiusMeters(n.position.position_precision)
-      if (radiusMeters === undefined) {
-        continue
-      }
-      if (circle) {
-        circle.setLatLng(circleLatLng)
-        circle.setRadius(radiusMeters)
-        continue
-      }
-
-      this.precisionCircles.set(id, L.circle(circleLatLng, {
-        radius: radiusMeters,
-        color: '#0b3f97',
-        weight: 1.5,
-        opacity: 0.45,
-        fillColor: '#1f6ae5',
-        fillOpacity: 0.14,
-        interactive: false,
-        bubblingMouseEvents: false
-      }).addTo(this.precisionCircleLayer))
     }
 
     for (const [id, marker] of Object.entries(this.markers)) {
@@ -221,11 +192,7 @@ export class LeafletMapAdapter {
       delete this.markers[id]
     }
 
-    for (const [id, circle] of this.precisionCircles.entries()) {
-      if (visibleCircleIDs.has(id)) {continue}
-      this.precisionCircleLayer.removeLayer(circle)
-      this.precisionCircles.delete(id)
-    }
+    this.syncPrecisionCircles(visibleCircleIDs)
   }
 
   public renderTopology(nodeID?: string, neighbors: NodeNeighbor[] = []): void {
@@ -261,17 +228,15 @@ export class LeafletMapAdapter {
   public setSelectedNode(id?: string): void {
     if (id === this.selectedID) {return}
     if (!id) {
-      this.selectedID = undefined
+      this.setSelection(undefined)
       this.map.closePopup()
-      this.render(Array.from(this.mapNodesByID.values()), this.lastDisconnectedThreshold)
 
       return
     }
     const marker = this.markers[id]
     if (!marker) {
-      this.selectedID = undefined
+      this.setSelection(undefined)
       this.map.closePopup()
-      this.render(Array.from(this.mapNodesByID.values()), this.lastDisconnectedThreshold)
 
       return
     }
@@ -345,6 +310,116 @@ export class LeafletMapAdapter {
         return false
     }
   }
+
+  private setSelection(id?: string): void {
+    if (id === this.selectedID) {
+      return
+    }
+
+    const previousID = this.selectedID
+    this.selectedID = id
+    this.setMarkerSelectedIcon(previousID, false)
+    this.setMarkerSelectedIcon(id, true)
+    this.syncPrecisionCircles()
+    this.onSelectNode?.(id)
+  }
+
+  private setMarkerSelectedIcon(id: string | undefined, selected: boolean): void {
+    if (!id) {
+      return
+    }
+    const marker = this.markers[id]
+    const node = this.mapNodesByID.get(id)
+    if (!marker || !node) {
+      return
+    }
+
+    marker.setIcon(buildMarkerIcon(
+      markerIconKeyForRole(node.node.role),
+      markerFreshnessState(node, this.lastDisconnectedThreshold),
+      selected
+    ))
+  }
+
+  private syncPrecisionCircles(visibleCircleIDs?: Set<string>): void {
+    const nextVisibleCircleIDs = visibleCircleIDs ?? new Set<string>()
+
+    if (!visibleCircleIDs) {
+      for (const [id, node] of this.mapNodesByID.entries()) {
+        if (node.position && this.shouldRenderPrecisionCircle(id, node.position.position_precision)) {
+          nextVisibleCircleIDs.add(id)
+        }
+      }
+    }
+
+    for (const id of nextVisibleCircleIDs) {
+      const position = this.mapNodesByID.get(id)?.position
+      if (!position) {
+        continue
+      }
+
+      const radiusMeters = precisionBitsToRadiusMeters(position.position_precision)
+      if (radiusMeters === undefined) {
+        continue
+      }
+
+      const circleLatLng: L.LatLngExpression = [position.latitude, position.longitude]
+      const circle = this.precisionCircles.get(id)
+      if (circle) {
+        circle.setLatLng(circleLatLng)
+        circle.setRadius(radiusMeters)
+        continue
+      }
+
+      this.precisionCircles.set(id, L.circle(circleLatLng, {
+        radius: radiusMeters,
+        color: '#0b3f97',
+        weight: 1.5,
+        opacity: 0.45,
+        fillColor: '#1f6ae5',
+        fillOpacity: 0.14,
+        interactive: false,
+        bubblingMouseEvents: false
+      }).addTo(this.precisionCircleLayer))
+    }
+
+    for (const [id, circle] of this.precisionCircles.entries()) {
+      if (nextVisibleCircleIDs.has(id)) {continue}
+      this.precisionCircleLayer.removeLayer(circle)
+      this.precisionCircles.delete(id)
+    }
+  }
+}
+
+export function markerClusterOptions(clustering: boolean): L.MarkerClusterGroupOptions {
+  const options: L.MarkerClusterGroupOptions = {
+    chunkedLoading: true,
+    removeOutsideVisibleBounds: true,
+    showCoverageOnHover: false,
+    spiderfyOnMaxZoom: true
+  }
+
+  if (clustering) {
+    return options
+  }
+
+  return {
+    ...options,
+    maxClusterRadius: OVERLAP_CLUSTER_RADIUS_PX,
+    spiderfyOnEveryZoom: true,
+    zoomToBoundsOnClick: false,
+    spiderfyDistanceMultiplier: OVERLAP_SPIDERFY_DISTANCE_MULTIPLIER
+  }
+}
+
+function storedMarkerLatLng(marker: L.Marker): L.LatLng {
+  return (marker as SpiderfiedMarker)._preSpiderfyLatlng ?? marker.getLatLng()
+}
+
+function sameLatLng(current: L.LatLng, next: L.LatLngExpression): boolean {
+  const [lat, lng] = Array.isArray(next) ? next : [next.lat, next.lng]
+
+  return Math.abs(current.lat - lat) < 1e-8 && Math.abs(current.lng - lng) < 1e-8
 }
 
 function scalePoint(value: L.PointExpression, scale: number): [number, number] {
