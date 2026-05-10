@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 	"time"
 
@@ -233,6 +234,102 @@ func TestUpsertPosition_UpdatesNodeLastSeenPositionAt(t *testing.T) {
 	}
 	if updatedAt != wantTS {
 		t.Fatalf("expected updated_at %q, got %q", wantTS, updatedAt)
+	}
+}
+
+func TestUpsertPosition_SkipsZeroCoordinates(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, config.SQLConfig{URL: "file::memory:?cache=shared", AutoMigrate: true}, nil)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	if _, err := s.UpsertNode(ctx, domain.Node{
+		NodeID:             "!bbbb2222",
+		FirstSeenAt:        now,
+		LastSeenAnyEventAt: now,
+		UpdatedAt:          now,
+	}); err != nil {
+		t.Fatalf("upsert node: %v", err)
+	}
+
+	observedAt := now.Add(30 * time.Second)
+	if err := s.UpsertPosition(ctx, domain.NodePosition{
+		NodeID:     "!bbbb2222",
+		Latitude:   0,
+		Longitude:  0,
+		ObservedAt: observedAt,
+		UpdatedAt:  observedAt,
+		SourceKind: domain.PositionSourceChannel,
+	}); err != nil {
+		t.Fatalf("upsert position: %v", err)
+	}
+
+	var count int
+	if err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM node_positions WHERE node_id = ?`, "!bbbb2222").Scan(&count); err != nil {
+		t.Fatalf("count node positions: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("expected no stored zero position, got %d", count)
+	}
+
+	var lastSeenPositionAt sql.NullString
+	if err := s.db.QueryRowContext(ctx, `SELECT last_seen_position_at FROM nodes WHERE node_id = ?`, "!bbbb2222").Scan(&lastSeenPositionAt); err != nil {
+		t.Fatalf("query node timestamp: %v", err)
+	}
+	if lastSeenPositionAt.Valid {
+		t.Fatalf("expected last_seen_position_at to remain null, got %q", lastSeenPositionAt.String)
+	}
+}
+
+func TestUpsertPosition_AllowsSingleZeroCoordinate(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		nodeID    string
+		latitude  float64
+		longitude float64
+	}{
+		{name: "zero latitude", nodeID: "!bbbb2222", latitude: 0, longitude: 20.2},
+		{name: "zero longitude", nodeID: "!cccc3333", latitude: 10.1, longitude: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			s, err := Open(ctx, config.SQLConfig{URL: "file::memory:?cache=shared", AutoMigrate: true}, nil)
+			if err != nil {
+				t.Fatalf("open sqlite: %v", err)
+			}
+			t.Cleanup(func() { _ = s.Close() })
+
+			now := time.Now().UTC().Truncate(time.Microsecond)
+			if _, err := s.UpsertNode(ctx, domain.Node{
+				NodeID:             tc.nodeID,
+				FirstSeenAt:        now,
+				LastSeenAnyEventAt: now,
+				UpdatedAt:          now,
+			}); err != nil {
+				t.Fatalf("upsert node: %v", err)
+			}
+			if err := s.UpsertPosition(ctx, domain.NodePosition{
+				NodeID:     tc.nodeID,
+				Latitude:   tc.latitude,
+				Longitude:  tc.longitude,
+				ObservedAt: now,
+				UpdatedAt:  now,
+				SourceKind: domain.PositionSourceChannel,
+			}); err != nil {
+				t.Fatalf("upsert position: %v", err)
+			}
+
+			var latitude, longitude float64
+			if err := s.db.QueryRowContext(ctx, `SELECT latitude, longitude FROM node_positions WHERE node_id = ?`, tc.nodeID).Scan(&latitude, &longitude); err != nil {
+				t.Fatalf("query node position: %v", err)
+			}
+			if latitude != tc.latitude || longitude != tc.longitude {
+				t.Fatalf("unexpected position: got (%v,%v), want (%v,%v)", latitude, longitude, tc.latitude, tc.longitude)
+			}
+		})
 	}
 }
 

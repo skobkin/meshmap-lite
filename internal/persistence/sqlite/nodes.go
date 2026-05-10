@@ -99,6 +99,10 @@ ON CONFLICT(node_id) DO UPDATE SET
 
 // UpsertPosition inserts or updates a node's latest position.
 func (s *Store) UpsertPosition(ctx context.Context, p domain.NodePosition) error {
+	if !domain.IsValidPosition(p.Latitude, p.Longitude) {
+		return nil
+	}
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err

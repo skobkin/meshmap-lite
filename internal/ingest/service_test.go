@@ -22,6 +22,7 @@ type testStore struct {
 	lastNode      *domain.Node
 	nodesSeen     []domain.Node
 	lastPosition  *domain.NodePosition
+	positionsSeen []domain.NodePosition
 	lastTelemetry *domain.NodeTelemetrySnapshot
 	lastChat      *domain.ChatEvent
 	lastLogEvent  *domain.LogEvent
@@ -41,6 +42,7 @@ func (s *testStore) UpsertNode(_ context.Context, node domain.Node) (bool, error
 func (s *testStore) UpsertPosition(_ context.Context, pos domain.NodePosition) error {
 	p := pos
 	s.lastPosition = &p
+	s.positionsSeen = append(s.positionsSeen, p)
 
 	return nil
 }
@@ -160,6 +162,110 @@ func TestHandleMapReportMergesNodeAndPositionFields(t *testing.T) {
 	}
 	if store.lastPosition.MQTTUploaderNodeID != "!11223344" {
 		t.Fatalf("expected map report uploader provenance, got %#v", store.lastPosition)
+	}
+}
+
+func TestHandlePositionSkipsZeroCoordinates(t *testing.T) {
+	store := &testStore{}
+	emitter := &capturingEmitter{}
+	svc := &Service{
+		store:   store,
+		emitter: emitter,
+		log:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+	now := time.Unix(1772296589, 0).UTC()
+
+	ok := svc.handlePosition(context.Background(), meshtastic.ParsedEvent{
+		NodeID:   "!sender",
+		Position: &meshtastic.PositionPayload{Latitude: 0, Longitude: 0},
+	}, "LongFast", "!gateway", now, domain.PositionSourceChannel)
+
+	if ok {
+		t.Fatalf("expected zero position to be skipped")
+	}
+	if len(store.positionsSeen) != 0 {
+		t.Fatalf("expected no position upsert, got %#v", store.positionsSeen)
+	}
+	if len(emitter.events) != 0 {
+		t.Fatalf("expected no realtime event, got %#v", emitter.events)
+	}
+}
+
+func TestHandlePositionAllowsSingleZeroCoordinate(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		latitude  float64
+		longitude float64
+	}{
+		{name: "zero latitude", latitude: 0, longitude: 40.6},
+		{name: "zero longitude", latitude: 64.5, longitude: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &testStore{}
+			svc := &Service{
+				store:   store,
+				emitter: testEmitter{},
+				log:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+			}
+			now := time.Unix(1772296589, 0).UTC()
+
+			ok := svc.handlePosition(context.Background(), meshtastic.ParsedEvent{
+				NodeID:   "!sender",
+				Position: &meshtastic.PositionPayload{Latitude: tc.latitude, Longitude: tc.longitude},
+			}, "LongFast", "!gateway", now, domain.PositionSourceChannel)
+
+			if !ok {
+				t.Fatalf("expected position to be processed")
+			}
+			if store.lastPosition == nil {
+				t.Fatalf("expected position upsert")
+			}
+			if store.lastPosition.Latitude != tc.latitude || store.lastPosition.Longitude != tc.longitude {
+				t.Fatalf("unexpected position: %#v", store.lastPosition)
+			}
+		})
+	}
+}
+
+func TestHandleMapReportSkipsZeroPositionButMergesNode(t *testing.T) {
+	store := &testStore{}
+	emitter := &capturingEmitter{}
+	svc := &Service{
+		store:   store,
+		emitter: emitter,
+		log:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+	now := time.Unix(1772296589, 0).UTC()
+	evt := meshtastic.ParsedEvent{
+		NodeID: "!11223344",
+		MapReport: &meshtastic.MapReportPayload{
+			LongName:          "arkh-07",
+			ShortName:         "am07",
+			FirmwareVersion:   "2.7.18.fb3bf780",
+			HasDefaultChannel: true,
+			Latitude:          0,
+			Longitude:         0,
+		},
+	}
+
+	ok := svc.handleMapReport(context.Background(), evt, "!11223344", now)
+
+	if !ok {
+		t.Fatalf("expected map report identity to be processed")
+	}
+	if store.lastNode == nil {
+		t.Fatalf("expected node upsert")
+	}
+	if store.lastNode.LongName != "arkh-07" || store.lastNode.FirmwareVersion != "2.7.18.fb3bf780" {
+		t.Fatalf("unexpected node fields: %#v", store.lastNode)
+	}
+	if len(store.positionsSeen) != 0 {
+		t.Fatalf("expected no position upsert, got %#v", store.positionsSeen)
+	}
+	for _, event := range emitter.events {
+		if event.Type == "node.position" {
+			t.Fatalf("expected no node.position event, got %#v", emitter.events)
+		}
 	}
 }
 

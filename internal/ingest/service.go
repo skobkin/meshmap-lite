@@ -1039,6 +1039,11 @@ func (s *Service) handleNodeInfo(ctx context.Context, evt meshtastic.ParsedEvent
 
 func (s *Service) handlePosition(ctx context.Context, evt meshtastic.ParsedEvent, channel, mqttUploaderNodeID string, now time.Time, source domain.PositionSourceKind) bool {
 	in := evt.Position
+	if !domain.IsValidPosition(in.Latitude, in.Longitude) {
+		s.log.Debug("skip invalid zero position", "node_id", evt.NodeID, "source", source, "channel", channel)
+
+		return false
+	}
 	p := domain.NodePosition{
 		NodeID:                  evt.NodeID,
 		Latitude:                in.Latitude,
@@ -1107,14 +1112,16 @@ func (s *Service) handleMapReport(ctx context.Context, evt meshtastic.ParsedEven
 	if !s.handleNodeInfo(ctx, ev, now) {
 		ok = false
 	}
-	ev.Position = &meshtastic.PositionPayload{
-		Latitude:          evt.MapReport.Latitude,
-		Longitude:         evt.MapReport.Longitude,
-		AltitudeM:         evt.MapReport.AltitudeM,
-		PositionPrecision: evt.MapReport.PositionPrecision,
-	}
-	if !s.handlePosition(ctx, ev, "", mqttUploaderNodeID, now, domain.PositionSourceMapReport) {
-		ok = false
+	if domain.IsValidPosition(evt.MapReport.Latitude, evt.MapReport.Longitude) {
+		ev.Position = &meshtastic.PositionPayload{
+			Latitude:          evt.MapReport.Latitude,
+			Longitude:         evt.MapReport.Longitude,
+			AltitudeM:         evt.MapReport.AltitudeM,
+			PositionPrecision: evt.MapReport.PositionPrecision,
+		}
+		if !s.handlePosition(ctx, ev, "", mqttUploaderNodeID, now, domain.PositionSourceMapReport) {
+			ok = false
+		}
 	}
 
 	return ok

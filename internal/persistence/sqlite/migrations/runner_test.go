@@ -132,7 +132,7 @@ CREATE TABLE chat_events (
 );
 INSERT INTO nodes(node_id) VALUES ('!00000001');
 INSERT INTO node_positions(node_id,latitude,longitude,source_kind,source_channel,observed_at,updated_at)
-VALUES ('!00000001',0,0,'channel_position','longfast','2026-02-26T00:00:00Z','2026-02-26T00:00:00Z');
+VALUES ('!00000001',64.5,40.6,'channel_position','longfast','2026-02-26T00:00:00Z','2026-02-26T00:00:00Z');
 INSERT INTO node_telemetry_snapshots(node_id,source_channel,observed_at,updated_at)
 VALUES ('!00000001','mediumslow','2026-02-26T00:00:00Z','2026-02-26T00:00:00Z');
 INSERT INTO chat_events(event_type,channel_name,node_id,message_text,message_time,observed_at,created_at)
@@ -618,6 +618,88 @@ CREATE TABLE log_events (
 		if !hasColumn {
 			t.Fatalf("expected column %s.%s", tc.table, tc.column)
 		}
+	}
+}
+
+func TestApply_DiscardsZeroPositions(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite", "file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	_, err = db.ExecContext(ctx, `
+PRAGMA user_version = 13;
+CREATE TABLE nodes (
+  node_id TEXT PRIMARY KEY,
+  first_seen_at TEXT NOT NULL,
+  last_seen_any_event_at TEXT NOT NULL,
+  last_seen_position_at TEXT,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE node_positions (
+  node_id TEXT PRIMARY KEY,
+  latitude REAL NOT NULL,
+  longitude REAL NOT NULL,
+  source_kind TEXT NOT NULL,
+  observed_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+INSERT INTO nodes(node_id,first_seen_at,last_seen_any_event_at,last_seen_position_at,updated_at)
+VALUES
+  ('!zero0001','2026-05-10T00:00:00Z','2026-05-10T00:00:00Z','2026-05-10T00:00:00Z','2026-05-10T00:00:00Z'),
+  ('!lat00002','2026-05-10T00:00:00Z','2026-05-10T00:00:00Z','2026-05-10T00:00:00Z','2026-05-10T00:00:00Z'),
+  ('!lon00003','2026-05-10T00:00:00Z','2026-05-10T00:00:00Z','2026-05-10T00:00:00Z','2026-05-10T00:00:00Z'),
+  ('!valid004','2026-05-10T00:00:00Z','2026-05-10T00:00:00Z','2026-05-10T00:00:00Z','2026-05-10T00:00:00Z'),
+  ('!stale005','2026-05-10T00:00:00Z','2026-05-10T00:00:00Z','2026-05-10T00:00:00Z','2026-05-10T00:00:00Z');
+INSERT INTO node_positions(node_id,latitude,longitude,source_kind,observed_at,updated_at)
+VALUES
+  ('!zero0001',0,0,'channel_position','2026-05-10T00:00:00Z','2026-05-10T00:00:00Z'),
+  ('!lat00002',0,40.6,'channel_position','2026-05-10T00:00:00Z','2026-05-10T00:00:00Z'),
+  ('!lon00003',64.5,0,'channel_position','2026-05-10T00:00:00Z','2026-05-10T00:00:00Z'),
+  ('!valid004',64.5,40.6,'channel_position','2026-05-10T00:00:00Z','2026-05-10T00:00:00Z');
+`)
+	if err != nil {
+		t.Fatalf("seed schema: %v", err)
+	}
+
+	if err := Apply(ctx, db, nil); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	var zeroCount int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM node_positions WHERE latitude = 0 AND longitude = 0`).Scan(&zeroCount); err != nil {
+		t.Fatalf("count zero positions: %v", err)
+	}
+	if zeroCount != 0 {
+		t.Fatalf("expected zero positions to be removed, got %d", zeroCount)
+	}
+
+	for _, nodeID := range []string{"!lat00002", "!lon00003", "!valid004"} {
+		var count int
+		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM node_positions WHERE node_id = ?`, nodeID).Scan(&count); err != nil {
+			t.Fatalf("count position for %s: %v", nodeID, err)
+		}
+		if count != 1 {
+			t.Fatalf("expected position for %s to be preserved, got %d", nodeID, count)
+		}
+	}
+
+	var zeroLastSeen sql.NullString
+	if err := db.QueryRowContext(ctx, `SELECT last_seen_position_at FROM nodes WHERE node_id = '!zero0001'`).Scan(&zeroLastSeen); err != nil {
+		t.Fatalf("read zero node timestamp: %v", err)
+	}
+	if zeroLastSeen.Valid {
+		t.Fatalf("expected zero node last_seen_position_at to be cleared, got %q", zeroLastSeen.String)
+	}
+
+	var staleLastSeen sql.NullString
+	if err := db.QueryRowContext(ctx, `SELECT last_seen_position_at FROM nodes WHERE node_id = '!stale005'`).Scan(&staleLastSeen); err != nil {
+		t.Fatalf("read stale node timestamp: %v", err)
+	}
+	if !staleLastSeen.Valid {
+		t.Fatalf("expected unaffected stale timestamp to remain set")
 	}
 }
 
