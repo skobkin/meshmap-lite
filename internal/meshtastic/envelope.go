@@ -2,6 +2,7 @@ package meshtastic
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -90,6 +91,18 @@ func packetTimestamp(packet *generated.MeshPacket) *time.Time {
 	return nil
 }
 
+func packetRxSNR(packet *generated.MeshPacket) *float64 {
+	if packet == nil {
+		return nil
+	}
+	value := float64(packet.GetRxSnr())
+	if value == 0 || math.IsNaN(value) || math.IsInf(value, 0) {
+		return nil
+	}
+
+	return &value
+}
+
 func newUnknownEncryptedEvent(packet *generated.MeshPacket, portnum generated.PortNum) ParsedEvent {
 	return ParsedEvent{
 		Kind:      ParsedUnknownEncrypted,
@@ -101,6 +114,7 @@ func newUnknownEncryptedEvent(packet *generated.MeshPacket, portnum generated.Po
 		Decrypted: false,
 		HopStart:  packet.GetHopStart(),
 		HopLimit:  packet.GetHopLimit(),
+		RxSNR:     packetRxSNR(packet),
 	}
 }
 
@@ -118,6 +132,7 @@ func newPKIEvent(packet *generated.MeshPacket, gatewayID, topicChannel, envelope
 		HopStart:  packet.GetHopStart(),
 		HopLimit:  packet.GetHopLimit(),
 		Timestamp: packetTimestamp(packet),
+		RxSNR:     packetRxSNR(packet),
 		PKI: &PKIPayload{
 			SenderNodeID:      senderNodeID,
 			DestinationNodeID: nodeIDFromNum(packet.GetTo()),

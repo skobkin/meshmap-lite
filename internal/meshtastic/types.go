@@ -38,6 +38,7 @@ type ParsedEvent struct {
 	Timestamp  *time.Time
 	HopStart   uint32
 	HopLimit   uint32
+	RxSNR      *float64
 	Chat       *ChatPayload
 	NodeInfo   *NodeInfoPayload
 	Position   *PositionPayload

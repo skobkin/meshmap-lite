@@ -96,6 +96,7 @@ func parseDecodedPacket(envelope decodedEnvelope) (ParsedEvent, error) {
 		Timestamp: packetTimestamp(envelope.packet),
 		HopStart:  envelope.packet.GetHopStart(),
 		HopLimit:  envelope.packet.GetHopLimit(),
+		RxSNR:     packetRxSNR(envelope.packet),
 	}
 
 	return parseDecodedPacketPayload(base, envelope.packet, envelope.decoded)

@@ -15,10 +15,11 @@ export function topologyColor(neighbor: NodeNeighbor): string {
   if (neighbor.evidence_kind === 'inferred') {
     return TOPOLOGY_COLOR.inferred
   }
-  if (neighbor.evidence_kind === 'mqtt_direct') {
-    return TOPOLOGY_COLOR.mqttDirect
-  }
   if (typeof neighbor.snr !== 'number') {
+    if (neighbor.evidence_kind === 'mqtt_direct') {
+      return TOPOLOGY_COLOR.mqttDirect
+    }
+
     return TOPOLOGY_COLOR.noSNR
   }
   if (neighbor.snr < 0) {
@@ -35,10 +36,11 @@ export function topologySignalLabel(neighbor: NodeNeighbor): string {
   if (neighbor.evidence_kind === 'inferred') {
     return 'Inferred'
   }
-  if (neighbor.evidence_kind === 'mqtt_direct') {
-    return 'Direct upload'
-  }
   if (typeof neighbor.snr !== 'number') {
+    if (neighbor.evidence_kind === 'mqtt_direct') {
+      return 'Direct upload'
+    }
+
     return 'No SNR'
   }
 

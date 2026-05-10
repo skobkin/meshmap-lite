@@ -43,6 +43,7 @@ func TestGetNodeDetails_CollapsesTopologyNeighbors(t *testing.T) {
 	}
 
 	snr := 9.5
+	mqttSNR := 3.25
 	later := now.Add(time.Minute)
 	if err := s.UpsertTopologyEdges(ctx, []domain.TopologyEdge{
 		{
@@ -96,6 +97,7 @@ func TestGetNodeDetails_CollapsesTopologyNeighbors(t *testing.T) {
 			FirstObservedAt:  later,
 			LastObservedAt:   later,
 			UpdatedAt:        later,
+			SNR:              &mqttSNR,
 		},
 		{
 			SourceKind:       domain.TopologySourceTracerouteForward,
@@ -136,6 +138,9 @@ func TestGetNodeDetails_CollapsesTopologyNeighbors(t *testing.T) {
 	}
 	if neighborsByID["!peer-d"].EvidenceKind != "mqtt_direct" {
 		t.Fatalf("expected peer-d mqtt_direct neighbor, got %#v", neighborsByID["!peer-d"])
+	}
+	if neighborsByID["!peer-d"].SNR == nil || *neighborsByID["!peer-d"].SNR != mqttSNR {
+		t.Fatalf("expected peer-d mqtt_direct SNR, got %#v", neighborsByID["!peer-d"])
 	}
 	if details.Neighbors[2].NodeID != "!peer-d" || details.Neighbors[3].NodeID != "!peer-c" {
 		t.Fatalf("expected mqtt_direct to sort above inferred, got %#v", details.Neighbors)

@@ -84,6 +84,7 @@ func (s *Store) getNodeNeighbors(ctx context.Context, nodeID string) ([]repo.Nod
 			candidate.SNR = edge.SNR
 		case domain.TopologySourceMQTTDirect:
 			candidate.EvidenceKind = "mqtt_direct"
+			candidate.SNR = edge.SNR
 		}
 
 		existing, ok := grouped[peerID]
@@ -182,6 +183,10 @@ func neighborEvidenceSortKey(edge domain.TopologyEdge) neighborEvidenceKey {
 
 		return neighborEvidenceKey{rank: 1, observed: edge.LastObservedAt}
 	case domain.TopologySourceMQTTDirect:
+		if edge.SNR != nil {
+			return neighborEvidenceKey{rank: 2, snrKnown: true, snr: *edge.SNR, observed: edge.LastObservedAt}
+		}
+
 		return neighborEvidenceKey{rank: 2, observed: edge.LastObservedAt}
 	default:
 		return neighborEvidenceKey{rank: 3, observed: edge.LastObservedAt}
@@ -214,6 +219,10 @@ func neighborDisplaySortKey(neighbor repo.NodeNeighbor) neighborEvidenceKey {
 
 		return neighborEvidenceKey{rank: 1, observed: neighbor.LastObservedAt}
 	case "mqtt_direct":
+		if neighbor.SNR != nil {
+			return neighborEvidenceKey{rank: 2, snrKnown: true, snr: *neighbor.SNR, observed: neighbor.LastObservedAt}
+		}
+
 		return neighborEvidenceKey{rank: 2, observed: neighbor.LastObservedAt}
 	default:
 		return neighborEvidenceKey{rank: 3, observed: neighbor.LastObservedAt}

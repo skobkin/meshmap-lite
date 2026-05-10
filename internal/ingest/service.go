@@ -877,6 +877,7 @@ func topologyEdgeFromMQTTDirect(evt meshtastic.ParsedEvent, topicInfo meshtastic
 		LastObservedAt:   now,
 		LastReportedAt:   evt.Timestamp,
 		UpdatedAt:        now,
+		SNR:              evt.RxSNR,
 	}, true
 }
 

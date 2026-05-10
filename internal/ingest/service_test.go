@@ -891,6 +891,7 @@ func TestTopologyEdgesFromParsedMQTTDirectEvidence(t *testing.T) {
 		GatewayID:  "!11223344",
 		IsFromMQTT: true,
 	}
+	rxSNR := 6.75
 
 	edges := topologyEdgesFromParsed(meshtastic.ParsedEvent{
 		Kind:      meshtastic.ParsedUnknownEncrypted,
@@ -898,6 +899,7 @@ func TestTopologyEdgesFromParsedMQTTDirectEvidence(t *testing.T) {
 		HopStart:  7,
 		HopLimit:  7,
 		Timestamp: &reportedAt,
+		RxSNR:     &rxSNR,
 	}, topicInfo, "LongFast", "!11223344", now)
 
 	if len(edges) != 1 {
@@ -911,6 +913,22 @@ func TestTopologyEdgesFromParsedMQTTDirectEvidence(t *testing.T) {
 	}
 	if edges[0].LastReportedAt == nil || !edges[0].LastReportedAt.Equal(reportedAt) {
 		t.Fatalf("unexpected reported at: %#v", edges[0].LastReportedAt)
+	}
+	if edges[0].SNR == nil || *edges[0].SNR != rxSNR {
+		t.Fatalf("expected mqtt_direct SNR, got %#v", edges[0].SNR)
+	}
+
+	edges = topologyEdgesFromParsed(meshtastic.ParsedEvent{
+		Kind:     meshtastic.ParsedUnknownEncrypted,
+		NodeID:   "!49b5976c",
+		HopStart: 7,
+		HopLimit: 7,
+	}, topicInfo, "LongFast", "!11223344", now)
+	if len(edges) != 1 {
+		t.Fatalf("expected one mqtt_direct edge, got %#v", edges)
+	}
+	if edges[0].SNR != nil {
+		t.Fatalf("expected absent mqtt_direct SNR to stay nil, got %#v", edges[0].SNR)
 	}
 }
 

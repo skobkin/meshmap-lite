@@ -1,6 +1,7 @@
 package meshtastic
 
 import (
+	"math"
 	"testing"
 
 	generated "meshmap-lite/internal/meshtasticpb"
@@ -42,6 +43,46 @@ func TestParseServiceEnvelopeChat(t *testing.T) {
 	}
 	if evt.HopStart != 7 || evt.HopLimit != 7 {
 		t.Fatalf("expected hop metadata to be retained, got start=%d limit=%d", evt.HopStart, evt.HopLimit)
+	}
+}
+
+func TestParseServiceEnvelopeRxSNR(t *testing.T) {
+	ConfigureChannelKeys(nil)
+
+	tests := []struct {
+		name string
+		snr  float32
+		want *float64
+	}{
+		{name: "positive", snr: 8.25, want: float64Ptr(8.25)},
+		{name: "negative", snr: -3.5, want: float64Ptr(-3.5)},
+		{name: "zero"},
+		{name: "nan", snr: float32(math.NaN())},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			packet := &generated.MeshPacket{
+				From:  0x11223344,
+				Id:    42,
+				RxSnr: tt.snr,
+				PayloadVariant: &generated.MeshPacket_Decoded{Decoded: &generated.Data{
+					Portnum: generated.PortNum_TEXT_MESSAGE_APP,
+					Payload: []byte("hello"),
+				}},
+			}
+			env := &generated.ServiceEnvelope{Packet: packet, ChannelId: "LongFast", GatewayId: "gw"}
+			payload, err := proto.Marshal(env)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			evt, err := parseServiceEnvelope(payload, "LongFast")
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertOptionalFloat64(t, evt.RxSNR, tt.want)
+		})
 	}
 }
 
@@ -107,6 +148,7 @@ func TestParseServiceEnvelopeUnknownEncryptedWhenNoKey(t *testing.T) {
 		Channel:  7,
 		HopStart: 5,
 		HopLimit: 5,
+		RxSnr:    -2.25,
 		PayloadVariant: &generated.MeshPacket_Encrypted{
 			Encrypted: []byte{0xde, 0xad, 0xbe, 0xef},
 		},
@@ -130,6 +172,7 @@ func TestParseServiceEnvelopeUnknownEncryptedWhenNoKey(t *testing.T) {
 	if evt.HopStart != 5 || evt.HopLimit != 5 {
 		t.Fatalf("expected hop metadata to be retained, got start=%d limit=%d", evt.HopStart, evt.HopLimit)
 	}
+	assertOptionalFloat64(t, evt.RxSNR, float64Ptr(-2.25))
 }
 
 func TestParseServiceEnvelopePKIBecomesOpaquePKIEvent(t *testing.T) {
@@ -141,6 +184,7 @@ func TestParseServiceEnvelopePKIBecomesOpaquePKIEvent(t *testing.T) {
 		Id:           3350416627,
 		HopStart:     7,
 		HopLimit:     7,
+		RxSnr:        4.5,
 		PkiEncrypted: true,
 		PayloadVariant: &generated.MeshPacket_Encrypted{
 			Encrypted: []byte{0xde, 0xad, 0xbe, 0xef, 0xca},
@@ -174,6 +218,7 @@ func TestParseServiceEnvelopePKIBecomesOpaquePKIEvent(t *testing.T) {
 	if evt.HopStart != 7 || evt.HopLimit != 7 {
 		t.Fatalf("expected top-level hop metadata to be retained, got start=%d limit=%d", evt.HopStart, evt.HopLimit)
 	}
+	assertOptionalFloat64(t, evt.RxSNR, float64Ptr(4.5))
 	if evt.PKI.DestinationNodeID != "!698509f8" {
 		t.Fatalf("unexpected destination: %#v", evt.PKI)
 	}
@@ -231,5 +276,23 @@ func TestParseServiceEnvelopePKITopicWithoutPKIFlagStillBecomesPKIEvent(t *testi
 	}
 	if evt.PKI.PayloadSizeBytes == 0 {
 		t.Fatalf("expected encrypted payload size to be captured, got %#v", evt.PKI)
+	}
+}
+
+func float64Ptr(v float64) *float64 {
+	return &v
+}
+
+func assertOptionalFloat64(t *testing.T, got, want *float64) {
+	t.Helper()
+	if want == nil {
+		if got != nil {
+			t.Fatalf("expected nil float, got %v", *got)
+		}
+
+		return
+	}
+	if got == nil || *got != *want {
+		t.Fatalf("unexpected float: got %#v want %v", got, *want)
 	}
 }

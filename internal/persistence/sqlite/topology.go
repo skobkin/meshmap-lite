@@ -79,11 +79,12 @@ ON CONFLICT(source_kind,channel_name,from_node_id,to_node_id) DO UPDATE SET
 
 func updateExistingDirectTopologyEdge(ctx context.Context, tx *sql.Tx, edge domain.TopologyEdge) (bool, error) {
 	result, err := tx.ExecContext(ctx, `
-UPDATE topology_edges
-SET last_observed_at=?,
-    last_reported_at=COALESCE(?,last_reported_at),
-    updated_at=?
-WHERE rowid = (
+	UPDATE topology_edges
+	SET last_observed_at=?,
+	    last_reported_at=COALESCE(?,last_reported_at),
+	    updated_at=?,
+	    snr=CASE WHEN source_kind=? THEN COALESCE(?,snr) ELSE snr END
+	WHERE rowid = (
   SELECT rowid
   FROM topology_edges
   WHERE channel_name=?
@@ -104,6 +105,8 @@ WHERE rowid = (
 		edge.LastObservedAt.UTC().Format(time.RFC3339Nano),
 		ptrTime(edge.LastReportedAt),
 		edge.UpdatedAt.UTC().Format(time.RFC3339Nano),
+		domain.TopologySourceMQTTDirectValue,
+		ptrFloat(edge.SNR),
 		edge.ChannelName,
 		edge.FromNodeID,
 		edge.ToNodeID,
