@@ -4,7 +4,7 @@ import type { NodeDetails, NodeNeighbor } from '../api/types'
 
 export const TOPOLOGY_COLOR = {
   inferred: '#94a3b8',
-  mqttDirect: '#0f766e',
+  mqttDirect: '#38bdf8',
   noSNR: '#2563eb',
   poor: '#dc2626',
   fair: '#eab308',

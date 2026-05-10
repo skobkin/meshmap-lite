@@ -18,7 +18,7 @@ function neighbor(overrides: Partial<NodeNeighbor> = {}): NodeNeighbor {
 describe('topology helpers', () => {
   it('maps evidence and SNR to colors and labels', () => {
     expect(topologyColor(neighbor({ evidence_kind: 'inferred' }))).toBe('#94a3b8')
-    expect(topologyColor(neighbor({ evidence_kind: 'mqtt_direct' }))).toBe('#0f766e')
+    expect(topologyColor(neighbor({ evidence_kind: 'mqtt_direct' }))).toBe('#38bdf8')
     expect(topologyColor(neighbor({ evidence_kind: 'mqtt_direct', snr: 12 }))).toBe('#16a34a')
     expect(topologyColor(neighbor())).toBe('#2563eb')
     expect(topologyColor(neighbor({ snr: -1 }))).toBe('#dc2626')
