@@ -10,7 +10,7 @@ import (
 
 // MergeTelemetry merges incoming telemetry with existing snapshot and persists it.
 func (s *Store) MergeTelemetry(ctx context.Context, snap domain.NodeTelemetrySnapshot) (domain.NodeTelemetrySnapshot, error) {
-	cur, _ := s.getTelemetry(ctx, snap.NodeID)
+	cur, _ := s.getTelemetry(ctx, snap.NodeID, time.Time{})
 	merged := domain.MergeTelemetry(cur, snap)
 	_, err := s.db.ExecContext(ctx, `
 INSERT INTO node_telemetry_snapshots(
@@ -43,7 +43,7 @@ ON CONFLICT(node_id) DO UPDATE SET
 	return merged, nil
 }
 
-func (s *Store) getTelemetry(ctx context.Context, nodeID string) (domain.NodeTelemetrySnapshot, error) {
+func (s *Store) getTelemetry(ctx context.Context, nodeID string, observedSince time.Time) (domain.NodeTelemetrySnapshot, error) {
 	var nodeID2 string
 	var pv, pbl, etc, eh, eph, ap25, ap10, aco2, aiaq sql.NullFloat64
 	var source, uploaderID, uploaderLong, uploaderShort, reported sql.NullString
@@ -53,7 +53,8 @@ SELECT t.node_id,t.power_voltage,t.power_battery_level,t.env_temperature_c,t.env
        t.source_channel,t.mqtt_uploader_node_id,mu.long_name,mu.short_name,t.reported_at,t.observed_at,t.updated_at
 FROM node_telemetry_snapshots t
 LEFT JOIN nodes mu ON mu.node_id=t.mqtt_uploader_node_id
-WHERE t.node_id=?`, nodeID).Scan(
+WHERE t.node_id=?
+  AND (?='' OR t.observed_at>=?)`, nodeID, cutoffParam(observedSince), cutoffParam(observedSince)).Scan(
 		&nodeID2, &pv, &pbl, &etc, &eh, &eph, &ap25, &ap10, &aco2, &aiaq, &source, &uploaderID, &uploaderLong, &uploaderShort, &reported, &observed, &updated)
 	if err != nil {
 		if err == sql.ErrNoRows {

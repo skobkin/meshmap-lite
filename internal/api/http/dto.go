@@ -15,24 +15,30 @@ type errorPayload struct {
 }
 
 type metaPayload struct {
-	AppName               string         `json:"app_name"`
-	Version               string         `json:"version"`
-	WebsocketPath         string         `json:"websocket_path"`
-	ChatEnabled           bool           `json:"chat_enabled"`
-	DefaultChatChannel    string         `json:"default_chat_channel"`
-	ShowRecentMessages    int            `json:"show_recent_messages"`
-	LogLiveUpdates        bool           `json:"log_live_updates"`
-	LogPageSizeDefault    int            `json:"log_page_size_default"`
-	DisconnectedThreshold string         `json:"disconnected_threshold"`
-	Map                   metaMapPayload `json:"map"`
+	AppName               string               `json:"app_name"`
+	Version               string               `json:"version"`
+	WebsocketPath         string               `json:"websocket_path"`
+	ChatEnabled           bool                 `json:"chat_enabled"`
+	DefaultChatChannel    string               `json:"default_chat_channel"`
+	ShowRecentMessages    int                  `json:"show_recent_messages"`
+	LogLiveUpdates        bool                 `json:"log_live_updates"`
+	LogPageSizeDefault    int                  `json:"log_page_size_default"`
+	DisconnectedThreshold string               `json:"disconnected_threshold"`
+	Map                   metaMapPayload       `json:"map"`
+	Relevance             metaRelevancePayload `json:"relevance"`
 }
 
 type metaMapPayload struct {
 	Clustering           bool                   `json:"clustering"`
-	HidePositionAfter    string                 `json:"hide_position_after"`
 	TopologyCacheTTL     string                 `json:"topology_cache_ttl"`
 	PrecisionCirclesMode string                 `json:"precision_circles_mode"`
 	DefaultView          metaDefaultViewPayload `json:"default_view"`
+}
+
+type metaRelevancePayload struct {
+	TelemetryMaxAge        string `json:"telemetry_max_age"`
+	TopologyEvidenceMaxAge string `json:"topology_evidence_max_age"`
+	MapPositionMaxAge      string `json:"map_position_max_age"`
 }
 
 type metaDefaultViewPayload struct {

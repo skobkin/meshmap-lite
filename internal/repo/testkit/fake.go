@@ -18,9 +18,9 @@ type FakeStore struct {
 	InsertLogEventFn      func(context.Context, domain.LogEvent) (int64, error)
 	ResolveNodeDisplayFn  func(context.Context, string) (string, error)
 
-	GetMapNodesFn       func(context.Context, time.Duration) ([]repo.MapNode, error)
-	ListNodesFn         func(context.Context) ([]repo.NodeSummary, error)
-	GetNodeDetailsFn    func(context.Context, string) (repo.NodeDetails, error)
+	GetMapNodesFn       func(context.Context, repo.MapNodeQuery) ([]repo.MapNode, error)
+	ListNodesFn         func(context.Context, repo.NodeListQuery) ([]repo.NodeSummary, error)
+	GetNodeDetailsFn    func(context.Context, repo.NodeDetailsQuery) (repo.NodeDetails, error)
 	ListTopologyEdgesFn func(context.Context, repo.TopologyEdgeQuery) ([]domain.TopologyEdge, error)
 	ListChatEventsFn    func(context.Context, repo.ChatEventQuery) ([]domain.ChatEvent, error)
 	ListLogEventsFn     func(context.Context, domain.LogEventQuery) ([]domain.LogEventView, error)
@@ -92,27 +92,27 @@ func (f *FakeStore) ResolveNodeDisplay(ctx context.Context, nodeID string) (stri
 }
 
 // GetMapNodes implements repo.ReadStore.
-func (f *FakeStore) GetMapNodes(ctx context.Context, hidePositionAfter time.Duration) ([]repo.MapNode, error) {
+func (f *FakeStore) GetMapNodes(ctx context.Context, q repo.MapNodeQuery) ([]repo.MapNode, error) {
 	if f.GetMapNodesFn != nil {
-		return f.GetMapNodesFn(ctx, hidePositionAfter)
+		return f.GetMapNodesFn(ctx, q)
 	}
 
 	return nil, nil
 }
 
 // ListNodes implements repo.ReadStore.
-func (f *FakeStore) ListNodes(ctx context.Context) ([]repo.NodeSummary, error) {
+func (f *FakeStore) ListNodes(ctx context.Context, q repo.NodeListQuery) ([]repo.NodeSummary, error) {
 	if f.ListNodesFn != nil {
-		return f.ListNodesFn(ctx)
+		return f.ListNodesFn(ctx, q)
 	}
 
 	return nil, nil
 }
 
 // GetNodeDetails implements repo.ReadStore.
-func (f *FakeStore) GetNodeDetails(ctx context.Context, nodeID string) (repo.NodeDetails, error) {
+func (f *FakeStore) GetNodeDetails(ctx context.Context, q repo.NodeDetailsQuery) (repo.NodeDetails, error) {
 	if f.GetNodeDetailsFn != nil {
-		return f.GetNodeDetailsFn(ctx, nodeID)
+		return f.GetNodeDetailsFn(ctx, q)
 	}
 
 	return repo.NodeDetails{}, nil

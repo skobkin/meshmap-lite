@@ -272,9 +272,13 @@ describe('startWS', () => {
       log_live_updates: false,
       log_page_size_default: 50,
       disconnected_threshold: '10m',
+      relevance: {
+        telemetry_max_age: '24h',
+        topology_evidence_max_age: '72h',
+        map_position_max_age: '336h'
+      },
       map: {
         clustering: true,
-        hide_position_after: '30m',
         topology_cache_ttl: '10m',
         precision_circles_mode: 'selected',
         default_view: {

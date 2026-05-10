@@ -24,19 +24,21 @@ const (
 var defaultChannelEvents = []string{"text_message", "node_info", "position", "telemetry"}
 
 const (
-	defaultMQTTReconnectTimeout     = 10 * time.Second
-	defaultMQTTConnectTimeout       = 10 * time.Second
-	defaultMQTTKeepalive            = 60 * time.Second
-	defaultTracerouteTimeout        = 60 * time.Second
-	defaultStorageKVTTL             = 6 * time.Hour
-	defaultMapDisconnectedThreshold = 60 * time.Minute
-	defaultMapHidePositionAfter     = 14 * 24 * time.Hour
-	defaultMapTopologyCacheTTL      = 10 * time.Minute
-	defaultTracerouteFinalRetention = defaultTracerouteTimeout
-	defaultStorageKVSize            = 100000
-	defaultStatsDailyBucket         = 5 * time.Minute
-	defaultStatsWeeklyBucket        = time.Hour
-	defaultChatHistoryWindow        = 7 * 24 * time.Hour
+	defaultMQTTReconnectTimeout            = 10 * time.Second
+	defaultMQTTConnectTimeout              = 10 * time.Second
+	defaultMQTTKeepalive                   = 60 * time.Second
+	defaultTracerouteTimeout               = 60 * time.Second
+	defaultStorageKVTTL                    = 6 * time.Hour
+	defaultMapDisconnectedThreshold        = 60 * time.Minute
+	defaultMapTopologyCacheTTL             = 10 * time.Minute
+	defaultRelevanceTelemetryMaxAge        = 24 * time.Hour
+	defaultRelevanceTopologyEvidenceMaxAge = 72 * time.Hour
+	defaultRelevanceMapPositionMaxAge      = 14 * 24 * time.Hour
+	defaultTracerouteFinalRetention        = defaultTracerouteTimeout
+	defaultStorageKVSize                   = 100000
+	defaultStatsDailyBucket                = 5 * time.Minute
+	defaultStatsWeeklyBucket               = time.Hour
+	defaultChatHistoryWindow               = 7 * 24 * time.Hour
 )
 
 func defaultConfig() Config {
@@ -84,10 +86,14 @@ func defaultConfig() Config {
 			Map: MapConfig{
 				Clustering:            false,
 				DisconnectedThreshold: defaultMapDisconnectedThreshold,
-				HidePositionAfter:     defaultMapHidePositionAfter,
 				TopologyCacheTTL:      defaultMapTopologyCacheTTL,
 				PrecisionCirclesMode:  MapPrecisionCirclesSelected,
 				DefaultView:           DefaultViewConfig{Latitude: 64.5, Longitude: 40.6, Zoom: 13},
+			},
+			Relevance: RelevanceConfig{
+				TelemetryMaxAge:        defaultRelevanceTelemetryMaxAge,
+				TopologyEvidenceMaxAge: defaultRelevanceTopologyEvidenceMaxAge,
+				MapPositionMaxAge:      defaultRelevanceMapPositionMaxAge,
 			},
 			Log: LogConfig{
 				LiveUpdates:     true,

@@ -8,6 +8,7 @@ import (
 
 	"meshmap-lite/internal/config"
 	"meshmap-lite/internal/domain"
+	"meshmap-lite/internal/repo"
 )
 
 func TestUpsertNode_CreatedFlagOnFirstInsertOnly(t *testing.T) {
@@ -124,7 +125,7 @@ func TestUpsertNode_RecordsNameHistoryForEffectiveChanges(t *testing.T) {
 		t.Fatalf("short-name upsert node: %v", err)
 	}
 
-	details, err := s.GetNodeDetails(ctx, "!aaaa1111")
+	details, err := s.GetNodeDetails(ctx, repo.NodeDetailsQuery{NodeID: "!aaaa1111"})
 	if err != nil {
 		t.Fatalf("get node details: %v", err)
 	}
@@ -184,7 +185,7 @@ func TestUpsertNode_NameHistoryIgnoresEmptyAndDuplicateEvidence(t *testing.T) {
 		t.Fatalf("expected no name history from empty or duplicate names, got %d", got)
 	}
 
-	details, err := s.GetNodeDetails(ctx, "!aaaa1111")
+	details, err := s.GetNodeDetails(ctx, repo.NodeDetailsQuery{NodeID: "!aaaa1111"})
 	if err != nil {
 		t.Fatalf("get node details: %v", err)
 	}
@@ -365,7 +366,7 @@ func TestGetNodeDetails_WithTelemetryOnSingleConnection(t *testing.T) {
 	detailsCtx, cancel := context.WithTimeout(ctx, 200*time.Millisecond)
 	defer cancel()
 
-	details, err := s.GetNodeDetails(detailsCtx, "!dddd4444")
+	details, err := s.GetNodeDetails(detailsCtx, repo.NodeDetailsQuery{NodeID: "!dddd4444"})
 	if err != nil {
 		t.Fatalf("get node details: %v", err)
 	}
@@ -431,7 +432,7 @@ func TestGetMapNodes_HidesStaleAndMissingPositions(t *testing.T) {
 		}
 	}
 
-	items, err := s.GetMapNodes(ctx, 14*24*time.Hour)
+	items, err := s.GetMapNodes(ctx, repo.MapNodeQuery{PositionObservedSince: now.Add(-14 * 24 * time.Hour)})
 	if err != nil {
 		t.Fatalf("get map nodes: %v", err)
 	}
@@ -446,6 +447,139 @@ func TestGetMapNodes_HidesStaleAndMissingPositions(t *testing.T) {
 	}
 	if items[0].Telemetry != nil {
 		t.Fatalf("expected map node without telemetry to have nil telemetry, got %#v", items[0].Telemetry)
+	}
+}
+
+func TestGetMapNodes_OmitsStaleTelemetry(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, config.SQLConfig{URL: "file::memory:?cache=shared", AutoMigrate: true}, nil)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	if _, err := s.UpsertNode(ctx, domain.Node{
+		NodeID:             "!telemetry",
+		FirstSeenAt:        now,
+		LastSeenAnyEventAt: now,
+		UpdatedAt:          now,
+	}); err != nil {
+		t.Fatalf("upsert node: %v", err)
+	}
+	if err := s.UpsertPosition(ctx, domain.NodePosition{
+		NodeID:     "!telemetry",
+		Latitude:   10.1,
+		Longitude:  20.2,
+		ObservedAt: now,
+		UpdatedAt:  now,
+		SourceKind: domain.PositionSourceChannel,
+	}); err != nil {
+		t.Fatalf("upsert position: %v", err)
+	}
+	staleTelemetryAt := now.Add(-25 * time.Hour)
+	if _, err := s.MergeTelemetry(ctx, domain.NodeTelemetrySnapshot{
+		NodeID:     "!telemetry",
+		ObservedAt: staleTelemetryAt,
+		UpdatedAt:  staleTelemetryAt,
+		Power:      domain.TelemetrySectionPower{Voltage: ptrFloat64(4.1)},
+	}); err != nil {
+		t.Fatalf("merge telemetry: %v", err)
+	}
+
+	items, err := s.GetMapNodes(ctx, repo.MapNodeQuery{
+		PositionObservedSince:  now.Add(-14 * 24 * time.Hour),
+		TelemetryObservedSince: now.Add(-24 * time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("get map nodes: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected visible node, got %#v", items)
+	}
+	if items[0].Telemetry != nil {
+		t.Fatalf("expected stale telemetry to be omitted, got %#v", items[0].Telemetry)
+	}
+}
+
+func TestNodeDetailsAndListApplyRelevanceCutoffs(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, config.SQLConfig{URL: "file::memory:?cache=shared", AutoMigrate: true}, nil)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	stalePositionAt := now.Add(-15 * 24 * time.Hour)
+	staleTelemetryAt := now.Add(-25 * time.Hour)
+	staleTopologyAt := now.Add(-73 * time.Hour)
+	for _, node := range []domain.Node{
+		{NodeID: "!origin", FirstSeenAt: now, LastSeenAnyEventAt: now, UpdatedAt: now},
+		{NodeID: "!peer", FirstSeenAt: now, LastSeenAnyEventAt: now, UpdatedAt: now},
+	} {
+		if _, err := s.UpsertNode(ctx, node); err != nil {
+			t.Fatalf("upsert node %s: %v", node.NodeID, err)
+		}
+	}
+	if err := s.UpsertPosition(ctx, domain.NodePosition{
+		NodeID:     "!origin",
+		Latitude:   10.1,
+		Longitude:  20.2,
+		ObservedAt: stalePositionAt,
+		UpdatedAt:  stalePositionAt,
+		SourceKind: domain.PositionSourceChannel,
+	}); err != nil {
+		t.Fatalf("upsert stale position: %v", err)
+	}
+	if _, err := s.MergeTelemetry(ctx, domain.NodeTelemetrySnapshot{
+		NodeID:     "!origin",
+		ObservedAt: staleTelemetryAt,
+		UpdatedAt:  staleTelemetryAt,
+		Power:      domain.TelemetrySectionPower{Voltage: ptrFloat64(4.1)},
+	}); err != nil {
+		t.Fatalf("merge stale telemetry: %v", err)
+	}
+	if err := s.UpsertTopologyEdges(ctx, []domain.TopologyEdge{{
+		SourceKind:      domain.TopologySourceNeighborInfo,
+		ChannelName:     "LongFast",
+		FromNodeID:      "!origin",
+		ToNodeID:        "!peer",
+		FirstObservedAt: staleTopologyAt,
+		LastObservedAt:  staleTopologyAt,
+		UpdatedAt:       staleTopologyAt,
+	}}); err != nil {
+		t.Fatalf("upsert stale topology: %v", err)
+	}
+
+	query := repo.NodeDetailsQuery{
+		NodeID:                 "!origin",
+		PositionObservedSince:  now.Add(-14 * 24 * time.Hour),
+		TelemetryObservedSince: now.Add(-24 * time.Hour),
+		TopologyUpdatedSince:   now.Add(-72 * time.Hour),
+	}
+	details, err := s.GetNodeDetails(ctx, query)
+	if err != nil {
+		t.Fatalf("get node details: %v", err)
+	}
+	if details.Position != nil {
+		t.Fatalf("expected stale position to be omitted, got %#v", details.Position)
+	}
+	if details.Telemetry != nil {
+		t.Fatalf("expected stale telemetry to be omitted, got %#v", details.Telemetry)
+	}
+	if len(details.Neighbors) != 0 {
+		t.Fatalf("expected stale neighbors to be omitted, got %#v", details.Neighbors)
+	}
+
+	summaries, err := s.ListNodes(ctx, repo.NodeListQuery{PositionObservedSince: query.PositionObservedSince})
+	if err != nil {
+		t.Fatalf("list nodes: %v", err)
+	}
+	for _, summary := range summaries {
+		if summary.NodeID == "!origin" && (summary.HasPosition || summary.LastSeenPositionAt != nil) {
+			t.Fatalf("expected stale position metadata to be omitted, got %#v", summary)
+		}
 	}
 }
 
@@ -501,7 +635,7 @@ func TestNodeProvenancePersistsForMapDetailsPositionAndTelemetry(t *testing.T) {
 		t.Fatalf("merge telemetry: %v", err)
 	}
 
-	details, err := s.GetNodeDetails(ctx, "!sender")
+	details, err := s.GetNodeDetails(ctx, repo.NodeDetailsQuery{NodeID: "!sender"})
 	if err != nil {
 		t.Fatalf("get node details: %v", err)
 	}
@@ -515,7 +649,10 @@ func TestNodeProvenancePersistsForMapDetailsPositionAndTelemetry(t *testing.T) {
 		t.Fatalf("unexpected telemetry uploader: %#v", details.Telemetry)
 	}
 
-	mapNodes, err := s.GetMapNodes(ctx, 24*time.Hour)
+	mapNodes, err := s.GetMapNodes(ctx, repo.MapNodeQuery{
+		PositionObservedSince:  now.Add(-24 * time.Hour),
+		TelemetryObservedSince: now.Add(-24 * time.Hour),
+	})
 	if err != nil {
 		t.Fatalf("get map nodes: %v", err)
 	}
@@ -557,7 +694,7 @@ func TestUpsertNode_MinimalEvidenceDoesNotClearStructuredFields(t *testing.T) {
 		t.Fatalf("minimal evidence upsert node: %v", err)
 	}
 
-	details, err := s.GetNodeDetails(ctx, "!aaaa1111")
+	details, err := s.GetNodeDetails(ctx, repo.NodeDetailsQuery{NodeID: "!aaaa1111"})
 	if err != nil {
 		t.Fatalf("get node details: %v", err)
 	}

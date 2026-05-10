@@ -20,14 +20,33 @@ type WriteStore interface {
 
 // ReadStore defines query operations used by HTTP and other read APIs.
 type ReadStore interface {
-	GetMapNodes(ctx context.Context, hidePositionAfter time.Duration) ([]MapNode, error)
-	ListNodes(ctx context.Context) ([]NodeSummary, error)
-	GetNodeDetails(ctx context.Context, nodeID string) (NodeDetails, error)
+	GetMapNodes(ctx context.Context, q MapNodeQuery) ([]MapNode, error)
+	ListNodes(ctx context.Context, q NodeListQuery) ([]NodeSummary, error)
+	GetNodeDetails(ctx context.Context, q NodeDetailsQuery) (NodeDetails, error)
 	ListTopologyEdges(ctx context.Context, q TopologyEdgeQuery) ([]domain.TopologyEdge, error)
 	ListChatEvents(ctx context.Context, q ChatEventQuery) ([]domain.ChatEvent, error)
 	ListLogEvents(ctx context.Context, q domain.LogEventQuery) ([]domain.LogEventView, error)
 	ActivityBuckets(ctx context.Context, q domain.ActivityQuery) ([]domain.ActivityBucket, error)
 	Stats(ctx context.Context, disconnectedThreshold time.Duration) (domain.Stats, error)
+}
+
+// MapNodeQuery defines map snapshot visibility cutoffs.
+type MapNodeQuery struct {
+	PositionObservedSince  time.Time
+	TelemetryObservedSince time.Time
+}
+
+// NodeListQuery defines node-list visibility cutoffs.
+type NodeListQuery struct {
+	PositionObservedSince time.Time
+}
+
+// NodeDetailsQuery defines node-detail visibility cutoffs.
+type NodeDetailsQuery struct {
+	NodeID                 string
+	PositionObservedSince  time.Time
+	TelemetryObservedSince time.Time
+	TopologyUpdatedSince   time.Time
 }
 
 // Store is the full repository surface implemented by storage adapters.
@@ -101,11 +120,13 @@ type NodeNeighbor struct {
 	NeighborBroadcastIntervalSec *uint32    `json:"neighbor_broadcast_interval_secs,omitempty"`
 	LastObservedAt               time.Time  `json:"last_observed_at"`
 	LastReportedAt               *time.Time `json:"last_reported_at,omitempty"`
+	UpdatedAt                    time.Time  `json:"updated_at"`
 }
 
 // TopologyEdgeQuery defines topology-edge list filters.
 type TopologyEdgeQuery struct {
-	NodeID      string
-	Channel     string
-	SourceKinds []domain.TopologySourceKind
+	NodeID       string
+	Channel      string
+	SourceKinds  []domain.TopologySourceKind
+	UpdatedSince time.Time
 }

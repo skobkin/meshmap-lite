@@ -73,7 +73,8 @@ describe('nodeDetailsCache', () => {
       has_position: true,
       evidence_kind: 'neighbor_info',
       snr: 4.2,
-      last_observed_at: '2026-03-11T12:00:00Z'
+      last_observed_at: '2026-03-11T12:00:00Z',
+      updated_at: '2026-03-11T12:00:00Z'
     }]), 1000)
 
     cache = upsertNodeDetailsCache(cache, detailsWithNeighbors('!z', [{
@@ -82,7 +83,8 @@ describe('nodeDetailsCache', () => {
       has_position: true,
       evidence_kind: 'neighbor_info',
       snr: 12.5,
-      last_observed_at: '2026-03-11T12:05:00Z'
+      last_observed_at: '2026-03-11T12:05:00Z',
+      updated_at: '2026-03-11T12:05:00Z'
     }]), 2000)
 
     expect(cache['!x']?.details.neighbors).toEqual(expect.arrayContaining([
@@ -101,7 +103,8 @@ describe('nodeDetailsCache', () => {
       display_name: 'Peer',
       has_position: true,
       evidence_kind: 'mqtt_direct',
-      last_observed_at: '2026-03-11T12:00:00Z'
+      last_observed_at: '2026-03-11T12:00:00Z',
+      updated_at: '2026-03-11T12:00:00Z'
     }]), 1000)
 
     cache = upsertNodeDetailsCache(cache, detailsWithNeighbors('!peer', [{
@@ -109,7 +112,8 @@ describe('nodeDetailsCache', () => {
       display_name: 'Origin',
       has_position: true,
       evidence_kind: 'inferred',
-      last_observed_at: '2026-03-11T12:10:00Z'
+      last_observed_at: '2026-03-11T12:10:00Z',
+      updated_at: '2026-03-11T12:10:00Z'
     }]), 2000)
 
     expect(cache['!peer']?.details.neighbors?.find((neighbor) => neighbor.node_id === '!origin')?.evidence_kind).toBe('mqtt_direct')

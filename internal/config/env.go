@@ -72,11 +72,17 @@ var envSetters = map[string]envSetter{
 	"web.map.disconnected_threshold": func(cfg *Config, value string) {
 		cfg.Web.Map.DisconnectedThreshold = mustDuration(value, cfg.Web.Map.DisconnectedThreshold)
 	},
-	"web.map.hide_position_after": func(cfg *Config, value string) {
-		cfg.Web.Map.HidePositionAfter = mustDuration(value, cfg.Web.Map.HidePositionAfter)
-	},
 	"web.map.topology_cache_ttl": func(cfg *Config, value string) {
 		cfg.Web.Map.TopologyCacheTTL = mustDuration(value, cfg.Web.Map.TopologyCacheTTL)
+	},
+	"web.relevance.telemetry_max_age": func(cfg *Config, value string) {
+		cfg.Web.Relevance.TelemetryMaxAge = mustDuration(value, 0)
+	},
+	"web.relevance.topology_evidence_max_age": func(cfg *Config, value string) {
+		cfg.Web.Relevance.TopologyEvidenceMaxAge = mustDuration(value, 0)
+	},
+	"web.relevance.map_position_max_age": func(cfg *Config, value string) {
+		cfg.Web.Relevance.MapPositionMaxAge = mustDuration(value, 0)
 	},
 	"web.map.precision_circles_mode": func(cfg *Config, value string) {
 		cfg.Web.Map.PrecisionCirclesMode = MapPrecisionCirclesMode(strings.ToLower(strings.TrimSpace(value)))

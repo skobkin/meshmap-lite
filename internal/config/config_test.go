@@ -27,8 +27,10 @@ channels:
 	t.Setenv("MML_INGEST__TRACEROUTE__MAX_ENTRIES", "2222")
 	t.Setenv("MML_INGEST__MAP_REPORTS__TOPIC_SUFFIX", "custom/map")
 	t.Setenv("MML_WEB__WS__STATS_INTERVAL", "90s")
-	t.Setenv("MML_WEB__MAP__HIDE_POSITION_AFTER", "336h")
 	t.Setenv("MML_WEB__MAP__TOPOLOGY_CACHE_TTL", "25m")
+	t.Setenv("MML_WEB__RELEVANCE__TELEMETRY_MAX_AGE", "12h")
+	t.Setenv("MML_WEB__RELEVANCE__TOPOLOGY_EVIDENCE_MAX_AGE", "48h")
+	t.Setenv("MML_WEB__RELEVANCE__MAP_POSITION_MAX_AGE", "168h")
 	t.Setenv("MML_WEB__MAP__PRECISION_CIRCLES_MODE", "always")
 	t.Setenv("MML_WEB__CHAT__HISTORY_WINDOW", "24h")
 	t.Setenv("MML_WEB__STATS__ACTIVITY__DAILY__BUCKET", "10m")
@@ -60,11 +62,17 @@ channels:
 	if cfg.Web.WS.StatsInterval != 90*time.Second {
 		t.Fatalf("expected web.ws.stats_interval env override")
 	}
-	if cfg.Web.Map.HidePositionAfter != 14*24*time.Hour {
-		t.Fatalf("expected web.map.hide_position_after env override, got %v", cfg.Web.Map.HidePositionAfter)
-	}
 	if cfg.Web.Map.TopologyCacheTTL != 25*time.Minute {
 		t.Fatalf("expected web.map.topology_cache_ttl env override, got %v", cfg.Web.Map.TopologyCacheTTL)
+	}
+	if cfg.Web.Relevance.TelemetryMaxAge != 12*time.Hour {
+		t.Fatalf("expected web.relevance.telemetry_max_age env override, got %v", cfg.Web.Relevance.TelemetryMaxAge)
+	}
+	if cfg.Web.Relevance.TopologyEvidenceMaxAge != 48*time.Hour {
+		t.Fatalf("expected web.relevance.topology_evidence_max_age env override, got %v", cfg.Web.Relevance.TopologyEvidenceMaxAge)
+	}
+	if cfg.Web.Relevance.MapPositionMaxAge != 7*24*time.Hour {
+		t.Fatalf("expected web.relevance.map_position_max_age env override, got %v", cfg.Web.Relevance.MapPositionMaxAge)
 	}
 	if cfg.Web.Map.PrecisionCirclesMode != MapPrecisionCirclesAlways {
 		t.Fatalf("expected web.map.precision_circles_mode env override, got %q", cfg.Web.Map.PrecisionCirclesMode)
@@ -125,11 +133,17 @@ channels:
 	if cfg.Web.Map.PrecisionCirclesMode != MapPrecisionCirclesSelected {
 		t.Fatalf("expected web.map.precision_circles_mode default to be %q, got %q", MapPrecisionCirclesSelected, cfg.Web.Map.PrecisionCirclesMode)
 	}
-	if cfg.Web.Map.HidePositionAfter != 14*24*time.Hour {
-		t.Fatalf("expected web.map.hide_position_after default to be 14 days, got %v", cfg.Web.Map.HidePositionAfter)
-	}
 	if cfg.Web.Map.TopologyCacheTTL != 10*time.Minute {
 		t.Fatalf("expected web.map.topology_cache_ttl default to be 10 minutes, got %v", cfg.Web.Map.TopologyCacheTTL)
+	}
+	if cfg.Web.Relevance.TelemetryMaxAge != 24*time.Hour {
+		t.Fatalf("expected web.relevance.telemetry_max_age default to be 24 hours, got %v", cfg.Web.Relevance.TelemetryMaxAge)
+	}
+	if cfg.Web.Relevance.TopologyEvidenceMaxAge != 72*time.Hour {
+		t.Fatalf("expected web.relevance.topology_evidence_max_age default to be 72 hours, got %v", cfg.Web.Relevance.TopologyEvidenceMaxAge)
+	}
+	if cfg.Web.Relevance.MapPositionMaxAge != 14*24*time.Hour {
+		t.Fatalf("expected web.relevance.map_position_max_age default to be 14 days, got %v", cfg.Web.Relevance.MapPositionMaxAge)
 	}
 	if cfg.Web.Chat.HistoryWindow != 7*24*time.Hour {
 		t.Fatalf("expected web.chat.history_window default to be 7 days, got %v", cfg.Web.Chat.HistoryWindow)
@@ -276,15 +290,17 @@ channels:
 	}
 }
 
-func TestLoadNormalizesInvalidMapHidePositionAfter(t *testing.T) {
+func TestLoadReadsRelevanceFromYAML(t *testing.T) {
 	d := t.TempDir()
 	path := filepath.Join(d, "cfg.yaml")
 	if err := os.WriteFile(path, []byte(`
 mqtt:
   root_topic: msh/test
 web:
-  map:
-    hide_position_after: 0s
+  relevance:
+    telemetry_max_age: 12h
+    topology_evidence_max_age: 48h
+    map_position_max_age: 168h
 channels:
   LongFast:
     psk: AQ==
@@ -296,8 +312,47 @@ channels:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Web.Map.HidePositionAfter != 14*24*time.Hour {
-		t.Fatalf("expected default map hide_position_after, got %v", cfg.Web.Map.HidePositionAfter)
+	if cfg.Web.Relevance.TelemetryMaxAge != 12*time.Hour {
+		t.Fatalf("expected YAML telemetry max age, got %v", cfg.Web.Relevance.TelemetryMaxAge)
+	}
+	if cfg.Web.Relevance.TopologyEvidenceMaxAge != 48*time.Hour {
+		t.Fatalf("expected YAML topology evidence max age, got %v", cfg.Web.Relevance.TopologyEvidenceMaxAge)
+	}
+	if cfg.Web.Relevance.MapPositionMaxAge != 7*24*time.Hour {
+		t.Fatalf("expected YAML map position max age, got %v", cfg.Web.Relevance.MapPositionMaxAge)
+	}
+}
+
+func TestLoadNormalizesInvalidRelevanceDurations(t *testing.T) {
+	d := t.TempDir()
+	path := filepath.Join(d, "cfg.yaml")
+	if err := os.WriteFile(path, []byte(`
+mqtt:
+  root_topic: msh/test
+web:
+  relevance:
+    telemetry_max_age: 0s
+    topology_evidence_max_age: 0s
+    map_position_max_age: 0s
+channels:
+  LongFast:
+    psk: AQ==
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Web.Relevance.TelemetryMaxAge != 24*time.Hour {
+		t.Fatalf("expected default telemetry max age, got %v", cfg.Web.Relevance.TelemetryMaxAge)
+	}
+	if cfg.Web.Relevance.TopologyEvidenceMaxAge != 72*time.Hour {
+		t.Fatalf("expected default topology evidence max age, got %v", cfg.Web.Relevance.TopologyEvidenceMaxAge)
+	}
+	if cfg.Web.Relevance.MapPositionMaxAge != 14*24*time.Hour {
+		t.Fatalf("expected default map position max age, got %v", cfg.Web.Relevance.MapPositionMaxAge)
 	}
 }
 

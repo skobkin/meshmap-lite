@@ -100,6 +100,13 @@ func TestUpsertTopologyEdges_KeepsDistinctSourceKindsAndSupportsFilters(t *testi
 	if !neighborEdges[0].LastObservedAt.Equal(later) {
 		t.Fatalf("expected last observed to update, got %v want %v", neighborEdges[0].LastObservedAt, later)
 	}
+	recentEdges, err := s.ListTopologyEdges(ctx, repo.TopologyEdgeQuery{UpdatedSince: later})
+	if err != nil {
+		t.Fatalf("list recent topology edges: %v", err)
+	}
+	if len(recentEdges) != 1 || recentEdges[0].SourceKind != domain.TopologySourceNeighborInfo {
+		t.Fatalf("expected updated_since to keep only refreshed edge, got %#v", recentEdges)
+	}
 
 	var sourceKind int
 	if err := s.db.QueryRowContext(ctx, `SELECT source_kind FROM topology_edges WHERE channel_name=? AND from_node_id=? AND to_node_id=?`, "LongFast", "!49b5976c", "!11111111").Scan(&sourceKind); err != nil {

@@ -60,6 +60,14 @@ func (s *testStore) UpsertTopologyEdges(_ context.Context, edges []domain.Topolo
 	return nil
 }
 
+func (s *testStore) GetNodeDetails(ctx context.Context, nodeID string) (repo.NodeDetails, error) {
+	if s.GetNodeDetailsFn != nil {
+		return s.GetNodeDetailsFn(ctx, repo.NodeDetailsQuery{NodeID: nodeID})
+	}
+
+	return repo.NodeDetails{}, nil
+}
+
 func (s *testStore) InsertChatEvent(_ context.Context, event domain.ChatEvent) (int64, error) {
 	chat := event
 	s.lastChat = &chat
@@ -628,14 +636,14 @@ func TestHandleChatEmitsResolvedNodeDisplay(t *testing.T) {
 
 func TestPersistLogEvent_EmitsResolvedNodeDisplayName(t *testing.T) {
 	store := &testStore{}
-	store.GetNodeDetailsFn = func(_ context.Context, nodeID string) (repo.NodeDetails, error) {
-		if nodeID != "!11223344" {
-			t.Fatalf("unexpected node id lookup: %q", nodeID)
+	store.GetNodeDetailsFn = func(_ context.Context, q repo.NodeDetailsQuery) (repo.NodeDetails, error) {
+		if q.NodeID != "!11223344" {
+			t.Fatalf("unexpected node id lookup: %q", q.NodeID)
 		}
 
 		return repo.NodeDetails{
 			Node: domain.Node{
-				NodeID:    nodeID,
+				NodeID:    q.NodeID,
 				LongName:  "Alpha Base",
 				ShortName: "AB",
 			},

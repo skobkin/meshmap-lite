@@ -70,9 +70,13 @@ function meta(overrides: Partial<Meta> = {}): Meta {
     log_live_updates: true,
     log_page_size_default: 100,
     disconnected_threshold: '10m',
+    relevance: {
+      telemetry_max_age: '24h',
+      topology_evidence_max_age: '72h',
+      map_position_max_age: '336h'
+    },
     map: {
       clustering: true,
-      hide_position_after: '30m',
       topology_cache_ttl: '10m',
       precision_circles_mode: 'selected',
       default_view: {

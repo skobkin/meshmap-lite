@@ -59,13 +59,16 @@ web:
   map:
     clustering: false
     disconnected_threshold: 60m
-    hide_position_after: 336h
     topology_cache_ttl: 10m
     precision_circles_mode: selected
     default_view:
       latitude: 64.5
       longitude: 40.6
       zoom: 13
+  relevance:
+    telemetry_max_age: 24h
+    topology_evidence_max_age: 72h
+    map_position_max_age: 336h
   log:
     live_updates: true
     page_size_default: 100

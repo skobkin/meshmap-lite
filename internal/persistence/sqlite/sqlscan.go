@@ -362,6 +362,14 @@ func ptrTime(v *time.Time) interface{} {
 	return v.UTC().Format(time.RFC3339Nano)
 }
 
+func cutoffParam(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+
+	return t.UTC().Format(time.RFC3339Nano)
+}
+
 func ptrFloat(v *float64) interface{} {
 	if v == nil {
 		return nil

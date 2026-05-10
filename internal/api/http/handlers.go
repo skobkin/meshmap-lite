@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+
+	"meshmap-lite/internal/repo"
 )
 
 func (s *Server) healthz(w http.ResponseWriter, _ *http.Request) {
@@ -33,7 +35,6 @@ func (s *Server) meta(w http.ResponseWriter, _ *http.Request) {
 		DisconnectedThreshold: s.cfg.Web.Map.DisconnectedThreshold.String(),
 		Map: metaMapPayload{
 			Clustering:           s.cfg.Web.Map.Clustering,
-			HidePositionAfter:    s.cfg.Web.Map.HidePositionAfter.String(),
 			TopologyCacheTTL:     s.cfg.Web.Map.TopologyCacheTTL.String(),
 			PrecisionCirclesMode: string(s.cfg.Web.Map.PrecisionCirclesMode),
 			DefaultView: metaDefaultViewPayload{
@@ -41,6 +42,11 @@ func (s *Server) meta(w http.ResponseWriter, _ *http.Request) {
 				Longitude: s.cfg.Web.Map.DefaultView.Longitude,
 				Zoom:      s.cfg.Web.Map.DefaultView.Zoom,
 			},
+		},
+		Relevance: metaRelevancePayload{
+			TelemetryMaxAge:        s.cfg.Web.Relevance.TelemetryMaxAge.String(),
+			TopologyEvidenceMaxAge: s.cfg.Web.Relevance.TopologyEvidenceMaxAge.String(),
+			MapPositionMaxAge:      s.cfg.Web.Relevance.MapPositionMaxAge.String(),
 		},
 	})
 }
@@ -54,7 +60,11 @@ func (s *Server) channels(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) mapNodes(w http.ResponseWriter, r *http.Request) {
-	items, err := s.store.GetMapNodes(r.Context(), s.cfg.Web.Map.HidePositionAfter)
+	now := s.now().UTC()
+	items, err := s.store.GetMapNodes(r.Context(), repo.MapNodeQuery{
+		PositionObservedSince:  now.Add(-s.cfg.Web.Relevance.MapPositionMaxAge),
+		TelemetryObservedSince: now.Add(-s.cfg.Web.Relevance.TelemetryMaxAge),
+	})
 	if err != nil {
 		if isRequestCanceled(err) {
 			s.log.Debug("map nodes canceled", "err", err)
@@ -128,7 +138,9 @@ func (s *Server) statsActivity(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) nodes(w http.ResponseWriter, r *http.Request) {
-	items, err := s.store.ListNodes(r.Context())
+	items, err := s.store.ListNodes(r.Context(), repo.NodeListQuery{
+		PositionObservedSince: s.now().UTC().Add(-s.cfg.Web.Relevance.MapPositionMaxAge),
+	})
 	if err != nil {
 		if isRequestCanceled(err) {
 			s.log.Debug("list nodes canceled", "err", err)
@@ -145,6 +157,7 @@ func (s *Server) nodes(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) topologyEdges(w http.ResponseWriter, r *http.Request) {
 	query := parseTopologyEdgeQuery(r.URL.Query())
+	query.UpdatedSince = s.now().UTC().Add(-s.cfg.Web.Relevance.TopologyEvidenceMaxAge)
 	items, err := s.store.ListTopologyEdges(r.Context(), query)
 	if err != nil {
 		if isRequestCanceled(err) {
@@ -168,7 +181,13 @@ func (s *Server) nodeByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	item, err := s.store.GetNodeDetails(r.Context(), nodeID)
+	now := s.now().UTC()
+	item, err := s.store.GetNodeDetails(r.Context(), repo.NodeDetailsQuery{
+		NodeID:                 nodeID,
+		PositionObservedSince:  now.Add(-s.cfg.Web.Relevance.MapPositionMaxAge),
+		TelemetryObservedSince: now.Add(-s.cfg.Web.Relevance.TelemetryMaxAge),
+		TopologyUpdatedSince:   now.Add(-s.cfg.Web.Relevance.TopologyEvidenceMaxAge),
+	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeError(w, http.StatusNotFound, "not_found")

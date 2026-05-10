@@ -24,7 +24,7 @@ type neighborEvidenceKey struct {
 	observed time.Time
 }
 
-func (s *Store) getNodeNeighbors(ctx context.Context, nodeID string) ([]repo.NodeNeighbor, error) {
+func (s *Store) getNodeNeighbors(ctx context.Context, nodeID string, topologyUpdatedSince, positionObservedSince time.Time) ([]repo.NodeNeighbor, error) {
 	edges, err := s.ListTopologyEdges(ctx, repo.TopologyEdgeQuery{
 		NodeID: nodeID,
 		SourceKinds: []domain.TopologySourceKind{
@@ -33,6 +33,7 @@ func (s *Store) getNodeNeighbors(ctx context.Context, nodeID string) ([]repo.Nod
 			domain.TopologySourceRoutingForward,
 			domain.TopologySourceRoutingReturn,
 		},
+		UpdatedSince: topologyUpdatedSince,
 	})
 	if err != nil {
 		return nil, err
@@ -48,7 +49,7 @@ func (s *Store) getNodeNeighbors(ctx context.Context, nodeID string) ([]repo.Nod
 		}
 		peers[peerID] = struct{}{}
 	}
-	peerMeta, err := s.getNeighborNodeMeta(ctx, peers)
+	peerMeta, err := s.getNeighborNodeMeta(ctx, peers, positionObservedSince)
 	if err != nil {
 		return nil, err
 	}
@@ -76,6 +77,7 @@ func (s *Store) getNodeNeighbors(ctx context.Context, nodeID string) ([]repo.Nod
 			NeighborBroadcastIntervalSec: edge.NeighborBroadcastIntervalSec,
 			LastObservedAt:               edge.LastObservedAt,
 			LastReportedAt:               edge.LastReportedAt,
+			UpdatedAt:                    edge.UpdatedAt,
 		}
 		key := neighborEvidenceSortKey(edge)
 		switch edge.SourceKind {
@@ -132,7 +134,7 @@ type neighborNodeMeta struct {
 	HasPosition bool
 }
 
-func (s *Store) getNeighborNodeMeta(ctx context.Context, peers map[string]struct{}) (map[string]neighborNodeMeta, error) {
+func (s *Store) getNeighborNodeMeta(ctx context.Context, peers map[string]struct{}, positionObservedSince time.Time) (map[string]neighborNodeMeta, error) {
 	if len(peers) == 0 {
 		return map[string]neighborNodeMeta{}, nil
 	}
@@ -142,10 +144,11 @@ func (s *Store) getNeighborNodeMeta(ctx context.Context, peers map[string]struct
 		args = append(args, peerID)
 		placeholders = append(placeholders, `?`)
 	}
+	args = append([]interface{}{cutoffParam(positionObservedSince), cutoffParam(positionObservedSince)}, args...)
 	rows, err := s.db.QueryContext(ctx, fmt.Sprintf(`
 SELECT n.node_id,n.long_name,n.short_name,CASE WHEN p.node_id IS NULL THEN 0 ELSE 1 END
 FROM nodes n
-LEFT JOIN node_positions p ON p.node_id=n.node_id
+LEFT JOIN node_positions p ON p.node_id=n.node_id AND (?='' OR p.observed_at>=?)
 WHERE n.node_id IN (%s)`, strings.Join(placeholders, `,`)), args...)
 	if err != nil {
 		return nil, err
@@ -248,6 +251,9 @@ func mergeNeighborMetadata(preferred, secondary repo.NodeNeighbor) repo.NodeNeig
 	preferred.HasPosition = preferred.HasPosition || secondary.HasPosition
 	if preferred.LastObservedAt.Before(secondary.LastObservedAt) {
 		preferred.LastObservedAt = secondary.LastObservedAt
+	}
+	if preferred.UpdatedAt.Before(secondary.UpdatedAt) {
+		preferred.UpdatedAt = secondary.UpdatedAt
 	}
 	if preferred.LastReportedAt == nil || (secondary.LastReportedAt != nil && secondary.LastReportedAt.After(*preferred.LastReportedAt)) {
 		preferred.LastReportedAt = secondary.LastReportedAt

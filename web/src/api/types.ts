@@ -85,6 +85,7 @@ export interface NodeSummary {
   long_name?: string
   short_name?: string
   last_seen_any_event_at: string
+  last_seen_position_at?: string
   last_seen_mqtt_gateway_at?: string
   last_mqtt_uploader_node_id?: string
   last_mqtt_uploader_display_name?: string
@@ -140,6 +141,7 @@ export interface NodeNeighbor {
   neighbor_broadcast_interval_secs?: number
   last_observed_at: string
   last_reported_at?: string
+  updated_at: string
 }
 
 export interface NodeTelemetry {
@@ -176,9 +178,13 @@ export interface Meta {
   log_live_updates: boolean
   log_page_size_default: number
   disconnected_threshold: string
+  relevance: {
+    telemetry_max_age: string
+    topology_evidence_max_age: string
+    map_position_max_age: string
+  }
   map: {
     clustering: boolean
-    hide_position_after: string
     topology_cache_ttl: string
     precision_circles_mode: MapPrecisionCirclesMode
     default_view: {

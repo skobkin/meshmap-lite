@@ -13,6 +13,7 @@ import { useMetaStore } from './stores/meta'
 import { useNodeStore } from './stores/nodes'
 import { useWSStore } from './stores/ws'
 import { isNodeDetailsCacheFresh, persistNodeDetailsCache, readNodeDetailsCache, upsertNodeDetailsCache } from './utils/nodeDetailsCache'
+import { pruneMapNodesByRelevance, pruneNodeDetailsByRelevance, pruneNodeDetailsCacheByRelevance, pruneNodeSummariesByRelevance } from './utils/relevance'
 import { parseFragmentState, serializeFragmentState } from './utils/urlState'
 
 import type { LogEvent, NodeDetails } from './api/types'
@@ -131,6 +132,19 @@ export function App(): JSX.Element {
   const initialChannelRef = useRef(initialURLState.current.page === 'map' ? initialURLState.current.map?.chatChannel ?? channel : channel)
   const topologyCacheTTL = meta?.map.topology_cache_ttl ?? defaultTopologyCacheTTL
 
+  const applyRelevance = useCallback((activeMeta: NonNullable<typeof meta>): void => {
+    const state = useNodeStore.getState()
+    state.setMapNodes(pruneMapNodesByRelevance(state.mapNodes, activeMeta))
+    state.setSummaries(pruneNodeSummariesByRelevance(state.summaries, activeMeta))
+    state.setDetails(pruneNodeDetailsByRelevance(state.details, activeMeta))
+    setDetailsCache((current) => {
+      const next = pruneNodeDetailsCacheByRelevance(current, activeMeta)
+      persistNodeDetailsCache(next, localStorage)
+
+      return next
+    })
+  }, [])
+
   const currentFragmentState = useCallback((nextPage = page): FragmentState => {
     switch (nextPage) {
       case 'map':
@@ -215,12 +229,15 @@ export function App(): JSX.Element {
 
   const cacheNodeDetails = useCallback((item: NodeDetails): void => {
     setDetailsCache((current) => {
-      const next = upsertNodeDetailsCache(current, item)
+      const relevant = meta ? pruneNodeDetailsByRelevance(item, meta) ?? item : item
+      const next = meta
+        ? pruneNodeDetailsCacheByRelevance(upsertNodeDetailsCache(current, relevant), meta)
+        : upsertNodeDetailsCache(current, relevant)
       persistNodeDetailsCache(next, localStorage)
 
       return next
     })
-  }, [])
+  }, [meta])
 
   const refreshNodeDetails = useCallback((nodeID: string, signal?: AbortSignal): Promise<void> => {
     const existing = inFlightNodeDetails.current.get(nodeID)
@@ -230,9 +247,10 @@ export function App(): JSX.Element {
 
     const request = api.node(nodeID, { signal })
       .then((item) => {
-        cacheNodeDetails(item)
+        const relevant = meta ? pruneNodeDetailsByRelevance(item, meta) ?? item : item
+        cacheNodeDetails(relevant)
         if (selectedId === nodeID) {
-          setDetails(item)
+          setDetails(relevant)
         }
       })
       .finally(() => {
@@ -242,7 +260,15 @@ export function App(): JSX.Element {
     inFlightNodeDetails.current.set(nodeID, request)
 
     return request
-  }, [cacheNodeDetails, selectedId, setDetails])
+  }, [cacheNodeDetails, meta, selectedId, setDetails])
+
+  useEffect(() => {
+    if (!meta) {return}
+    applyRelevance(meta)
+    const timer = window.setInterval(() => applyRelevance(meta), 60000)
+
+    return () => window.clearInterval(timer)
+  }, [applyRelevance, meta])
 
   useEffect(() => {
     let stopWS: (() => void) | undefined
@@ -279,7 +305,9 @@ export function App(): JSX.Element {
       }
 
       if (mapNodesResult.status === 'fulfilled') {
-        if (!controller.signal.aborted) {setMapNodes(mapNodesResult.value)}
+        if (!controller.signal.aborted) {
+          setMapNodes(nextMeta ? pruneMapNodesByRelevance(mapNodesResult.value, nextMeta) : mapNodesResult.value)
+        }
       } else if (!isAbortError(mapNodesResult.reason)) {
         errors.push('Failed to load map nodes snapshot.')
       }
@@ -332,7 +360,7 @@ export function App(): JSX.Element {
     const controller = new AbortController()
     void api.nodes({ signal: controller.signal })
       .then((items) => {
-        setSummaries(items)
+        setSummaries(meta ? pruneNodeSummariesByRelevance(items, meta) : items)
         setNodesLoadedOnce(true)
         setNodesLoadError('')
       })
@@ -342,7 +370,7 @@ export function App(): JSX.Element {
       })
 
     return () => controller.abort()
-  }, [page, nodesLoadedOnce, setSummaries])
+  }, [meta, page, nodesLoadedOnce, setSummaries])
 
   useEffect(() => {
     if (!selectedId) {
@@ -353,7 +381,7 @@ export function App(): JSX.Element {
 
     const cached = detailsCache[selectedId]
     if (cached) {
-      setDetails(cached.details)
+      setDetails(meta ? pruneNodeDetailsByRelevance(cached.details, meta) : cached.details)
       if (isNodeDetailsCacheFresh(cached, topologyCacheTTL)) {
         return
       }
@@ -369,7 +397,7 @@ export function App(): JSX.Element {
       })
 
     return () => controller.abort()
-  }, [detailsCache, refreshNodeDetails, selectedId, setDetails, topologyCacheTTL])
+  }, [detailsCache, meta, refreshNodeDetails, selectedId, setDetails, topologyCacheTTL])
 
   useEffect(() => {
     if (!hoveredTopologyNodeId) {return}

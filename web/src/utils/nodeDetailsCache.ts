@@ -204,7 +204,8 @@ function makeReverseNeighbor(details: NodeDetails, neighbor: NodeNeighbor): Node
     neighbor_last_rx_at: neighbor.neighbor_last_rx_at,
     neighbor_broadcast_interval_secs: neighbor.neighbor_broadcast_interval_secs,
     last_observed_at: neighbor.last_observed_at,
-    last_reported_at: neighbor.last_reported_at
+    last_reported_at: neighbor.last_reported_at,
+    updated_at: neighbor.updated_at
   }
 }
 

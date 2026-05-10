@@ -169,6 +169,10 @@ FROM topology_edges`)
 			w = append(w, in.String())
 		}
 	}
+	if !q.UpdatedSince.IsZero() {
+		w = append(w, `updated_at>=?`)
+		a = append(a, q.UpdatedSince.UTC().Format(time.RFC3339Nano))
+	}
 	if len(w) > 0 {
 		b.WriteString(` WHERE `)
 		b.WriteString(strings.Join(w, ` AND `))

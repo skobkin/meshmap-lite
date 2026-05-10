@@ -268,7 +268,8 @@ describe('MapPage chat timeline', () => {
             display_name: 'Peer',
             has_position: true,
             evidence_kind: 'mqtt_direct',
-            last_observed_at: '2026-03-11T12:00:00Z'
+            last_observed_at: '2026-03-11T12:00:00Z',
+            updated_at: '2026-03-11T12:00:00Z'
           }]
         }}
         onFocusNodeHandled={() => undefined}

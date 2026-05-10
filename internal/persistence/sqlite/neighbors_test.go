@@ -113,7 +113,7 @@ func TestGetNodeDetails_CollapsesTopologyNeighbors(t *testing.T) {
 		t.Fatalf("upsert topology edges: %v", err)
 	}
 
-	details, err := s.GetNodeDetails(ctx, "!origin")
+	details, err := s.GetNodeDetails(ctx, repo.NodeDetailsQuery{NodeID: "!origin"})
 	if err != nil {
 		t.Fatalf("get node details: %v", err)
 	}

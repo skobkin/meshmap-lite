@@ -44,7 +44,7 @@ interface PopupSection {
 
 const MARKER_SHADOW_URL = '/static/images/node-marker-shadow.svg'
 const markerIconCache = new globalThis.Map<string, L.Icon>()
-const COLD_NODE_AGE_MS = 7 * 24 * 60 * 60 * 1000
+const VISUAL_COLD_NODE_AGE_MS = 7 * 24 * 60 * 60 * 1000
 const MARKER_CACHE_VARIANT = {
   selected: 'selected',
   default: 'default'
@@ -381,7 +381,7 @@ function markerFreshnessState(node: MapNode, disconnectedThreshold?: string): Ma
   if (typeof thresholdMs === 'number' && ageMs <= thresholdMs) {
     return MARKER_FRESHNESS.heardRecent
   }
-  if (ageMs < COLD_NODE_AGE_MS) {
+  if (ageMs < VISUAL_COLD_NODE_AGE_MS) {
     return MARKER_FRESHNESS.stale
   }
 

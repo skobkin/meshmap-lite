@@ -109,7 +109,8 @@ paths:
         '200':
           description: |
             Returns `{node, position?, telemetry?}` items for nodes whose latest
-            position is newer than `meta.map.hide_position_after`.
+            position is within `meta.relevance.map_position_max_age`.
+            Telemetry older than `meta.relevance.telemetry_max_age` is omitted.
           content:
             application/json:
               schema:
@@ -318,7 +319,9 @@ paths:
             `neighbors` is a collapsed per-peer topology view built from
             `neighbor_info`, `mqtt_direct`, `routing_forward`, and `routing_return`
             edges for the selected node. `traceroute_*` edges remain available from
-            `/api/v1/topology/edges` but are excluded from `neighbors`.
+            `/api/v1/topology/edges` but are excluded from `neighbors`. Stale
+            position, telemetry, and topology evidence are omitted according to
+            `meta.relevance`.
           content:
             application/json:
               schema:
@@ -428,6 +431,7 @@ components:
         - log_page_size_default
         - disconnected_threshold
         - map
+        - relevance
       properties:
         app_name:
           type: string
@@ -451,20 +455,18 @@ components:
           description: Go duration string.
         map:
           $ref: '#/components/schemas/MetaMap'
+        relevance:
+          $ref: '#/components/schemas/MetaRelevance'
     MetaMap:
       type: object
       required:
         - clustering
-        - hide_position_after
         - topology_cache_ttl
         - precision_circles_mode
         - default_view
       properties:
         clustering:
           type: boolean
-        hide_position_after:
-          type: string
-          description: Go duration string.
         topology_cache_ttl:
           type: string
           description: Go duration string.
@@ -473,6 +475,22 @@ components:
           enum: [none, selected, always]
         default_view:
           $ref: '#/components/schemas/MetaDefaultView'
+    MetaRelevance:
+      type: object
+      required:
+        - telemetry_max_age
+        - topology_evidence_max_age
+        - map_position_max_age
+      properties:
+        telemetry_max_age:
+          type: string
+          description: Go duration string.
+        topology_evidence_max_age:
+          type: string
+          description: Go duration string.
+        map_position_max_age:
+          type: string
+          description: Go duration string.
     MetaDefaultView:
       type: object
       required: [latitude, longitude, zoom]
@@ -830,7 +848,7 @@ components:
           type: number
     NodeNeighbor:
       type: object
-      required: [node_id, display_name, has_position, evidence_kind, last_observed_at]
+      required: [node_id, display_name, has_position, evidence_kind, last_observed_at, updated_at]
       properties:
         node_id:
           type: string
@@ -861,6 +879,9 @@ components:
           type: string
           format: date-time
         last_reported_at:
+          type: string
+          format: date-time
+        updated_at:
           type: string
           format: date-time
     NodeDetails:

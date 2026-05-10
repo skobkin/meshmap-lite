@@ -17,6 +17,7 @@ import (
 )
 
 func TestTopologyEdgesHandlerReturnsFilteredItems(t *testing.T) {
+	now := time.Unix(1772296589, 0).UTC()
 	store := &testkit.FakeStore{
 		ListTopologyEdgesFn: func(_ context.Context, q repo.TopologyEdgeQuery) ([]domain.TopologyEdge, error) {
 			if q.NodeID != "!49b5976c" || q.Channel != "LongFast" {
@@ -27,8 +28,10 @@ func TestTopologyEdgesHandlerReturnsFilteredItems(t *testing.T) {
 				q.SourceKinds[1] != domain.TopologySourceMQTTDirect {
 				t.Fatalf("unexpected source kinds: %+v", q.SourceKinds)
 			}
-
-			now := time.Unix(1772296589, 0).UTC()
+			wantCutoff := now.Add(-72 * time.Hour)
+			if !q.UpdatedSince.Equal(wantCutoff) {
+				t.Fatalf("expected updated cutoff %s, got %s", wantCutoff, q.UpdatedSince)
+			}
 
 			return []domain.TopologyEdge{{
 				SourceKind:       domain.TopologySourceNeighborInfo,
@@ -43,7 +46,8 @@ func TestTopologyEdgesHandlerReturnsFilteredItems(t *testing.T) {
 		},
 	}
 
-	srv := New(Config{}, store, nil, nil, nil, nil)
+	srv := New(Config{Web: config.WebConfig{Relevance: config.RelevanceConfig{TopologyEvidenceMaxAge: 72 * time.Hour}}}, store, nil, nil, nil, nil)
+	srv.now = func() time.Time { return now }
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/topology/edges?node_id=!49b5976c&channel=LongFast&source_kind=neighbor_info,mqtt_direct", nil)
 	rec := httptest.NewRecorder()
 
@@ -139,6 +143,96 @@ func TestChatMessagesHandlerAppliesHistoryWindow(t *testing.T) {
 	}
 }
 
+func TestMetaHandlerReturnsRelevance(t *testing.T) {
+	srv := New(Config{
+		Web: config.WebConfig{
+			Relevance: config.RelevanceConfig{
+				TelemetryMaxAge:        24 * time.Hour,
+				TopologyEvidenceMaxAge: 72 * time.Hour,
+				MapPositionMaxAge:      14 * 24 * time.Hour,
+			},
+		},
+	}, &testkit.FakeStore{}, nil, nil, nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/meta", nil)
+	rec := httptest.NewRecorder()
+
+	srv.meta(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	var payload metaPayload
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload.Relevance.TelemetryMaxAge != "24h0m0s" ||
+		payload.Relevance.TopologyEvidenceMaxAge != "72h0m0s" ||
+		payload.Relevance.MapPositionMaxAge != "336h0m0s" {
+		t.Fatalf("unexpected relevance payload: %+v", payload.Relevance)
+	}
+}
+
+func TestSnapshotHandlersPassRelevanceCutoffs(t *testing.T) {
+	now := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
+	store := &testkit.FakeStore{
+		GetMapNodesFn: func(_ context.Context, q repo.MapNodeQuery) ([]repo.MapNode, error) {
+			if !q.PositionObservedSince.Equal(now.Add(-14*24*time.Hour)) || !q.TelemetryObservedSince.Equal(now.Add(-24*time.Hour)) {
+				t.Fatalf("unexpected map query: %+v", q)
+			}
+
+			return []repo.MapNode{}, nil
+		},
+		ListNodesFn: func(_ context.Context, q repo.NodeListQuery) ([]repo.NodeSummary, error) {
+			if !q.PositionObservedSince.Equal(now.Add(-14 * 24 * time.Hour)) {
+				t.Fatalf("unexpected nodes query: %+v", q)
+			}
+
+			return []repo.NodeSummary{}, nil
+		},
+		GetNodeDetailsFn: func(_ context.Context, q repo.NodeDetailsQuery) (repo.NodeDetails, error) {
+			if q.NodeID != "!49b5976c" ||
+				!q.PositionObservedSince.Equal(now.Add(-14*24*time.Hour)) ||
+				!q.TelemetryObservedSince.Equal(now.Add(-24*time.Hour)) ||
+				!q.TopologyUpdatedSince.Equal(now.Add(-72*time.Hour)) {
+				t.Fatalf("unexpected node details query: %+v", q)
+			}
+
+			return repo.NodeDetails{Node: domain.Node{NodeID: q.NodeID, LastSeenAnyEventAt: now}}, nil
+		},
+	}
+	srv := New(Config{
+		Web: config.WebConfig{
+			Relevance: config.RelevanceConfig{
+				TelemetryMaxAge:        24 * time.Hour,
+				TopologyEvidenceMaxAge: 72 * time.Hour,
+				MapPositionMaxAge:      14 * 24 * time.Hour,
+			},
+		},
+	}, store, nil, nil, nil, nil)
+	srv.now = func() time.Time { return now }
+
+	for _, tc := range []struct {
+		name string
+		path string
+		call func(http.ResponseWriter, *http.Request)
+	}{
+		{name: "map", path: "/api/v1/map/nodes", call: srv.mapNodes},
+		{name: "nodes", path: "/api/v1/nodes", call: srv.nodes},
+		{name: "details", path: "/api/v1/nodes/%2149b5976c", call: srv.nodeByID},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			rec := httptest.NewRecorder()
+
+			tc.call(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("unexpected status: %d", rec.Code)
+			}
+		})
+	}
+}
+
 func TestStatsActivityHandlerReturnsConfiguredPeriodsAndReusesCache(t *testing.T) {
 	now := time.Date(2026, 5, 4, 12, 7, 0, 0, time.UTC)
 	calls := 0
@@ -215,14 +309,14 @@ func TestStatsActivityHandlerReturnsConfiguredPeriodsAndReusesCache(t *testing.T
 func TestNodeByIDReturnsNodeDetails(t *testing.T) {
 	now := time.Unix(1772296589, 0).UTC()
 	store := &testkit.FakeStore{
-		GetNodeDetailsFn: func(_ context.Context, nodeID string) (repo.NodeDetails, error) {
-			if nodeID != "!49b5976c" {
-				t.Fatalf("unexpected node id: %q", nodeID)
+		GetNodeDetailsFn: func(_ context.Context, q repo.NodeDetailsQuery) (repo.NodeDetails, error) {
+			if q.NodeID != "!49b5976c" {
+				t.Fatalf("unexpected node id: %q", q.NodeID)
 			}
 
 			return repo.NodeDetails{
 				Node: domain.Node{
-					NodeID:             nodeID,
+					NodeID:             q.NodeID,
 					LastSeenAnyEventAt: now,
 					FirstSeenAt:        now,
 					UpdatedAt:          now,

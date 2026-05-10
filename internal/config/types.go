@@ -87,13 +87,14 @@ type ChannelConfig struct {
 
 // WebConfig contains HTTP/websocket and UI-related settings.
 type WebConfig struct {
-	ListenAddr string      `koanf:"listen_addr"`
-	BasePath   string      `koanf:"base_path"`
-	Chat       ChatConfig  `koanf:"chat"`
-	WS         WSConfig    `koanf:"ws"`
-	Map        MapConfig   `koanf:"map"`
-	Log        LogConfig   `koanf:"log"`
-	Stats      StatsConfig `koanf:"stats"`
+	ListenAddr string          `koanf:"listen_addr"`
+	BasePath   string          `koanf:"base_path"`
+	Chat       ChatConfig      `koanf:"chat"`
+	WS         WSConfig        `koanf:"ws"`
+	Map        MapConfig       `koanf:"map"`
+	Relevance  RelevanceConfig `koanf:"relevance"`
+	Log        LogConfig       `koanf:"log"`
+	Stats      StatsConfig     `koanf:"stats"`
 }
 
 // MapPrecisionCirclesMode controls how node precision circles are rendered on the web map.
@@ -126,10 +127,16 @@ type WSConfig struct {
 type MapConfig struct {
 	Clustering            bool                    `koanf:"clustering"`
 	DisconnectedThreshold time.Duration           `koanf:"disconnected_threshold"`
-	HidePositionAfter     time.Duration           `koanf:"hide_position_after"`
 	TopologyCacheTTL      time.Duration           `koanf:"topology_cache_ttl"`
 	PrecisionCirclesMode  MapPrecisionCirclesMode `koanf:"precision_circles_mode"`
 	DefaultView           DefaultViewConfig       `koanf:"default_view"`
+}
+
+// RelevanceConfig controls API/UI visibility cutoffs for stale data.
+type RelevanceConfig struct {
+	TelemetryMaxAge        time.Duration `koanf:"telemetry_max_age"`
+	TopologyEvidenceMaxAge time.Duration `koanf:"topology_evidence_max_age"`
+	MapPositionMaxAge      time.Duration `koanf:"map_position_max_age"`
 }
 
 // LogConfig controls log tab behavior.

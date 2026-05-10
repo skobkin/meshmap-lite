@@ -155,9 +155,10 @@ func (s *Store) ResolveNodeDisplay(ctx context.Context, nodeID string) (string, 
 	return displayName(longName.String, shortName.String, nodeID), nil
 }
 
-// GetMapNodes returns nodes with recent latest positions for map rendering.
-func (s *Store) GetMapNodes(ctx context.Context, hidePositionAfter time.Duration) ([]repo.MapNode, error) {
-	cutoff := time.Now().UTC().Add(-hidePositionAfter).Format(time.RFC3339Nano)
+// GetMapNodes returns nodes with relevant latest positions for map rendering.
+func (s *Store) GetMapNodes(ctx context.Context, q repo.MapNodeQuery) ([]repo.MapNode, error) {
+	positionCutoff := cutoffParam(q.PositionObservedSince)
+	telemetryCutoff := cutoffParam(q.TelemetryObservedSince)
 	rows, err := s.db.QueryContext(ctx, `
 SELECT n.node_id,n.node_num,n.long_name,n.short_name,n.role,n.board_model,n.firmware_version,n.lora_region,n.lora_frequency_desc,
        n.modem_preset,n.has_default_channel,n.has_opted_report_location,n.neighbor_nodes_count,n.mqtt_gateway_capable,n.first_seen_at,n.last_seen_any_event_at,n.last_seen_mqtt_gateway_at,
@@ -166,13 +167,13 @@ SELECT n.node_id,n.node_num,n.long_name,n.short_name,n.role,n.board_model,n.firm
        t.node_id,t.power_voltage,t.power_battery_level,t.env_temperature_c,t.env_humidity,t.env_pressure_hpa,t.air_pm25,t.air_pm10,t.air_co2,t.air_iaq,t.source_channel,t.mqtt_uploader_node_id,tu.long_name,tu.short_name,t.reported_at,t.observed_at,t.updated_at
 FROM nodes n
 LEFT JOIN node_positions p ON p.node_id=n.node_id
-LEFT JOIN node_telemetry_snapshots t ON t.node_id=n.node_id
+LEFT JOIN node_telemetry_snapshots t ON t.node_id=n.node_id AND (?='' OR t.observed_at>=?)
 LEFT JOIN nodes nu ON nu.node_id=n.last_mqtt_uploader_node_id
 LEFT JOIN nodes pu ON pu.node_id=p.mqtt_uploader_node_id
 LEFT JOIN nodes tu ON tu.node_id=t.mqtt_uploader_node_id
 WHERE p.node_id IS NOT NULL
-  AND p.observed_at >= ?
-ORDER BY n.updated_at DESC`, cutoff)
+  AND (?='' OR p.observed_at >= ?)
+ORDER BY n.updated_at DESC`, telemetryCutoff, telemetryCutoff, positionCutoff, positionCutoff)
 	if err != nil {
 		return nil, err
 	}
@@ -190,15 +191,16 @@ ORDER BY n.updated_at DESC`, cutoff)
 }
 
 // ListNodes returns compact node summaries sorted by last activity time.
-func (s *Store) ListNodes(ctx context.Context) ([]repo.NodeSummary, error) {
+func (s *Store) ListNodes(ctx context.Context, q repo.NodeListQuery) ([]repo.NodeSummary, error) {
+	positionCutoff := cutoffParam(q.PositionObservedSince)
 	rows, err := s.db.QueryContext(ctx, `
 SELECT n.node_id,n.long_name,n.short_name,n.last_seen_any_event_at,n.last_seen_position_at,n.last_seen_mqtt_gateway_at,
        n.last_mqtt_uploader_node_id,nu.long_name,nu.short_name,n.last_mqtt_uploader_at,
-       (p.node_id IS NOT NULL) has_position,n.role,n.board_model
+       (p.node_id IS NOT NULL AND (?='' OR p.observed_at>=?)) has_position,n.role,n.board_model
 FROM nodes n
 LEFT JOIN node_positions p ON p.node_id=n.node_id
 LEFT JOIN nodes nu ON nu.node_id=n.last_mqtt_uploader_node_id
-ORDER BY n.last_seen_any_event_at DESC`)
+ORDER BY n.last_seen_any_event_at DESC`, positionCutoff, positionCutoff)
 	if err != nil {
 		return nil, err
 	}
@@ -212,13 +214,17 @@ ORDER BY n.last_seen_any_event_at DESC`)
 			return nil, err
 		}
 		la, _ := time.Parse(time.RFC3339Nano, lastAny)
+		var lastSeenPositionAt *time.Time
+		if hasPos {
+			lastSeenPositionAt = parseNullableTime(lastPos)
+		}
 		items = append(items, repo.NodeSummary{
 			NodeID:                      id,
 			DisplayName:                 displayName(longName, shortName, id),
 			LongName:                    longName,
 			ShortName:                   shortName,
 			LastSeenAnyEventAt:          la,
-			LastSeenPositionAt:          parseNullableTime(lastPos),
+			LastSeenPositionAt:          lastSeenPositionAt,
 			LastSeenMQTTAt:              parseNullableTime(lastMQTT),
 			LastMQTTUploaderNodeID:      uploaderID.String,
 			LastMQTTUploaderDisplayName: displayName(uploaderLong.String, uploaderShort.String, uploaderID.String),
@@ -232,19 +238,20 @@ ORDER BY n.last_seen_any_event_at DESC`)
 	return items, rows.Err()
 }
 
-// GetNodeDetails returns full details for a node including position and telemetry.
-func (s *Store) GetNodeDetails(ctx context.Context, nodeID string) (repo.NodeDetails, error) {
+// GetNodeDetails returns full details for a node including relevant position and telemetry.
+func (s *Store) GetNodeDetails(ctx context.Context, q repo.NodeDetailsQuery) (repo.NodeDetails, error) {
 	var d repo.NodeDetails
+	positionCutoff := cutoffParam(q.PositionObservedSince)
 	rows, err := s.db.QueryContext(ctx, `
 SELECT n.node_id,n.node_num,n.long_name,n.short_name,n.role,n.board_model,n.firmware_version,n.lora_region,n.lora_frequency_desc,
        n.modem_preset,n.has_default_channel,n.has_opted_report_location,n.neighbor_nodes_count,n.mqtt_gateway_capable,n.first_seen_at,n.last_seen_any_event_at,n.last_seen_mqtt_gateway_at,
        n.last_mqtt_uploader_node_id,nu.long_name,nu.short_name,n.last_mqtt_uploader_at,n.last_seen_position_at,n.updated_at,
        p.latitude,p.longitude,p.altitude_m,p.position_precision,p.source_kind,p.source_channel,p.mqtt_uploader_node_id,pu.long_name,pu.short_name,p.reported_at,p.observed_at,p.updated_at
 FROM nodes n
-LEFT JOIN node_positions p ON p.node_id=n.node_id
+LEFT JOIN node_positions p ON p.node_id=n.node_id AND (?='' OR p.observed_at>=?)
 LEFT JOIN nodes nu ON nu.node_id=n.last_mqtt_uploader_node_id
 LEFT JOIN nodes pu ON pu.node_id=p.mqtt_uploader_node_id
-WHERE n.node_id=?`, nodeID)
+WHERE n.node_id=?`, positionCutoff, positionCutoff, q.NodeID)
 	if err != nil {
 		return d, err
 	}
@@ -265,16 +272,16 @@ WHERE n.node_id=?`, nodeID)
 	if err := rows.Err(); err != nil {
 		return d, err
 	}
-	t, _ := s.getTelemetry(ctx, nodeID)
+	t, _ := s.getTelemetry(ctx, q.NodeID, q.TelemetryObservedSince)
 	if t.NodeID != "" {
 		d.Telemetry = &t
 	}
-	neighbors, err := s.getNodeNeighbors(ctx, nodeID)
+	neighbors, err := s.getNodeNeighbors(ctx, q.NodeID, q.TopologyUpdatedSince, q.PositionObservedSince)
 	if err != nil {
 		return d, err
 	}
 	d.Neighbors = neighbors
-	previousNames, err := s.getNodeNameHistory(ctx, nodeID)
+	previousNames, err := s.getNodeNameHistory(ctx, q.NodeID)
 	if err != nil {
 		return d, err
 	}

@@ -263,14 +263,16 @@ describe('NodesPage', () => {
               display_name: 'Route Only',
               has_position: false,
               evidence_kind: 'inferred',
-              last_observed_at: '2026-03-11T12:00:00Z'
+              last_observed_at: '2026-03-11T12:00:00Z',
+              updated_at: '2026-03-11T12:00:00Z'
             },
             {
               node_id: '!mqtt',
               display_name: 'MQTT Direct',
               has_position: false,
               evidence_kind: 'mqtt_direct',
-              last_observed_at: '2026-03-11T12:04:00Z'
+              last_observed_at: '2026-03-11T12:04:00Z',
+              updated_at: '2026-03-11T12:04:00Z'
             },
             {
               node_id: '!snr',
@@ -278,7 +280,8 @@ describe('NodesPage', () => {
               has_position: true,
               evidence_kind: 'neighbor_info',
               snr: 12.4,
-              last_observed_at: '2026-03-11T12:05:00Z'
+              last_observed_at: '2026-03-11T12:05:00Z',
+              updated_at: '2026-03-11T12:05:00Z'
             }
           ]
         })}

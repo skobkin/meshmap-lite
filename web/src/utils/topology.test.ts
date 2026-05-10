@@ -11,6 +11,7 @@ function neighbor(overrides: Partial<NodeNeighbor> = {}): NodeNeighbor {
     has_position: overrides.has_position ?? true,
     evidence_kind: overrides.evidence_kind ?? 'neighbor_info',
     last_observed_at: overrides.last_observed_at ?? '2026-03-11T12:00:00Z',
+    updated_at: overrides.updated_at ?? '2026-03-11T12:00:00Z',
     ...overrides
   }
 }

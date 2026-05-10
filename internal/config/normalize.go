@@ -79,11 +79,17 @@ func normalize(cfg *Config) {
 	if cfg.Web.WS.StatsInterval <= 0 {
 		cfg.Web.WS.StatsInterval = DefaultWSStatsInterval
 	}
-	if cfg.Web.Map.HidePositionAfter <= 0 {
-		cfg.Web.Map.HidePositionAfter = defaultMapHidePositionAfter
-	}
 	if cfg.Web.Map.TopologyCacheTTL <= 0 {
 		cfg.Web.Map.TopologyCacheTTL = defaultMapTopologyCacheTTL
+	}
+	if cfg.Web.Relevance.TelemetryMaxAge <= 0 {
+		cfg.Web.Relevance.TelemetryMaxAge = defaultRelevanceTelemetryMaxAge
+	}
+	if cfg.Web.Relevance.TopologyEvidenceMaxAge <= 0 {
+		cfg.Web.Relevance.TopologyEvidenceMaxAge = defaultRelevanceTopologyEvidenceMaxAge
+	}
+	if cfg.Web.Relevance.MapPositionMaxAge <= 0 {
+		cfg.Web.Relevance.MapPositionMaxAge = defaultRelevanceMapPositionMaxAge
 	}
 	normalizeStatsActivityBucket(&cfg.Web.Stats.Activity.Daily, defaultStatsDailyBucket)
 	normalizeStatsActivityBucket(&cfg.Web.Stats.Activity.Weekly, defaultStatsWeeklyBucket)
