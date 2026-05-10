@@ -252,6 +252,8 @@ describe('NodesPage', () => {
   })
 
   it('renders neighbors ordered by evidence quality and exposes map actions for positioned peers', () => {
+    const openNodeDetails = vi.fn()
+
     render(
       <NodesPage
         items={[summary('!zero', { display_name: 'Zero Node' })]}
@@ -286,15 +288,19 @@ describe('NodesPage', () => {
           ]
         })}
         onOpenMap={() => undefined}
+        onOpenNodeDetails={openNodeDetails}
         onSelect={() => undefined}
       />
     )
 
     expect(screen.getByText('Strong Link')).toBeTruthy()
+    expect(screen.queryByText('!snr')).toBeNull()
     expect(screen.getByText('Signal: SNR 12.4 dB')).toBeTruthy()
     expect(screen.getByText('Evidence: MQTT direct')).toBeTruthy()
     expect(screen.getByText('Signal: Direct upload')).toBeTruthy()
     expect(screen.getByText('Evidence: Inferred')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Strong Link' }))
+    expect(openNodeDetails).toHaveBeenCalledWith('!snr')
     expect(screen.getByRole('button', { name: 'Open Strong Link on map' })).toBeTruthy()
   })
 

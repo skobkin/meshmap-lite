@@ -1,6 +1,7 @@
 import { Fragment } from 'preact'
 
 import { LogEventList } from '../components/LogEventList'
+import { ResolvedNodeData } from '../components/ResolvedNodeData'
 import { defaultMarkerDataUrl } from '../maps/markerIcons'
 import { relativeTime } from '../utils/time'
 import { neighborTimeLabel, sortedNeighbors, topologyEvidenceLabel, topologySignalLabel } from '../utils/topology'
@@ -68,6 +69,31 @@ function previousNameLabel(item: NonNullable<NodeDetails['previous_names']>[numb
   ].filter((part): part is string => part !== null)
 
   return parts.length > 0 ? parts.join(' / ') : null
+}
+
+function NodeDetailsLink({
+  nodeId,
+  fallbackLabel,
+  onOpenNodeDetails
+}: {
+  nodeId: string
+  fallbackLabel?: string
+  onOpenNodeDetails: (id: string) => void
+}): JSX.Element {
+  return (
+    <ResolvedNodeData nodeId={nodeId} fallbackLabel={fallbackLabel}>
+      {({ label, title }) => (
+        <button
+          type="button"
+          className="chat-node-link"
+          title={title}
+          onClick={() => onOpenNodeDetails(nodeId)}
+        >
+          <strong>{label}</strong>
+        </button>
+      )}
+    </ResolvedNodeData>
+  )
 }
 
 function detailSections(details: NodeDetails): DetailSection[] {
@@ -252,7 +278,13 @@ export function NodesPage({
                   {neighbors.map((neighbor) => (
                     <div className="node-neighbor-card" key={neighbor.node_id} role="listitem">
                       <div className="node-neighbor-head">
-                        <strong>{neighbor.display_name}</strong>
+                        <span className="node-neighbor-title">
+                          <NodeDetailsLink
+                            nodeId={neighbor.node_id}
+                            fallbackLabel={neighbor.display_name}
+                            onOpenNodeDetails={onOpenNodeDetails}
+                          />
+                        </span>
                         {neighbor.has_position && (
                           <button
                             type="button"
@@ -265,7 +297,6 @@ export function NodesPage({
                           </button>
                         )}
                       </div>
-                      <p>ID: <code>{neighbor.node_id}</code></p>
                       <p>Evidence: {topologyEvidenceLabel(neighbor)}</p>
                       <p>Signal: {topologySignalLabel(neighbor)}</p>
                       {neighborTimeLabel(neighbor.last_observed_at) && <p>Last observed: {neighborTimeLabel(neighbor.last_observed_at)}</p>}

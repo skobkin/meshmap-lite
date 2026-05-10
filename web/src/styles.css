@@ -659,6 +659,14 @@ body {
   margin-bottom: 0.2rem;
 }
 
+.node-neighbor-title {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: baseline;
+  min-width: 0;
+}
+
 .stats-layout {
   display: grid;
   gap: 1.25rem;
