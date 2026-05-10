@@ -99,6 +99,8 @@ func newUnknownEncryptedEvent(packet *generated.MeshPacket, portnum generated.Po
 		Format:    "protobuf",
 		Encrypted: true,
 		Decrypted: false,
+		HopStart:  packet.GetHopStart(),
+		HopLimit:  packet.GetHopLimit(),
 	}
 }
 
@@ -113,6 +115,8 @@ func newPKIEvent(packet *generated.MeshPacket, gatewayID, topicChannel, envelope
 		Format:    "protobuf",
 		Encrypted: true,
 		Decrypted: false,
+		HopStart:  packet.GetHopStart(),
+		HopLimit:  packet.GetHopLimit(),
 		Timestamp: packetTimestamp(packet),
 		PKI: &PKIPayload{
 			SenderNodeID:      senderNodeID,

@@ -802,7 +802,7 @@ func TestTopologyEdgesFromParsedNeighborInfo(t *testing.T) {
 			},
 		},
 		Timestamp: &reportedAt,
-	}, "LongFast", now)
+	}, meshtastic.TopicInfo{Kind: meshtastic.TopicKindChannel, Channel: "LongFast", GatewayID: "!11223344", IsFromMQTT: true}, "LongFast", "!11223344", now)
 
 	if len(edges) != 2 {
 		t.Fatalf("expected 2 deduplicated neighbor edges, got %#v", edges)
@@ -832,7 +832,7 @@ func TestTopologyEdgesFromParsedTracerouteAndRoutingStayDistinct(t *testing.T) {
 			ReturnPath:          []string{"!11223344", "!0a0b0c0d", "!a55e5e56"},
 			InferredForwardPath: true,
 		},
-	}, "LongFast", now)
+	}, meshtastic.TopicInfo{Kind: meshtastic.TopicKindChannel, Channel: "LongFast", GatewayID: "!99887766", IsFromMQTT: true}, "LongFast", "!99887766", now)
 	if len(tracerouteEdges) != 4 {
 		t.Fatalf("expected 4 traceroute edges, got %#v", tracerouteEdges)
 	}
@@ -852,7 +852,7 @@ func TestTopologyEdgesFromParsedTracerouteAndRoutingStayDistinct(t *testing.T) {
 			Route:      []string{"!22222222"},
 			RouteBack:  []string{"!33333333"},
 		},
-	}, "LongFast", now)
+	}, meshtastic.TopicInfo{Kind: meshtastic.TopicKindChannel, Channel: "LongFast", GatewayID: "!99887766", IsFromMQTT: true}, "LongFast", "!99887766", now)
 	if len(routingEdges) != 4 {
 		t.Fatalf("expected 4 routing edges, got %#v", routingEdges)
 	}
@@ -876,9 +876,86 @@ func TestTopologyEdgesFromParsedRoutingErrorWithoutRouteSkipsTopology(t *testing
 			ToNodeID:    "!abcdef01",
 			ErrorReason: "NO_ROUTE",
 		},
-	}, "LongFast", now)
+	}, meshtastic.TopicInfo{Kind: meshtastic.TopicKindChannel, Channel: "LongFast", GatewayID: "!99887766", IsFromMQTT: true}, "LongFast", "!99887766", now)
 	if len(edges) != 0 {
 		t.Fatalf("expected no topology edges for routing error without route, got %#v", edges)
+	}
+}
+
+func TestTopologyEdgesFromParsedMQTTDirectEvidence(t *testing.T) {
+	now := time.Unix(1772296589, 0).UTC()
+	reportedAt := now.Add(-10 * time.Second)
+	topicInfo := meshtastic.TopicInfo{
+		Kind:       meshtastic.TopicKindChannel,
+		Channel:    "LongFast",
+		GatewayID:  "!11223344",
+		IsFromMQTT: true,
+	}
+
+	edges := topologyEdgesFromParsed(meshtastic.ParsedEvent{
+		Kind:      meshtastic.ParsedUnknownEncrypted,
+		NodeID:    "!49b5976c",
+		HopStart:  7,
+		HopLimit:  7,
+		Timestamp: &reportedAt,
+	}, topicInfo, "LongFast", "!11223344", now)
+
+	if len(edges) != 1 {
+		t.Fatalf("expected one mqtt_direct edge, got %#v", edges)
+	}
+	if edges[0].SourceKind != domain.TopologySourceMQTTDirect || edges[0].FromNodeID != "!49b5976c" || edges[0].ToNodeID != "!11223344" {
+		t.Fatalf("unexpected mqtt_direct edge: %#v", edges[0])
+	}
+	if !edges[0].Inferred || edges[0].ReportedByNodeID != "!11223344" {
+		t.Fatalf("unexpected mqtt_direct metadata: %#v", edges[0])
+	}
+	if edges[0].LastReportedAt == nil || !edges[0].LastReportedAt.Equal(reportedAt) {
+		t.Fatalf("unexpected reported at: %#v", edges[0].LastReportedAt)
+	}
+}
+
+func TestTopologyEdgesFromParsedMQTTDirectSkipsAmbiguousPackets(t *testing.T) {
+	now := time.Unix(1772296589, 0).UTC()
+	topicInfo := meshtastic.TopicInfo{Kind: meshtastic.TopicKindChannel, Channel: "LongFast", GatewayID: "!11223344", IsFromMQTT: true}
+	tests := []struct {
+		name     string
+		evt      meshtastic.ParsedEvent
+		topic    meshtastic.TopicInfo
+		uploader string
+	}{
+		{
+			name:     "relayed",
+			evt:      meshtastic.ParsedEvent{Kind: meshtastic.ParsedChat, NodeID: "!49b5976c", HopStart: 7, HopLimit: 6},
+			topic:    topicInfo,
+			uploader: "!11223344",
+		},
+		{
+			name:     "missing hop metadata",
+			evt:      meshtastic.ParsedEvent{Kind: meshtastic.ParsedChat, NodeID: "!49b5976c", HopStart: 0, HopLimit: 0},
+			topic:    topicInfo,
+			uploader: "!11223344",
+		},
+		{
+			name:     "self upload",
+			evt:      meshtastic.ParsedEvent{Kind: meshtastic.ParsedChat, NodeID: "!11223344", HopStart: 7, HopLimit: 7},
+			topic:    topicInfo,
+			uploader: "!11223344",
+		},
+		{
+			name:     "map report topic",
+			evt:      meshtastic.ParsedEvent{Kind: meshtastic.ParsedMapReport, NodeID: "!49b5976c", HopStart: 7, HopLimit: 7},
+			topic:    meshtastic.TopicInfo{Kind: meshtastic.TopicKindMapReport, MapNodeID: "!49b5976c"},
+			uploader: "!11223344",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			edges := topologyEdgesFromParsed(tt.evt, tt.topic, "LongFast", tt.uploader, now)
+			if len(edges) != 0 {
+				t.Fatalf("expected no mqtt_direct edge, got %#v", edges)
+			}
+		})
 	}
 }
 
@@ -941,6 +1018,60 @@ func TestHandleMessagePersistsTopologyEdgesForSecondaryChannel(t *testing.T) {
 	}
 	if store.topologySeen[0].ChannelName != "LongSlow" {
 		t.Fatalf("unexpected topology channel: %#v", store.topologySeen[0])
+	}
+	if len(store.nodesSeen) != 0 {
+		t.Fatalf("secondary channel should still skip primary-gated node upserts, got %#v", store.nodesSeen)
+	}
+}
+
+func TestHandleMessagePersistsMQTTDirectTopologyForSecondaryChannel(t *testing.T) {
+	store := &testStore{}
+	now := time.Unix(1772296589, 0).UTC()
+	svc := &Service{
+		cfg: Config{
+			RootTopic: "msh/RU/ARKH",
+			MapReports: MapReportsConfig{
+				Enabled:     false,
+				TopicSuffix: "2/map",
+			},
+			Channels: map[string]ChannelConfig{
+				"LongFast": {Primary: true},
+				"LongSlow": {Primary: false},
+			},
+		},
+		store:   store,
+		dedup:   dedup.New(dedup.Options{Size: 32, TTL: time.Minute}),
+		emitter: testEmitter{},
+		log:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+		now: func() time.Time {
+			return now
+		},
+	}
+
+	envelopePayload, err := proto.Marshal(&generated.ServiceEnvelope{
+		ChannelId: "LongSlow",
+		GatewayId: "gw",
+		Packet: &generated.MeshPacket{
+			From:     0x49b5976c,
+			Id:       43,
+			HopStart: 7,
+			HopLimit: 7,
+			PayloadVariant: &generated.MeshPacket_Encrypted{
+				Encrypted: []byte{0xde, 0xad, 0xbe, 0xef},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	svc.HandleMessage(context.Background(), "msh/RU/ARKH/e/LongSlow/!11223344", envelopePayload)
+
+	if len(store.topologySeen) != 1 {
+		t.Fatalf("expected mqtt_direct topology edge to persist for secondary channel, got %#v", store.topologySeen)
+	}
+	if store.topologySeen[0].SourceKind != domain.TopologySourceMQTTDirect || store.topologySeen[0].ChannelName != "LongSlow" {
+		t.Fatalf("unexpected topology edge: %#v", store.topologySeen[0])
 	}
 	if len(store.nodesSeen) != 0 {
 		t.Fatalf("secondary channel should still skip primary-gated node upserts, got %#v", store.nodesSeen)

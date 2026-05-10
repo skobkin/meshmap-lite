@@ -285,6 +285,62 @@ CREATE TABLE nodes (
 	}
 }
 
+func TestApply_WidensTopologySourceKindConstraint(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite", "file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	_, err = db.ExecContext(ctx, `
+PRAGMA user_version = 12;
+CREATE TABLE nodes (
+  node_id TEXT PRIMARY KEY
+);
+INSERT INTO nodes(node_id) VALUES ('!49b5976c'), ('!11223344');
+CREATE TABLE topology_edges (
+  source_kind INTEGER NOT NULL,
+  channel_name TEXT NOT NULL DEFAULT '',
+  from_node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
+  to_node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
+  reported_by_node_id TEXT REFERENCES nodes(node_id) ON DELETE SET NULL,
+  inferred INTEGER NOT NULL DEFAULT 0,
+  snr REAL,
+  neighbor_last_rx_at TEXT,
+  neighbor_broadcast_interval_secs INTEGER,
+  first_observed_at TEXT NOT NULL,
+  last_observed_at TEXT NOT NULL,
+  last_reported_at TEXT,
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (source_kind, channel_name, from_node_id, to_node_id),
+  CHECK (source_kind BETWEEN 1 AND 5),
+  CHECK (inferred IN (0, 1))
+);
+INSERT INTO topology_edges(source_kind,channel_name,from_node_id,to_node_id,first_observed_at,last_observed_at,updated_at)
+VALUES (1, 'LongFast', '!49b5976c', '!11223344', '2026-05-10T10:00:00Z', '2026-05-10T10:00:00Z', '2026-05-10T10:00:00Z');
+`)
+	if err != nil {
+		t.Fatalf("seed schema: %v", err)
+	}
+
+	if err := Apply(ctx, db, nil); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	if _, err := db.ExecContext(ctx, `INSERT INTO topology_edges(source_kind,channel_name,from_node_id,to_node_id,first_observed_at,last_observed_at,updated_at) VALUES (6, 'LongFast', '!49b5976c', '!11223344', '2026-05-10T10:01:00Z', '2026-05-10T10:01:00Z', '2026-05-10T10:01:00Z')`); err != nil {
+		t.Fatalf("expected source_kind 6 to be accepted: %v", err)
+	}
+
+	var count int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM topology_edges`).Scan(&count); err != nil {
+		t.Fatalf("count topology rows: %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("expected preserved row and inserted source_kind 6 row, got %d", count)
+	}
+}
+
 func TestApply_ReclassifiesRangeTestLogEvents(t *testing.T) {
 	ctx := context.Background()
 	db, err := sql.Open("sqlite", "file::memory:?cache=shared")

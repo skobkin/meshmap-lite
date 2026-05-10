@@ -4,6 +4,7 @@ import type { NodeDetails, NodeNeighbor } from '../api/types'
 
 export const TOPOLOGY_COLOR = {
   inferred: '#94a3b8',
+  mqttDirect: '#0f766e',
   noSNR: '#2563eb',
   poor: '#dc2626',
   fair: '#eab308',
@@ -13,6 +14,9 @@ export const TOPOLOGY_COLOR = {
 export function topologyColor(neighbor: NodeNeighbor): string {
   if (neighbor.evidence_kind === 'inferred') {
     return TOPOLOGY_COLOR.inferred
+  }
+  if (neighbor.evidence_kind === 'mqtt_direct') {
+    return TOPOLOGY_COLOR.mqttDirect
   }
   if (typeof neighbor.snr !== 'number') {
     return TOPOLOGY_COLOR.noSNR
@@ -31,6 +35,9 @@ export function topologySignalLabel(neighbor: NodeNeighbor): string {
   if (neighbor.evidence_kind === 'inferred') {
     return 'Inferred'
   }
+  if (neighbor.evidence_kind === 'mqtt_direct') {
+    return 'Direct upload'
+  }
   if (typeof neighbor.snr !== 'number') {
     return 'No SNR'
   }
@@ -39,7 +46,14 @@ export function topologySignalLabel(neighbor: NodeNeighbor): string {
 }
 
 export function topologyEvidenceLabel(neighbor: NodeNeighbor): string {
-  return neighbor.evidence_kind === 'neighbor_info' ? 'Neighbor info' : 'Inferred'
+  if (neighbor.evidence_kind === 'neighbor_info') {
+    return 'Neighbor info'
+  }
+  if (neighbor.evidence_kind === 'mqtt_direct') {
+    return 'MQTT direct'
+  }
+
+  return 'Inferred'
 }
 
 export function sortedNeighbors(details?: NodeDetails): NodeNeighbor[] {
@@ -71,6 +85,9 @@ function compareNeighbors(a: NodeNeighbor, b: NodeNeighbor): number {
 
 function neighborRank(neighbor: NodeNeighbor): number {
   if (neighbor.evidence_kind === 'inferred') {
+    return 3
+  }
+  if (neighbor.evidence_kind === 'mqtt_direct') {
     return 2
   }
   if (typeof neighbor.snr !== 'number') {

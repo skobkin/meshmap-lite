@@ -95,6 +95,26 @@ describe('nodeDetailsCache', () => {
     expect(cache['!x']?.details.neighbors?.find((neighbor) => neighbor.node_id === '!z')).not.toHaveProperty('snr')
   })
 
+  it('keeps mqtt direct cache evidence above newer inferred evidence', () => {
+    let cache = upsertNodeDetailsCache({}, detailsWithNeighbors('!origin', [{
+      node_id: '!peer',
+      display_name: 'Peer',
+      has_position: true,
+      evidence_kind: 'mqtt_direct',
+      last_observed_at: '2026-03-11T12:00:00Z'
+    }]), 1000)
+
+    cache = upsertNodeDetailsCache(cache, detailsWithNeighbors('!peer', [{
+      node_id: '!origin',
+      display_name: 'Origin',
+      has_position: true,
+      evidence_kind: 'inferred',
+      last_observed_at: '2026-03-11T12:10:00Z'
+    }]), 2000)
+
+    expect(cache['!peer']?.details.neighbors?.find((neighbor) => neighbor.node_id === '!origin')?.evidence_kind).toBe('mqtt_direct')
+  })
+
   it('preserves previous names when merging refreshed partial details', () => {
     let cache = upsertNodeDetailsCache({}, {
       ...details('!alpha'),

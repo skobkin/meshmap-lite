@@ -24,7 +24,7 @@ func TestTopologyEdgesHandlerReturnsFilteredItems(t *testing.T) {
 			}
 			if len(q.SourceKinds) != 2 ||
 				q.SourceKinds[0] != domain.TopologySourceNeighborInfo ||
-				q.SourceKinds[1] != domain.TopologySourceRoutingReturn {
+				q.SourceKinds[1] != domain.TopologySourceMQTTDirect {
 				t.Fatalf("unexpected source kinds: %+v", q.SourceKinds)
 			}
 
@@ -44,7 +44,7 @@ func TestTopologyEdgesHandlerReturnsFilteredItems(t *testing.T) {
 	}
 
 	srv := New(Config{}, store, nil, nil, nil, nil)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/topology/edges?node_id=!49b5976c&channel=LongFast&source_kind=neighbor_info,routing_return", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/topology/edges?node_id=!49b5976c&channel=LongFast&source_kind=neighbor_info,mqtt_direct", nil)
 	rec := httptest.NewRecorder()
 
 	srv.topologyEdges(rec, req)

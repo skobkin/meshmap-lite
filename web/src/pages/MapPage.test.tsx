@@ -251,4 +251,37 @@ describe('MapPage chat timeline', () => {
     expect(screen.queryByRole('button', { name: 'Load more' })).toBeNull()
     expect(screen.getByRole('alert').textContent).toContain('Failed to load older chat messages.')
   })
+
+  it('renders MQTT direct topology legend entry', () => {
+    render(
+      <MapPage
+        center={[0, 0]}
+        zoom={7}
+        clustering={true}
+        precisionCirclesMode="selected"
+        channels={['mesh']}
+        topologyNodeId="!origin"
+        topologyDetails={{
+          node: { node_id: '!origin', last_seen_any_event_at: '2026-03-11T12:00:00Z' },
+          neighbors: [{
+            node_id: '!peer',
+            display_name: 'Peer',
+            has_position: true,
+            evidence_kind: 'mqtt_direct',
+            last_observed_at: '2026-03-11T12:00:00Z'
+          }]
+        }}
+        onFocusNodeHandled={() => undefined}
+        onHoverTopologyNode={() => undefined}
+        onLoadMoreChat={() => undefined}
+        onOpenNodeDetails={() => undefined}
+        onViewChange={() => undefined}
+        chatHasMore={false}
+        chatLoadingMore={false}
+        chatLoadMoreError=""
+      />
+    )
+
+    expect(screen.getByText('MQTT direct')).toBeTruthy()
+  })
 })

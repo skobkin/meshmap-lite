@@ -152,16 +152,16 @@ function chooseBetterNeighbor(current: NodeNeighbor | undefined, incoming: NodeN
     return incoming
   }
 
-  const currentObserved = Date.parse(current.last_observed_at)
-  const incomingObserved = Date.parse(incoming.last_observed_at)
-  if (Number.isFinite(currentObserved) && Number.isFinite(incomingObserved) && incomingObserved > currentObserved) {
-    return incoming
-  }
   if (neighborRank(incoming) < neighborRank(current)) {
     return incoming
   }
   if (neighborRank(incoming) > neighborRank(current)) {
     return current
+  }
+  const currentObserved = Date.parse(current.last_observed_at)
+  const incomingObserved = Date.parse(incoming.last_observed_at)
+  if (Number.isFinite(currentObserved) && Number.isFinite(incomingObserved) && incomingObserved > currentObserved) {
+    return incoming
   }
   if (typeof incoming.snr === 'number' && typeof current.snr === 'number' && incoming.snr > current.snr) {
     return incoming
@@ -179,6 +179,9 @@ function chooseBetterNeighbor(current: NodeNeighbor | undefined, incoming: NodeN
 
 function neighborRank(neighbor: NodeNeighbor): number {
   if (neighbor.evidence_kind === 'inferred') {
+    return 3
+  }
+  if (neighbor.evidence_kind === 'mqtt_direct') {
     return 2
   }
   if (typeof neighbor.snr !== 'number') {

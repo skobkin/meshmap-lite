@@ -111,7 +111,7 @@ export interface NodeNameHistory {
 }
 
 export interface TopologyEdge {
-  source_kind: 'neighbor_info' | 'routing_forward' | 'routing_return' | 'traceroute_forward' | 'traceroute_return'
+  source_kind: 'neighbor_info' | 'routing_forward' | 'routing_return' | 'traceroute_forward' | 'traceroute_return' | 'mqtt_direct'
   channel_name?: string
   from_node_id: string
   to_node_id: string
@@ -132,7 +132,7 @@ export interface NodeNeighbor {
   long_name?: string
   short_name?: string
   has_position: boolean
-  evidence_kind: 'neighbor_info' | 'inferred'
+  evidence_kind: 'neighbor_info' | 'mqtt_direct' | 'inferred'
   snr?: number
   channel_name?: string
   reported_by_node_id?: string

@@ -24,6 +24,7 @@ func TestGetNodeDetails_CollapsesTopologyNeighbors(t *testing.T) {
 		{NodeID: "!peer-a", LongName: "Peer A", FirstSeenAt: now, LastSeenAnyEventAt: now, UpdatedAt: now},
 		{NodeID: "!peer-b", ShortName: "Peer B", FirstSeenAt: now, LastSeenAnyEventAt: now, UpdatedAt: now},
 		{NodeID: "!peer-c", LongName: "Peer C", FirstSeenAt: now, LastSeenAnyEventAt: now, UpdatedAt: now},
+		{NodeID: "!peer-d", LongName: "Peer D", FirstSeenAt: now, LastSeenAnyEventAt: now, UpdatedAt: now},
 		{NodeID: "!peer-ignore", LongName: "Ignored", FirstSeenAt: now, LastSeenAnyEventAt: now, UpdatedAt: now},
 	} {
 		if _, err := s.UpsertNode(ctx, node); err != nil {
@@ -86,6 +87,17 @@ func TestGetNodeDetails_CollapsesTopologyNeighbors(t *testing.T) {
 			UpdatedAt:        now,
 		},
 		{
+			SourceKind:       domain.TopologySourceMQTTDirect,
+			ChannelName:      "LongFast",
+			FromNodeID:       "!peer-d",
+			ToNodeID:         "!origin",
+			ReportedByNodeID: "!origin",
+			Inferred:         true,
+			FirstObservedAt:  later,
+			LastObservedAt:   later,
+			UpdatedAt:        later,
+		},
+		{
 			SourceKind:       domain.TopologySourceTracerouteForward,
 			ChannelName:      "LongFast",
 			FromNodeID:       "!origin",
@@ -103,8 +115,8 @@ func TestGetNodeDetails_CollapsesTopologyNeighbors(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get node details: %v", err)
 	}
-	if len(details.Neighbors) != 3 {
-		t.Fatalf("expected 3 collapsed neighbors, got %#v", details.Neighbors)
+	if len(details.Neighbors) != 4 {
+		t.Fatalf("expected 4 collapsed neighbors, got %#v", details.Neighbors)
 	}
 	neighborsByID := make(map[string]repo.NodeNeighbor, len(details.Neighbors))
 	for _, item := range details.Neighbors {
@@ -121,5 +133,11 @@ func TestGetNodeDetails_CollapsesTopologyNeighbors(t *testing.T) {
 	}
 	if neighborsByID["!peer-c"].EvidenceKind != "inferred" {
 		t.Fatalf("expected peer-c inferred neighbor, got %#v", neighborsByID["!peer-c"])
+	}
+	if neighborsByID["!peer-d"].EvidenceKind != "mqtt_direct" {
+		t.Fatalf("expected peer-d mqtt_direct neighbor, got %#v", neighborsByID["!peer-d"])
+	}
+	if details.Neighbors[2].NodeID != "!peer-d" || details.Neighbors[3].NodeID != "!peer-c" {
+		t.Fatalf("expected mqtt_direct to sort above inferred, got %#v", details.Neighbors)
 	}
 }

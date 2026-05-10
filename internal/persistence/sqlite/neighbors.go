@@ -29,6 +29,7 @@ func (s *Store) getNodeNeighbors(ctx context.Context, nodeID string) ([]repo.Nod
 		NodeID: nodeID,
 		SourceKinds: []domain.TopologySourceKind{
 			domain.TopologySourceNeighborInfo,
+			domain.TopologySourceMQTTDirect,
 			domain.TopologySourceRoutingForward,
 			domain.TopologySourceRoutingReturn,
 		},
@@ -77,9 +78,12 @@ func (s *Store) getNodeNeighbors(ctx context.Context, nodeID string) ([]repo.Nod
 			LastReportedAt:               edge.LastReportedAt,
 		}
 		key := neighborEvidenceSortKey(edge)
-		if edge.SourceKind == domain.TopologySourceNeighborInfo {
+		switch edge.SourceKind {
+		case domain.TopologySourceNeighborInfo:
 			candidate.EvidenceKind = "neighbor_info"
 			candidate.SNR = edge.SNR
+		case domain.TopologySourceMQTTDirect:
+			candidate.EvidenceKind = "mqtt_direct"
 		}
 
 		existing, ok := grouped[peerID]
@@ -177,8 +181,10 @@ func neighborEvidenceSortKey(edge domain.TopologyEdge) neighborEvidenceKey {
 		}
 
 		return neighborEvidenceKey{rank: 1, observed: edge.LastObservedAt}
-	default:
+	case domain.TopologySourceMQTTDirect:
 		return neighborEvidenceKey{rank: 2, observed: edge.LastObservedAt}
+	default:
+		return neighborEvidenceKey{rank: 3, observed: edge.LastObservedAt}
 	}
 }
 
@@ -200,15 +206,18 @@ func preferNeighborCandidate(candidate, current neighborEvidenceKey) bool {
 }
 
 func neighborDisplaySortKey(neighbor repo.NodeNeighbor) neighborEvidenceKey {
-	if neighbor.EvidenceKind == "neighbor_info" {
+	switch neighbor.EvidenceKind {
+	case "neighbor_info":
 		if neighbor.SNR != nil {
 			return neighborEvidenceKey{rank: 0, snrKnown: true, snr: *neighbor.SNR, observed: neighbor.LastObservedAt}
 		}
 
 		return neighborEvidenceKey{rank: 1, observed: neighbor.LastObservedAt}
+	case "mqtt_direct":
+		return neighborEvidenceKey{rank: 2, observed: neighbor.LastObservedAt}
+	default:
+		return neighborEvidenceKey{rank: 3, observed: neighbor.LastObservedAt}
 	}
-
-	return neighborEvidenceKey{rank: 2, observed: neighbor.LastObservedAt}
 }
 
 func mergeNeighborMetadata(preferred, secondary repo.NodeNeighbor) repo.NodeNeighbor {

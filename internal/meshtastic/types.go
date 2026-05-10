@@ -36,6 +36,8 @@ type ParsedEvent struct {
 	Encrypted  bool
 	Decrypted  bool
 	Timestamp  *time.Time
+	HopStart   uint32
+	HopLimit   uint32
 	Chat       *ChatPayload
 	NodeInfo   *NodeInfoPayload
 	Position   *PositionPayload

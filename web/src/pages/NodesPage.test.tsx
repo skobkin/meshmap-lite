@@ -254,6 +254,13 @@ describe('NodesPage', () => {
               last_observed_at: '2026-03-11T12:00:00Z'
             },
             {
+              node_id: '!mqtt',
+              display_name: 'MQTT Direct',
+              has_position: false,
+              evidence_kind: 'mqtt_direct',
+              last_observed_at: '2026-03-11T12:04:00Z'
+            },
+            {
               node_id: '!snr',
               display_name: 'Strong Link',
               has_position: true,
@@ -270,6 +277,8 @@ describe('NodesPage', () => {
 
     expect(screen.getByText('Strong Link')).toBeTruthy()
     expect(screen.getByText('Signal: SNR 12.4 dB')).toBeTruthy()
+    expect(screen.getByText('Evidence: MQTT direct')).toBeTruthy()
+    expect(screen.getByText('Signal: Direct upload')).toBeTruthy()
     expect(screen.getByText('Evidence: Inferred')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Open Strong Link on map' })).toBeTruthy()
   })

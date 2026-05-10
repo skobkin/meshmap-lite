@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -45,6 +46,15 @@ ON CONFLICT(source_kind,channel_name,from_node_id,to_node_id) DO UPDATE SET
 		if !ok {
 			return fmt.Errorf("unknown topology source kind: %q", edge.SourceKind)
 		}
+		if edge.SourceKind == domain.TopologySourceMQTTDirect {
+			updated, err := updateExistingDirectTopologyEdge(ctx, tx, edge)
+			if err != nil {
+				return err
+			}
+			if updated {
+				continue
+			}
+		}
 		if _, err := stmt.ExecContext(ctx,
 			sourceValue,
 			edge.ChannelName,
@@ -65,6 +75,56 @@ ON CONFLICT(source_kind,channel_name,from_node_id,to_node_id) DO UPDATE SET
 	}
 
 	return tx.Commit()
+}
+
+func updateExistingDirectTopologyEdge(ctx context.Context, tx *sql.Tx, edge domain.TopologyEdge) (bool, error) {
+	result, err := tx.ExecContext(ctx, `
+UPDATE topology_edges
+SET last_observed_at=?,
+    last_reported_at=COALESCE(?,last_reported_at),
+    updated_at=?
+WHERE rowid = (
+  SELECT rowid
+  FROM topology_edges
+  WHERE channel_name=?
+    AND ((from_node_id=? AND to_node_id=?) OR (from_node_id=? AND to_node_id=?))
+  ORDER BY
+    CASE source_kind
+      WHEN ? THEN 0
+      WHEN ? THEN 1
+      WHEN ? THEN 2
+      WHEN ? THEN 3
+      WHEN ? THEN 4
+      WHEN ? THEN 5
+      ELSE 6
+    END,
+    last_observed_at DESC
+  LIMIT 1
+)`,
+		edge.LastObservedAt.UTC().Format(time.RFC3339Nano),
+		ptrTime(edge.LastReportedAt),
+		edge.UpdatedAt.UTC().Format(time.RFC3339Nano),
+		edge.ChannelName,
+		edge.FromNodeID,
+		edge.ToNodeID,
+		edge.ToNodeID,
+		edge.FromNodeID,
+		domain.TopologySourceNeighborInfoValue,
+		domain.TopologySourceMQTTDirectValue,
+		domain.TopologySourceRoutingForwardValue,
+		domain.TopologySourceRoutingReturnValue,
+		domain.TopologySourceTracerouteForwardValue,
+		domain.TopologySourceTracerouteReturnValue,
+	)
+	if err != nil {
+		return false, err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+
+	return affected > 0, nil
 }
 
 // ListTopologyEdges returns current topology-edge snapshots ordered by recency.

@@ -45,7 +45,7 @@ func TestParseTopologyEdgeQueryDeduplicatesKinds(t *testing.T) {
 	values := url.Values{
 		"node_id":      []string{"!49b5976c"},
 		"channel":      []string{"LongFast"},
-		"source_kind":  []string{"neighbor_info,traceroute_forward"},
+		"source_kind":  []string{"neighbor_info,mqtt_direct,traceroute_forward"},
 		"source_kinds": []string{"traceroute_forward,invalid,routing_return"},
 	}
 
@@ -53,10 +53,11 @@ func TestParseTopologyEdgeQueryDeduplicatesKinds(t *testing.T) {
 	if got.NodeID != "!49b5976c" || got.Channel != "LongFast" {
 		t.Fatalf("unexpected parsed topology query: %+v", got)
 	}
-	if len(got.SourceKinds) != 3 ||
+	if len(got.SourceKinds) != 4 ||
 		got.SourceKinds[0] != domain.TopologySourceNeighborInfo ||
-		got.SourceKinds[1] != domain.TopologySourceTracerouteForward ||
-		got.SourceKinds[2] != domain.TopologySourceRoutingReturn {
+		got.SourceKinds[1] != domain.TopologySourceMQTTDirect ||
+		got.SourceKinds[2] != domain.TopologySourceTracerouteForward ||
+		got.SourceKinds[3] != domain.TopologySourceRoutingReturn {
 		t.Fatalf("unexpected topology source kinds: %+v", got.SourceKinds)
 	}
 }

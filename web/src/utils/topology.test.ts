@@ -18,14 +18,17 @@ function neighbor(overrides: Partial<NodeNeighbor> = {}): NodeNeighbor {
 describe('topology helpers', () => {
   it('maps evidence and SNR to colors and labels', () => {
     expect(topologyColor(neighbor({ evidence_kind: 'inferred' }))).toBe('#94a3b8')
+    expect(topologyColor(neighbor({ evidence_kind: 'mqtt_direct' }))).toBe('#0f766e')
     expect(topologyColor(neighbor())).toBe('#2563eb')
     expect(topologyColor(neighbor({ snr: -1 }))).toBe('#dc2626')
     expect(topologyColor(neighbor({ snr: 5 }))).toBe('#eab308')
     expect(topologyColor(neighbor({ snr: 12 }))).toBe('#16a34a')
 
     expect(topologySignalLabel(neighbor({ evidence_kind: 'inferred' }))).toBe('Inferred')
+    expect(topologySignalLabel(neighbor({ evidence_kind: 'mqtt_direct' }))).toBe('Direct upload')
     expect(topologySignalLabel(neighbor())).toBe('No SNR')
     expect(topologySignalLabel(neighbor({ snr: 12.34 }))).toBe('SNR 12.3 dB')
+    expect(topologyEvidenceLabel(neighbor({ evidence_kind: 'mqtt_direct' }))).toBe('MQTT direct')
     expect(topologyEvidenceLabel(neighbor({ evidence_kind: 'inferred' }))).toBe('Inferred')
   })
 
@@ -37,6 +40,7 @@ describe('topology helpers', () => {
       },
       neighbors: [
         neighbor({ node_id: '!inferred', display_name: 'Inferred', evidence_kind: 'inferred' }),
+        neighbor({ node_id: '!mqtt', display_name: 'MQTT direct', evidence_kind: 'mqtt_direct' }),
         neighbor({ node_id: '!unknown', display_name: 'No SNR' }),
         neighbor({ node_id: '!weak', display_name: 'Weak', snr: 1 }),
         neighbor({ node_id: '!strong', display_name: 'Strong', snr: 12 }),
@@ -49,6 +53,7 @@ describe('topology helpers', () => {
       '!strong',
       '!weak',
       '!unknown',
+      '!mqtt',
       '!inferred'
     ])
   })

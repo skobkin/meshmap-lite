@@ -316,8 +316,8 @@ paths:
             Returns `{node, position?, telemetry?, neighbors?, previous_names?}`.
 
             `neighbors` is a collapsed per-peer topology view built from
-            `neighbor_info`, `routing_forward`, and `routing_return` edges for the
-            selected node. `traceroute_*` edges remain available from
+            `neighbor_info`, `mqtt_direct`, `routing_forward`, and `routing_return`
+            edges for the selected node. `traceroute_*` edges remain available from
             `/api/v1/topology/edges` but are excluded from `neighbors`.
           content:
             application/json:
@@ -703,6 +703,7 @@ components:
             - routing_return
             - traceroute_forward
             - traceroute_return
+            - mqtt_direct
         channel_name:
           type: string
         from_node_id:
@@ -843,7 +844,7 @@ components:
           type: boolean
         evidence_kind:
           type: string
-          enum: [neighbor_info, inferred]
+          enum: [neighbor_info, mqtt_direct, inferred]
         snr:
           type: number
         channel_name:

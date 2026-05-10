@@ -12,8 +12,10 @@ func TestParseServiceEnvelopeChat(t *testing.T) {
 	ConfigureChannelKeys(nil)
 
 	packet := &generated.MeshPacket{
-		From: 0x11223344,
-		Id:   42,
+		From:     0x11223344,
+		Id:       42,
+		HopStart: 7,
+		HopLimit: 7,
 		PayloadVariant: &generated.MeshPacket_Decoded{Decoded: &generated.Data{
 			Portnum: generated.PortNum_TEXT_MESSAGE_APP,
 			Payload: []byte("hello"),
@@ -37,6 +39,9 @@ func TestParseServiceEnvelopeChat(t *testing.T) {
 	}
 	if evt.Chat == nil || evt.Chat.Text != "hello" {
 		t.Fatalf("unexpected chat payload")
+	}
+	if evt.HopStart != 7 || evt.HopLimit != 7 {
+		t.Fatalf("expected hop metadata to be retained, got start=%d limit=%d", evt.HopStart, evt.HopLimit)
 	}
 }
 
@@ -97,9 +102,11 @@ func TestParseServiceEnvelopeUnknownEncryptedWhenNoKey(t *testing.T) {
 	ConfigureChannelKeys(nil)
 
 	packet := &generated.MeshPacket{
-		From:    0x11223344,
-		Id:      123,
-		Channel: 7,
+		From:     0x11223344,
+		Id:       123,
+		Channel:  7,
+		HopStart: 5,
+		HopLimit: 5,
 		PayloadVariant: &generated.MeshPacket_Encrypted{
 			Encrypted: []byte{0xde, 0xad, 0xbe, 0xef},
 		},
@@ -119,6 +126,9 @@ func TestParseServiceEnvelopeUnknownEncryptedWhenNoKey(t *testing.T) {
 	}
 	if !evt.Encrypted {
 		t.Fatalf("expected encrypted flag")
+	}
+	if evt.HopStart != 5 || evt.HopLimit != 5 {
+		t.Fatalf("expected hop metadata to be retained, got start=%d limit=%d", evt.HopStart, evt.HopLimit)
 	}
 }
 
@@ -160,6 +170,9 @@ func TestParseServiceEnvelopePKIBecomesOpaquePKIEvent(t *testing.T) {
 	}
 	if evt.PKI == nil {
 		t.Fatalf("expected PKI payload details")
+	}
+	if evt.HopStart != 7 || evt.HopLimit != 7 {
+		t.Fatalf("expected top-level hop metadata to be retained, got start=%d limit=%d", evt.HopStart, evt.HopLimit)
 	}
 	if evt.PKI.DestinationNodeID != "!698509f8" {
 		t.Fatalf("unexpected destination: %#v", evt.PKI)

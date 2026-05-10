@@ -141,6 +141,7 @@ const (
 	TopologySourceRoutingReturn     TopologySourceKind = "routing_return"
 	TopologySourceTracerouteForward TopologySourceKind = "traceroute_forward"
 	TopologySourceTracerouteReturn  TopologySourceKind = "traceroute_return"
+	TopologySourceMQTTDirect        TopologySourceKind = "mqtt_direct"
 )
 
 // Compact persisted topology source values.
@@ -150,6 +151,7 @@ const (
 	TopologySourceRoutingReturnValue     = 3
 	TopologySourceTracerouteForwardValue = 4
 	TopologySourceTracerouteReturnValue  = 5
+	TopologySourceMQTTDirectValue        = 6
 )
 
 // Valid reports whether the topology source kind is supported.
@@ -159,7 +161,8 @@ func (k TopologySourceKind) Valid() bool {
 		TopologySourceRoutingForward,
 		TopologySourceRoutingReturn,
 		TopologySourceTracerouteForward,
-		TopologySourceTracerouteReturn:
+		TopologySourceTracerouteReturn,
+		TopologySourceMQTTDirect:
 		return true
 	default:
 		return false
@@ -179,6 +182,8 @@ func TopologySourceKindValue(kind TopologySourceKind) (int, bool) {
 		return TopologySourceTracerouteForwardValue, true
 	case TopologySourceTracerouteReturn:
 		return TopologySourceTracerouteReturnValue, true
+	case TopologySourceMQTTDirect:
+		return TopologySourceMQTTDirectValue, true
 	default:
 		return 0, false
 	}
@@ -197,6 +202,8 @@ func TopologySourceKindFromInt(v int) (TopologySourceKind, bool) {
 		return TopologySourceTracerouteForward, true
 	case TopologySourceTracerouteReturnValue:
 		return TopologySourceTracerouteReturn, true
+	case TopologySourceMQTTDirectValue:
+		return TopologySourceMQTTDirect, true
 	default:
 		return "", false
 	}

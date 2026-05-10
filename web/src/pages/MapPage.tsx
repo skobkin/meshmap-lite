@@ -273,6 +273,7 @@ export function MapPage({
           <aside className="map-topology-legend" aria-label="Topology legend">
             <strong>Topology</strong>
             <span><i style={{ backgroundColor: TOPOLOGY_COLOR.inferred }} /> Inferred</span>
+            <span><i style={{ backgroundColor: TOPOLOGY_COLOR.mqttDirect }} /> MQTT direct</span>
             <span><i style={{ backgroundColor: TOPOLOGY_COLOR.noSNR }} /> Neighbor info</span>
             <span><i style={{ backgroundColor: TOPOLOGY_COLOR.poor }} /> Poor SNR</span>
             <span><i style={{ backgroundColor: TOPOLOGY_COLOR.fair }} /> Fair SNR</span>

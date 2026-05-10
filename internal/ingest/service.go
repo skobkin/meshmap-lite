@@ -167,7 +167,7 @@ func (s *Service) HandleMessage(ctx context.Context, topic string, payload []byt
 		}
 	}
 	if logAllowed {
-		if !s.persistTopologyEdges(ctx, evt, channel, now) {
+		if !s.persistTopologyEdges(ctx, evt, topicInfo, channel, mqttUploaderNodeID, now) {
 			return
 		}
 	}
@@ -758,8 +758,8 @@ func indirectNodeIDs(evt meshtastic.ParsedEvent) []string {
 	return out
 }
 
-func (s *Service) persistTopologyEdges(ctx context.Context, evt meshtastic.ParsedEvent, channel string, now time.Time) bool {
-	edges := topologyEdgesFromParsed(evt, channel, now)
+func (s *Service) persistTopologyEdges(ctx context.Context, evt meshtastic.ParsedEvent, topicInfo meshtastic.TopicInfo, channel, mqttUploaderNodeID string, now time.Time) bool {
+	edges := topologyEdgesFromParsed(evt, topicInfo, channel, mqttUploaderNodeID, now)
 	if len(edges) == 0 {
 		return true
 	}
@@ -772,7 +772,7 @@ func (s *Service) persistTopologyEdges(ctx context.Context, evt meshtastic.Parse
 	return true
 }
 
-func topologyEdgesFromParsed(evt meshtastic.ParsedEvent, channel string, now time.Time) []domain.TopologyEdge {
+func topologyEdgesFromParsed(evt meshtastic.ParsedEvent, topicInfo meshtastic.TopicInfo, channel, mqttUploaderNodeID string, now time.Time) []domain.TopologyEdge {
 	seen := make(map[string]struct{})
 	out := make([]domain.TopologyEdge, 0)
 	add := func(edge domain.TopologyEdge) {
@@ -789,6 +789,9 @@ func topologyEdgesFromParsed(evt meshtastic.ParsedEvent, channel string, now tim
 		}
 		seen[key] = struct{}{}
 		out = append(out, edge)
+	}
+	if mqttDirectEdge, ok := topologyEdgeFromMQTTDirect(evt, topicInfo, channel, mqttUploaderNodeID, now); ok {
+		add(mqttDirectEdge)
 	}
 
 	switch evt.Kind {
@@ -848,6 +851,33 @@ func topologyEdgesFromParsed(evt meshtastic.ParsedEvent, channel string, now tim
 	}
 
 	return out
+}
+
+func topologyEdgeFromMQTTDirect(evt meshtastic.ParsedEvent, topicInfo meshtastic.TopicInfo, channel, mqttUploaderNodeID string, now time.Time) (domain.TopologyEdge, bool) {
+	if topicInfo.Kind != meshtastic.TopicKindChannel {
+		return domain.TopologyEdge{}, false
+	}
+	senderID := strings.TrimSpace(evt.NodeID)
+	uploaderID := strings.TrimSpace(mqttUploaderNodeID)
+	if senderID == "" || uploaderID == "" || senderID == uploaderID {
+		return domain.TopologyEdge{}, false
+	}
+	if evt.HopStart == 0 || evt.HopLimit == 0 || evt.HopStart != evt.HopLimit {
+		return domain.TopologyEdge{}, false
+	}
+
+	return domain.TopologyEdge{
+		SourceKind:       domain.TopologySourceMQTTDirect,
+		ChannelName:      channel,
+		FromNodeID:       senderID,
+		ToNodeID:         uploaderID,
+		ReportedByNodeID: uploaderID,
+		Inferred:         true,
+		FirstObservedAt:  now,
+		LastObservedAt:   now,
+		LastReportedAt:   evt.Timestamp,
+		UpdatedAt:        now,
+	}, true
 }
 
 func topologyEdgesFromPath(sourceKind domain.TopologySourceKind, channel, reportedBy string, path []string, inferred bool, reportedAt *time.Time, now time.Time) []domain.TopologyEdge {
