@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 
 import { fireEvent, render, screen } from '@testing-library/preact'
+import { useState } from 'preact/hooks'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { NodesPage } from './NodesPage'
 
 import type { LogEvent, MapNode, NodeDetails, NodeSummary } from '../api/types'
+import type { JSX } from 'preact'
 
 interface NodeStoreState {
   mapNodes: MapNode[]
@@ -123,15 +125,25 @@ describe('NodesPage', () => {
   })
 
   it('filters nodes by id, short name, and long name case-insensitively', async () => {
+    function ControlledNodesPage(): JSX.Element {
+      const [filter, setFilter] = useState('')
+
+      return (
+        <NodesPage
+          items={[
+            summary('!alpha', { display_name: 'Alpha Node', short_name: 'A1', long_name: 'Field Router' }),
+            summary('!bravo', { display_name: 'Bravo Node', short_name: 'B2', long_name: 'Relay Station' })
+          ]}
+          filter={filter}
+          onFilter={setFilter}
+          onOpenMap={() => undefined}
+          onSelect={() => undefined}
+        />
+      )
+    }
+
     render(
-      <NodesPage
-        items={[
-          summary('!alpha', { display_name: 'Alpha Node', short_name: 'A1', long_name: 'Field Router' }),
-          summary('!bravo', { display_name: 'Bravo Node', short_name: 'B2', long_name: 'Relay Station' })
-        ]}
-        onOpenMap={() => undefined}
-        onSelect={() => undefined}
-      />
+      <ControlledNodesPage />
     )
 
     const filter = screen.getByRole('searchbox', { name: 'Filter nodes' })

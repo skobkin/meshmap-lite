@@ -285,40 +285,90 @@ function setupModuleMocks(): void {
   }))
   vi.doMock('./pages/MapPage', () => ({
     MapPage: ({
+      center,
+      zoom,
       channels,
+      focusNodeId,
       topologyNodeId,
+      channel,
+      chatPanel,
+      onFocusNodeHandled,
+      onChannelChange,
+      onChatPanelChange,
       onLoadMoreChat,
+      onSelectNode,
+      onViewChange,
       chatHasMore,
       chatLoadingMore,
       chatLoadMoreError
     }: {
+      center: [number, number]
+      zoom: number
       channels: string[]
+      focusNodeId?: string
       topologyNodeId?: string
+      channel: string
+      chatPanel: 'open' | 'collapsed'
+      onFocusNodeHandled: () => void
+      onChannelChange: (channel: string) => void
+      onChatPanelChange: (state: 'open' | 'collapsed') => void
       onLoadMoreChat: () => void
+      onSelectNode: (id?: string) => void
+      onViewChange: (center: [number, number], zoom: number) => void
       chatHasMore: boolean
       chatLoadingMore: boolean
       chatLoadMoreError: string
     }): JSX.Element => (
       <section data-testid="map-page">
         <p>Map page</p>
+        <p>Map center: {center.join(',')}</p>
+        <p>Map zoom: {zoom}</p>
+        <p>Focus node: {focusNodeId ?? ''}</p>
         <p>Channels: {channels.join(',')}</p>
-        <p>Chat channel: {chatStore.getState().channel}</p>
+        <p>Chat channel: {channel}</p>
+        <p>Chat panel: {chatPanel}</p>
         <p>Chat messages: {chatStore.getState().messages.length}</p>
         <p>Topology node: {topologyNodeId ?? ''}</p>
         <p>Chat has more: {chatHasMore ? 'yes' : 'no'}</p>
         <p>Chat loading more: {chatLoadingMore ? 'yes' : 'no'}</p>
         <p>Chat load error: {chatLoadMoreError}</p>
+        <button type="button" onClick={() => onFocusNodeHandled()}>Focus handled</button>
+        <button type="button" onClick={() => onSelectNode('!alpha')}>Select marker alpha</button>
+        <button type="button" onClick={() => onSelectNode(undefined)}>Close marker popup</button>
+        <button type="button" onClick={() => onViewChange([65.1234567, 41.9876543], 9.876)}>Move map</button>
+        <button type="button" onClick={() => onChannelChange('ops')}>Set chat channel ops</button>
+        <button type="button" onClick={() => onChatPanelChange(chatPanel === 'open' ? 'collapsed' : 'open')}>Toggle chat panel</button>
         <button type="button" disabled={!chatHasMore || chatLoadingMore} onClick={onLoadMoreChat}>Load more chat</button>
       </section>
     )
   }))
   vi.doMock('./pages/NodesPage', () => ({
-    NodesPage: ({ items, details, loading }: { items: NodeSummary[]; details?: NodeDetails; loading?: boolean }): JSX.Element => (
+    NodesPage: ({
+      items,
+      selected,
+      details,
+      filter,
+      loading,
+      onFilter,
+      onSelect
+    }: {
+      items: NodeSummary[]
+      selected?: string
+      details?: NodeDetails
+      filter: string
+      loading?: boolean
+      onFilter: (filter: string) => void
+      onSelect: (id: string) => void
+    }): JSX.Element => (
       <section data-testid="nodes-page">
         <p>Nodes page</p>
         <p>Node summaries: {items.length}</p>
+        <p>Selected node: {selected ?? ''}</p>
+        <p>Node filter: {filter}</p>
         <p>Details node: {details?.node.node_id ?? ''}</p>
         <p>Loading details: {loading ? 'yes' : 'no'}</p>
+        <button type="button" onClick={() => onSelect('!bravo')}>Select node bravo</button>
+        <button type="button" onClick={() => onFilter('relay')}>Filter relay</button>
       </section>
     )
   }))
@@ -327,22 +377,28 @@ function setupModuleMocks(): void {
       items,
       selectedKinds,
       selectedChannel,
+      selectedNodeID,
       onChangeKinds,
-      onChangeChannel
+      onChangeChannel,
+      onChangeNodeID
     }: {
       items: LogEvent[]
       selectedKinds: number[]
       selectedChannel: string
+      selectedNodeID?: string
       onChangeKinds: (kinds: number[]) => void
       onChangeChannel: (channel: string) => void
+      onChangeNodeID: (nodeID: string) => void
     }): JSX.Element => (
       <section data-testid="log-page">
         <p>Log page</p>
         <p>Log items: {items.length}</p>
         <p>Log kinds: {selectedKinds.join(',')}</p>
         <p>Log channel: {selectedChannel}</p>
+        <p>Log node: {selectedNodeID ?? ''}</p>
         <button type="button" onClick={() => onChangeKinds([7])}>Set log kind 7</button>
         <button type="button" onClick={() => onChangeChannel('ops')}>Set log channel ops</button>
+        <button type="button" onClick={() => onChangeNodeID('!alpha')}>Set log node alpha</button>
       </section>
     )
   }))
@@ -436,6 +492,101 @@ describe('App', () => {
 
     await user.click(screen.getByRole('button', { name: 'Stats' }))
     await screen.findByTestId('stats-page')
+  })
+
+  it('hydrates map URL state and keeps marker selection in the fragment', async () => {
+    const user = userEvent.setup()
+    window.history.replaceState(null, '', '/#/map?lat=64.5&lng=40.6&z=12&node=%21alpha&chat=ops&chat_panel=collapsed')
+    setupModuleMocks()
+
+    await renderApp()
+    await screen.findByTestId('map-page')
+
+    expect(screen.getByText('Map center: 64.5,40.6')).toBeTruthy()
+    expect(screen.getByText('Map zoom: 12')).toBeTruthy()
+    expect(screen.getByText('Focus node: !alpha')).toBeTruthy()
+    expect(screen.getByText('Topology node: !alpha')).toBeTruthy()
+    expect(screen.getByText('Chat channel: ops')).toBeTruthy()
+    expect(screen.getByText('Chat panel: collapsed')).toBeTruthy()
+
+    await user.click(screen.getByRole('button', { name: 'Select marker alpha' }))
+    expect(window.location.hash).toContain('node=%21alpha')
+
+    await user.click(screen.getByRole('button', { name: 'Close marker popup' }))
+    expect(window.location.hash).not.toContain('node=')
+  })
+
+  it('hydrates nodes URL state, preserves the filter, and fetches details', async () => {
+    window.history.replaceState(null, '', '/#/nodes?node=%21alpha&q=relay')
+    setupModuleMocks()
+
+    await renderApp()
+    await screen.findByTestId('nodes-page')
+
+    expect(screen.getByText('Selected node: !alpha')).toBeTruthy()
+    expect(screen.getByText('Node filter: relay')).toBeTruthy()
+    await waitFor(() => {
+      expect(apiMock.nodes).toHaveBeenCalledTimes(1)
+      expect(apiMock.node).toHaveBeenCalledWith('!alpha', expect.anything())
+    })
+  })
+
+  it('hydrates log URL filters and loads filtered log data', async () => {
+    window.history.replaceState(null, '', '/#/log?event_kind=7&event_kind=4&channel=ops&node_id=%21alpha')
+    setupModuleMocks()
+
+    await renderApp()
+    await screen.findByTestId('log-page')
+
+    expect(screen.getByText('Log kinds: 7,4')).toBeTruthy()
+    expect(screen.getByText('Log channel: ops')).toBeTruthy()
+    expect(screen.getByText('Log node: !alpha')).toBeTruthy()
+    await waitFor(() => {
+      expect(apiMock.logEvents).toHaveBeenCalledWith({
+        limit: 100,
+        eventKinds: [7, 4],
+        channel: 'ops',
+        nodeID: '!alpha'
+      }, expect.anything())
+    })
+  })
+
+  it('rehydrates the previous route when browser back returns to nodes state', async () => {
+    const user = userEvent.setup()
+    window.history.replaceState(null, '', '/#/nodes?node=%21alpha&q=relay')
+    setupModuleMocks()
+
+    await renderApp()
+    await screen.findByTestId('nodes-page')
+    await user.click(screen.getByRole('button', { name: 'Log' }))
+    await screen.findByTestId('log-page')
+
+    window.history.back()
+
+    await waitFor(() => {
+      expect(screen.getByTestId('nodes-page')).toBeTruthy()
+      expect(screen.getByText('Selected node: !alpha')).toBeTruthy()
+      expect(screen.getByText('Node filter: relay')).toBeTruthy()
+    })
+  })
+
+  it('replaces history instead of pushing when map movement updates the fragment', async () => {
+    const user = userEvent.setup()
+    const pushSpy = vi.spyOn(window.history, 'pushState')
+    const replaceSpy = vi.spyOn(window.history, 'replaceState')
+
+    await renderApp()
+    await screen.findByTestId('map-page')
+    pushSpy.mockClear()
+    replaceSpy.mockClear()
+
+    await user.click(screen.getByRole('button', { name: 'Move map' }))
+
+    expect(pushSpy).not.toHaveBeenCalled()
+    expect(replaceSpy).toHaveBeenCalled()
+    expect(window.location.hash).toBe('#/map?lat=65.123457&lng=41.987654&z=9.88&chat=mesh&chat_panel=open')
+    pushSpy.mockRestore()
+    replaceSpy.mockRestore()
   })
 
   it('reuses cached node details before refreshing stale entries', async () => {

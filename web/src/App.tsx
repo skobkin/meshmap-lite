@@ -13,24 +13,20 @@ import { useMetaStore } from './stores/meta'
 import { useNodeStore } from './stores/nodes'
 import { useWSStore } from './stores/ws'
 import { isNodeDetailsCacheFresh, persistNodeDetailsCache, readNodeDetailsCache, upsertNodeDetailsCache } from './utils/nodeDetailsCache'
+import { parseFragmentState, serializeFragmentState } from './utils/urlState'
 
 import type { LogEvent, NodeDetails } from './api/types'
+import type { FragmentState, MapViewState } from './utils/urlState'
 import type { JSX } from 'preact'
 
-export type Page = 'map' | 'nodes' | 'stats' | 'log'
+export type Page = FragmentState['page']
 
 const mapViewKey = 'meshmap-lite.map.view'
-const mapHashLatParam = 'lat'
-const mapHashLngParam = 'lng'
-const mapHashZoomParam = 'z'
 const defaultAppName = 'MeshMap Lite'
 const defaultAppVersion = 'dev'
 const defaultTopologyCacheTTL = '10m'
 
-interface SavedMapView {
-  center: [number, number]
-  zoom: number
-}
+type SavedMapView = MapViewState
 
 function isSavedMapView(value: unknown): value is SavedMapView {
   if (typeof value !== 'object' || value === null) {return false}
@@ -45,50 +41,6 @@ function isAbortError(err: unknown): boolean {
   return err instanceof DOMException && err.name === 'AbortError'
 }
 
-function parseURLNumber(raw: string | null): number | null {
-  if (raw === null) {return null}
-  const n = Number(raw)
-  if (!Number.isFinite(n)) {return null}
-
-  return n
-}
-
-function readHashMapView(): SavedMapView | null {
-  const rawHash = window.location.hash
-  if (!rawHash || rawHash.length < 2) {return null}
-  const hash = rawHash.startsWith('#') ? rawHash.slice(1) : rawHash
-  const params = new URLSearchParams(hash)
-  const lat = parseURLNumber(params.get(mapHashLatParam))
-  const lng = parseURLNumber(params.get(mapHashLngParam))
-  const zoom = parseURLNumber(params.get(mapHashZoomParam))
-  if (lat === null || lng === null || zoom === null) {return null}
-  if (lat < -90 || lat > 90) {return null}
-  if (lng < -180 || lng > 180) {return null}
-  if (zoom < 0 || zoom > 24) {return null}
-
-  return { center: [lat, lng], zoom }
-}
-
-function writeHashMapView(view: SavedMapView): void {
-  const url = new URL(window.location.href)
-  const hash = url.hash.startsWith('#') ? url.hash.slice(1) : url.hash
-  const params = new URLSearchParams(hash)
-  const lat = Number(view.center[0].toFixed(6)).toString()
-  const lng = Number(view.center[1].toFixed(6)).toString()
-  const zoom = Number(view.zoom.toFixed(2)).toString()
-  if (
-    params.get(mapHashLatParam) === lat &&
-    params.get(mapHashLngParam) === lng &&
-    params.get(mapHashZoomParam) === zoom
-  ) {
-    return
-  }
-  params.set(mapHashLatParam, lat)
-  params.set(mapHashLngParam, lng)
-  params.set(mapHashZoomParam, zoom)
-  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${params.toString() ? `#${params.toString()}` : ''}`)
-}
-
 function canonicalChannelName(channels: string[], value: string | undefined): string {
   const needle = value?.trim()
   if (!needle) {return ''}
@@ -97,6 +49,19 @@ function canonicalChannelName(channels: string[], value: string | undefined): st
   const folded = channels.find((c) => c.toLowerCase() === needle.toLowerCase())
 
   return folded ?? needle
+}
+
+function writeFragment(state: FragmentState, mode: 'push' | 'replace'): void {
+  const url = new URL(window.location.href)
+  const next = `${url.pathname}${url.search}${serializeFragmentState(state)}`
+  const current = `${url.pathname}${url.search}${url.hash}`
+  if (next === current) {return}
+  if (mode === 'push') {
+    window.history.pushState(window.history.state, '', next)
+
+    return
+  }
+  window.history.replaceState(window.history.state, '', next)
 }
 
 function readSavedMapView(): SavedMapView | null {
@@ -113,9 +78,10 @@ function readSavedMapView(): SavedMapView | null {
 }
 
 export function App(): JSX.Element {
-  const [page, setPage] = useState<Page>('map')
+  const initialURLState = useRef(parseFragmentState(window.location.hash))
+  const [page, setPage] = useState<Page>(() => initialURLState.current.page)
   const [hoveredTopologyNodeId, setHoveredTopologyNodeId] = useState<string>()
-  const [mapFocusNodeId, setMapFocusNodeId] = useState<string>()
+  const [mapFocusNodeId, setMapFocusNodeId] = useState<string | undefined>(() => initialURLState.current.page === 'map' ? initialURLState.current.map?.node : undefined)
   const [bootstrapDone, setBootstrapDone] = useState(false)
   const [bootstrapErrors, setBootstrapErrors] = useState<string[]>([])
   const [nodesLoadedOnce, setNodesLoadedOnce] = useState(false)
@@ -128,8 +94,10 @@ export function App(): JSX.Element {
   const [nodeLogLoading, setNodeLogLoading] = useState(false)
   const [nodeLogError, setNodeLogError] = useState('')
   const [channels, setChannels] = useState<string[]>([])
+  const [nodesFilter, setNodesFilter] = useState(() => initialURLState.current.page === 'nodes' ? initialURLState.current.nodes?.q ?? '' : '')
+  const [chatPanel, setChatPanel] = useState<'open' | 'collapsed'>(() => initialURLState.current.page === 'map' ? initialURLState.current.map?.chatPanel ?? 'open' : 'open')
   const [detailsCache, setDetailsCache] = useState(() => readNodeDetailsCache(localStorage))
-  const [mapView, setMapView] = useState<SavedMapView>(() => readHashMapView() ?? readSavedMapView() ?? { center: [64.5, 40.6], zoom: 12 })
+  const [mapView, setMapView] = useState<SavedMapView>(() => initialURLState.current.map?.view ?? readSavedMapView() ?? { center: [64.5, 40.6], zoom: 12 })
   const mqttStatus = useWSStore((s) => s.mqttStatus)
   const ws = useWSStore((s) => s.state)
   const wsStats = useWSStore((s) => s.stats)
@@ -160,9 +128,90 @@ export function App(): JSX.Element {
   const activeLogRequest = useRef(0)
   const activeNodeLogRequest = useRef(0)
   const inFlightNodeDetails = useRef(new Map<string, Promise<void>>())
-  const initialChannelRef = useRef(channel)
-  const mapCenter = mapView.center
+  const initialChannelRef = useRef(initialURLState.current.page === 'map' ? initialURLState.current.map?.chatChannel ?? channel : channel)
   const topologyCacheTTL = meta?.map.topology_cache_ttl ?? defaultTopologyCacheTTL
+
+  const currentFragmentState = useCallback((nextPage = page): FragmentState => {
+    switch (nextPage) {
+      case 'map':
+        return {
+          page: 'map',
+          map: {
+            view: mapView,
+            node: selectedId,
+            chatChannel: channel,
+            chatPanel
+          }
+        }
+      case 'nodes':
+        return {
+          page: 'nodes',
+          nodes: {
+            node: selectedId,
+            q: nodesFilter.trim() ? nodesFilter : undefined
+          }
+        }
+      case 'log':
+        return {
+          page: 'log',
+          log: {
+            eventKinds: logFilters.eventKinds,
+            channel: logFilters.channel,
+            nodeID: logFilters.nodeID
+          }
+        }
+      case 'stats':
+        return { page: 'stats' }
+    }
+  }, [channel, chatPanel, logFilters.channel, logFilters.eventKinds, logFilters.nodeID, mapView, nodesFilter, page, selectedId])
+
+  const applyFragmentState = useCallback((state: FragmentState): void => {
+    setPage(state.page)
+    if (state.page === 'map') {
+      if (state.map?.view) {setMapView(state.map.view)}
+      setSelectedId(state.map?.node)
+      setMapFocusNodeId(state.map?.node)
+      if (state.map?.chatChannel) {setChannel(state.map.chatChannel)}
+      setChatPanel(state.map?.chatPanel ?? 'open')
+
+      return
+    }
+    if (state.page === 'nodes') {
+      setSelectedId(state.nodes?.node)
+      setNodesFilter(state.nodes?.q ?? '')
+      setMapFocusNodeId(undefined)
+
+      return
+    }
+    if (state.page === 'log') {
+      setLogFilters(state.log ?? { eventKinds: [], channel: '', nodeID: '' })
+      setMapFocusNodeId(undefined)
+
+      return
+    }
+    setMapFocusNodeId(undefined)
+  }, [setChannel, setLogFilters, setSelectedId])
+
+  const updateURL = useCallback((state: FragmentState, mode: 'push' | 'replace'): void => {
+    writeFragment(state, mode)
+  }, [])
+
+  useEffect(() => {
+    applyFragmentState(initialURLState.current)
+  }, [applyFragmentState])
+
+  useEffect(() => {
+    const handleURLChange = (): void => {
+      applyFragmentState(parseFragmentState(window.location.hash))
+    }
+    window.addEventListener('hashchange', handleURLChange)
+    window.addEventListener('popstate', handleURLChange)
+
+    return () => {
+      window.removeEventListener('hashchange', handleURLChange)
+      window.removeEventListener('popstate', handleURLChange)
+    }
+  }, [applyFragmentState])
 
   const cacheNodeDetails = useCallback((item: NodeDetails): void => {
     setDetailsCache((current) => {
@@ -424,12 +473,25 @@ export function App(): JSX.Element {
   useEffect(() => {
     if (!channels.length || !channel) {return}
     const canonical = canonicalChannelName(channels, channel)
-    if (canonical !== channel) {setChannel(canonical)}
-  }, [channels, channel, setChannel])
+    if (canonical !== channel) {
+      setChannel(canonical)
+      if (page === 'map') {
+        updateURL({
+          page: 'map',
+          map: {
+            view: mapView,
+            node: selectedId,
+            chatChannel: canonical,
+            chatPanel
+          }
+        }, 'replace')
+      }
+    }
+  }, [channels, channel, chatPanel, mapView, page, selectedId, setChannel, updateURL])
 
   useEffect(() => {
     if (!meta) {return}
-    if (readHashMapView()) {return}
+    if (initialURLState.current.map?.view) {return}
     if (readSavedMapView()) {return}
     setMapView({
       center: [meta.map.default_view.latitude, meta.map.default_view.longitude],
@@ -441,23 +503,125 @@ export function App(): JSX.Element {
     const next = { center, zoom }
     setMapView(next)
     localStorage.setItem(mapViewKey, JSON.stringify(next))
-  }, [])
+    updateURL({
+      page: 'map',
+      map: {
+        view: next,
+        node: selectedId,
+        chatChannel: channel,
+        chatPanel
+      }
+    }, 'replace')
+  }, [channel, chatPanel, selectedId, updateURL])
+
+  const navigateToPage = useCallback((nextPage: Page): void => {
+    setPage(nextPage)
+    if (nextPage !== 'map') {
+      setMapFocusNodeId(undefined)
+    }
+    updateURL(currentFragmentState(nextPage), 'push')
+  }, [currentFragmentState, updateURL])
 
   const openNodeDetails = useCallback((id: string): void => {
     setPage('nodes')
     setMapFocusNodeId(undefined)
     setSelectedId(id)
-  }, [setSelectedId])
+    updateURL({
+      page: 'nodes',
+      nodes: {
+        node: id,
+        q: nodesFilter.trim() ? nodesFilter : undefined
+      }
+    }, 'push')
+  }, [nodesFilter, setSelectedId, updateURL])
 
   const openNodeOnMap = useCallback((id: string): void => {
     setSelectedId(id)
     setMapFocusNodeId(id)
     setPage('map')
-  }, [setSelectedId])
+    updateURL({
+      page: 'map',
+      map: {
+        view: mapView,
+        node: id,
+        chatChannel: channel,
+        chatPanel
+      }
+    }, 'push')
+  }, [channel, chatPanel, mapView, setSelectedId, updateURL])
 
-  useEffect(() => {
-    writeHashMapView({ center: mapCenter, zoom: mapView.zoom })
-  }, [mapCenter, mapView.zoom])
+  const selectMapNode = useCallback((id?: string): void => {
+    setSelectedId(id)
+    updateURL({
+      page: 'map',
+      map: {
+        view: mapView,
+        node: id,
+        chatChannel: channel,
+        chatPanel
+      }
+    }, id ? 'push' : 'replace')
+  }, [channel, chatPanel, mapView, setSelectedId, updateURL])
+
+  const changeChatPanel = useCallback((next: 'open' | 'collapsed'): void => {
+    setChatPanel(next)
+    updateURL({
+      page: 'map',
+      map: {
+        view: mapView,
+        node: selectedId,
+        chatChannel: channel,
+        chatPanel: next
+      }
+    }, 'replace')
+  }, [channel, mapView, selectedId, updateURL])
+
+  const changeChatChannel = useCallback((next: string): void => {
+    setChannel(next)
+    updateURL({
+      page: 'map',
+      map: {
+        view: mapView,
+        node: selectedId,
+        chatChannel: next,
+        chatPanel
+      }
+    }, 'replace')
+  }, [chatPanel, mapView, selectedId, setChannel, updateURL])
+
+  const changeNodesFilter = useCallback((q: string): void => {
+    setNodesFilter(q)
+    updateURL({
+      page: 'nodes',
+      nodes: {
+        node: selectedId,
+        q: q.trim() ? q : undefined
+      }
+    }, 'replace')
+  }, [selectedId, updateURL])
+
+  const selectNodeOnNodesPage = useCallback((id: string): void => {
+    setSelectedId(id)
+    updateURL({
+      page: 'nodes',
+      nodes: {
+        node: id,
+        q: nodesFilter.trim() ? nodesFilter : undefined
+      }
+    }, 'push')
+  }, [nodesFilter, setSelectedId, updateURL])
+
+  const changeLogFilters = useCallback((filters: typeof logFilters): void => {
+    setLogFilters(filters)
+    updateURL({
+      page: 'log',
+      log: {
+        eventKinds: filters.eventKinds,
+        channel: filters.channel,
+        nodeID: filters.nodeID
+      }
+    }, 'replace')
+  }, [setLogFilters, updateURL])
 
   const loadMoreLogs = useCallback(() => {
     if (logsLoading) {return}
@@ -527,7 +691,7 @@ export function App(): JSX.Element {
           version={meta?.version ?? defaultAppVersion}
           ws={ws}
         wsStats={wsStats}
-        onPage={setPage}
+        onPage={navigateToPage}
       />
       {bannerText && <p className="banner warning" role="alert">{bannerText}</p>}
       {page === 'map' && (
@@ -541,10 +705,15 @@ export function App(): JSX.Element {
           focusNodeId={mapFocusNodeId}
           topologyDetails={topologyDetails}
           topologyNodeId={topologyNodeId}
+          chatPanel={chatPanel}
+          channel={channel}
           onFocusNodeHandled={() => setMapFocusNodeId(undefined)}
+          onChatPanelChange={changeChatPanel}
+          onChannelChange={changeChatChannel}
           onHoverTopologyNode={setHoveredTopologyNodeId}
           onLoadMoreChat={loadMoreChat}
           onOpenNodeDetails={openNodeDetails}
+          onSelectNode={selectMapNode}
           onViewChange={onMapViewChange}
           chatHasMore={chatHasMore}
           chatLoadingMore={chatLoadingMore}
@@ -556,6 +725,7 @@ export function App(): JSX.Element {
           items={nodes}
           selected={selectedId}
           details={details}
+          filter={nodesFilter}
           loading={Boolean(selectedId && details?.node.node_id !== selectedId)}
           loadError={nodesLoadError}
           recentEvents={nodeLogItems}
@@ -563,7 +733,8 @@ export function App(): JSX.Element {
           recentEventsError={nodeLogError}
           onOpenMap={openNodeOnMap}
           onOpenNodeDetails={openNodeDetails}
-          onSelect={setSelectedId}
+          onFilter={changeNodesFilter}
+          onSelect={selectNodeOnNodesPage}
         />
       )}
       {page === 'stats' && <StatsPage />}
@@ -576,13 +747,13 @@ export function App(): JSX.Element {
           selectedChannel={logFilters.channel}
           selectedNodeID={logFilters.nodeID}
           onChangeKinds={(eventKinds) => {
-            setLogFilters({ ...logFilters, eventKinds })
+            changeLogFilters({ ...logFilters, eventKinds })
           }}
           onChangeChannel={(filterChannel) => {
-            setLogFilters({ ...logFilters, channel: filterChannel })
+            changeLogFilters({ ...logFilters, channel: filterChannel })
           }}
           onChangeNodeID={(nodeID) => {
-            setLogFilters({ ...logFilters, nodeID })
+            changeLogFilters({ ...logFilters, nodeID })
           }}
           onOpenNodeDetails={openNodeDetails}
           onLoadMore={loadMoreLogs}

@@ -1,5 +1,5 @@
 import { Fragment } from 'preact'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks'
+import { useCallback, useEffect, useMemo, useRef } from 'preact/hooks'
 
 import { ResolvedNodeData } from '../components/ResolvedNodeData'
 import { LeafletMapAdapter } from '../maps/leafletMap'
@@ -21,20 +21,19 @@ interface Props {
   focusNodeId?: string
   topologyDetails?: NodeDetails
   topologyNodeId?: string
+  chatPanel?: 'open' | 'collapsed'
+  channel?: string
   onFocusNodeHandled: () => void
+  onChatPanelChange?: (state: 'open' | 'collapsed') => void
+  onChannelChange?: (channel: string) => void
   onHoverTopologyNode: (id?: string) => void
   onLoadMoreChat: () => void
   onOpenNodeDetails: (id: string) => void
+  onSelectNode?: (id?: string) => void
   onViewChange: (center: [number, number], zoom: number) => void
   chatHasMore: boolean
   chatLoadingMore: boolean
   chatLoadMoreError: string
-}
-
-const sidebarStateKey = 'meshmap-lite.map.chat.collapsed'
-
-function readSidebarState(): boolean {
-  return localStorage.getItem(sidebarStateKey) === '1'
 }
 
 function hoverTopologyEnabled(): boolean {
@@ -147,10 +146,15 @@ export function MapPage({
   focusNodeId,
   topologyDetails,
   topologyNodeId,
+  chatPanel = 'open',
+  channel = '',
   onFocusNodeHandled,
+  onChatPanelChange = () => undefined,
+  onChannelChange = () => undefined,
   onHoverTopologyNode,
   onLoadMoreChat,
   onOpenNodeDetails,
+  onSelectNode = () => undefined,
   onViewChange,
   chatHasMore,
   chatLoadingMore,
@@ -158,18 +162,24 @@ export function MapPage({
 }: Props): JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
   const adapterRef = useRef<LeafletMapAdapter | null>(null)
+  const onOpenNodeDetailsRef = useRef(onOpenNodeDetails)
+  const onSelectNodeRef = useRef(onSelectNode)
+  const onViewChangeRef = useRef(onViewChange)
   const initialCenterRef = useRef(center)
   const initialZoomRef = useRef(zoom)
   const hoverTimerRef = useRef<number>()
   const hoverEnabledRef = useRef(hoverTopologyEnabled())
   const nodes = useNodeStore((s) => s.mapNodes)
   const selectedId = useNodeStore((s) => s.selectedId)
-  const setSelectedId = useNodeStore((s) => s.setSelectedId)
   const chat = useChatStore((s) => s.messages)
-  const channel = useChatStore((s) => s.channel)
-  const setChannel = useChatStore((s) => s.setChannel)
-  const [collapsed, setCollapsed] = useState<boolean>(() => readSidebarState())
+  const collapsed = chatPanel === 'collapsed'
   const activeNeighbors = useMemo(() => sortedNeighbors(topologyDetails), [topologyDetails])
+
+  useEffect(() => {
+    onOpenNodeDetailsRef.current = onOpenNodeDetails
+    onSelectNodeRef.current = onSelectNode
+    onViewChangeRef.current = onViewChange
+  }, [onOpenNodeDetails, onSelectNode, onViewChange])
 
   const clearHoverTimer = (): void => {
     if (hoverTimerRef.current) {
@@ -197,9 +207,7 @@ export function MapPage({
   }, [onHoverTopologyNode])
 
   const toggleCollapsed = (): void => {
-    const next = !collapsed
-    setCollapsed(next)
-    localStorage.setItem(sidebarStateKey, next ? '1' : '0')
+    onChatPanelChange(collapsed ? 'open' : 'collapsed')
   }
 
   useEffect(() => {
@@ -208,9 +216,9 @@ export function MapPage({
       clustering,
       onHoverNode: handleHoverNode,
       precisionCirclesMode,
-      onOpenNodeDetails,
-      onViewChange,
-      onSelectNode: setSelectedId
+      onOpenNodeDetails: (id) => onOpenNodeDetailsRef.current(id),
+      onViewChange: (nextCenter, nextZoom) => onViewChangeRef.current(nextCenter, nextZoom),
+      onSelectNode: (id) => onSelectNodeRef.current(id)
     })
 
     return () => {
@@ -219,7 +227,7 @@ export function MapPage({
       adapterRef.current?.destroy()
       adapterRef.current = null
     }
-  }, [clustering, handleHoverNode, onHoverTopologyNode, onOpenNodeDetails, onViewChange, precisionCirclesMode, setSelectedId])
+  }, [clustering, handleHoverNode, onHoverTopologyNode, precisionCirclesMode])
 
   useEffect(() => {
     adapterRef.current?.setView(center, zoom)
@@ -239,14 +247,15 @@ export function MapPage({
 
   useEffect(() => {
     if (!focusNodeId) {return}
+    if (!nodes.some((item) => item.node.node_id === focusNodeId && item.position)) {return}
     adapterRef.current?.focusNode(focusNodeId)
     onFocusNodeHandled()
-  }, [focusNodeId, onFocusNodeHandled])
+  }, [focusNodeId, nodes, onFocusNodeHandled])
 
   const focusNodeFromChat = (id: string): void => {
     const mapNode = nodes.find((item) => item.node.node_id === id)
     if (mapNode?.position) {
-      setSelectedId(id)
+      onSelectNode(id)
       adapterRef.current?.focusNode(id)
 
       return
@@ -295,7 +304,7 @@ export function MapPage({
       {!collapsed && (
         <aside className="chat-panel">
           <div className="chat-panel-head">
-            <select aria-label="Channel" value={channel} onChange={(e) => setChannel((e.target as HTMLSelectElement).value)}>
+            <select aria-label="Channel" value={channel} onChange={(e) => onChannelChange((e.target as HTMLSelectElement).value)}>
               {channels.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
             <button

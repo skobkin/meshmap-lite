@@ -1,5 +1,4 @@
 import { Fragment } from 'preact'
-import { useState } from 'preact/hooks'
 
 import { LogEventList } from '../components/LogEventList'
 import { defaultMarkerDataUrl } from '../maps/markerIcons'
@@ -13,6 +12,7 @@ interface Props {
   items: NodeSummary[]
   selected?: string
   details?: NodeDetails
+  filter?: string
   loading?: boolean
   loadError?: string
   recentEvents?: LogEvent[]
@@ -20,6 +20,7 @@ interface Props {
   recentEventsError?: string
   onOpenMap: (id: string) => void
   onOpenNodeDetails?: (id: string) => void
+  onFilter?: (filter: string) => void
   onSelect: (id: string) => void
 }
 
@@ -162,6 +163,7 @@ export function NodesPage({
   items,
   selected,
   details,
+  filter = '',
   loading,
   loadError,
   recentEvents = [],
@@ -169,9 +171,9 @@ export function NodesPage({
   recentEventsError,
   onOpenMap,
   onOpenNodeDetails = () => undefined,
+  onFilter = () => undefined,
   onSelect
 }: Props): JSX.Element {
-  const [filter, setFilter] = useState('')
   const sections = details ? detailSections(details) : []
   const previousNames = (details?.previous_names ?? [])
     .map((item) => ({ item, label: previousNameLabel(item) }))
@@ -189,7 +191,7 @@ export function NodesPage({
           aria-label="Filter nodes"
           placeholder="Name or ID"
           value={filter}
-          onInput={(e) => setFilter((e.currentTarget).value)}
+          onInput={(e) => onFilter((e.currentTarget).value)}
         />
         <div className="node-list" role="list">
           {loadError && <p className="load-error">{loadError}</p>}
