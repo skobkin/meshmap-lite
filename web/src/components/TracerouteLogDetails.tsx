@@ -6,24 +6,10 @@ import type { LogEvent } from '../api/types'
 import type { JSX } from 'preact'
 
 const scalarMetadataKeys = [
-  'scope',
-  'status',
-  'role',
-  'request_id',
-  'reply_id',
   'from',
   'to',
-  'error_reason',
-  'started_at',
-  'completed_at',
-  'updated_at',
-  'want_response',
   'hop_start',
-  'hop_limit',
-  'bitfield',
-  'inferred_forward_path',
-  'inferred_return_path',
-  'inferred_direct'
+  'hop_limit'
 ] as const
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
@@ -80,42 +66,14 @@ function formatTime(value: string): string {
 
 function metadataLabel(key: typeof scalarMetadataKeys[number]): string {
   switch (key) {
-    case 'scope':
-      return 'Scope'
-    case 'status':
-      return 'Status'
-    case 'role':
-      return 'Role'
-    case 'request_id':
-      return 'Request ID'
-    case 'reply_id':
-      return 'Reply ID'
     case 'from':
       return 'From'
     case 'to':
       return 'To'
-    case 'error_reason':
-      return 'Error reason'
-    case 'started_at':
-      return 'Started'
-    case 'completed_at':
-      return 'Completed'
-    case 'updated_at':
-      return 'Updated'
-    case 'want_response':
-      return 'Want response'
     case 'hop_start':
       return 'Hop start'
     case 'hop_limit':
       return 'Hop limit'
-    case 'bitfield':
-      return 'Bitfield'
-    case 'inferred_forward_path':
-      return 'Inferred forward path'
-    case 'inferred_return_path':
-      return 'Inferred return path'
-    case 'inferred_direct':
-      return 'Inferred direct'
   }
 }
 
@@ -151,9 +109,7 @@ function metadataRows(details: Record<string, unknown>): MetadataRow[] {
     rows.push({
       key,
       label: metadataLabel(key),
-      value: key === 'started_at' || key === 'completed_at' || key === 'updated_at'
-        ? formatTime(value)
-        : value
+      value
     })
   }
 
@@ -177,7 +133,7 @@ function routeSections(details: Record<string, unknown>): RouteSection[] {
   if (routeBack) {
     sections.push({
       key: 'return',
-      title: 'Route traced back to us:',
+      title: 'Route traced back:',
       nodeIds: routeBack,
       snr: snrList(details.return_snr)
     })
@@ -311,6 +267,13 @@ function TracerouteLogDetailsView({
   return (
     <div className="traceroute-log-details">
       <div className="traceroute-summary">
+        {sections.map((section) => (
+          <TracerouteRouteSection
+            key={section.key}
+            section={section}
+            onOpenNodeDetails={onOpenNodeDetails}
+          />
+        ))}
         {rows.length > 0 ? (
           <dl className="log-details-grid traceroute-metadata">
             {rows.map((row) => (
@@ -325,13 +288,6 @@ function TracerouteLogDetailsView({
             ))}
           </dl>
         ) : null}
-        {sections.map((section) => (
-          <TracerouteRouteSection
-            key={section.key}
-            section={section}
-            onOpenNodeDetails={onOpenNodeDetails}
-          />
-        ))}
         {steps.length > 0 ? <TracerouteSteps steps={steps} /> : null}
       </div>
       <JsonDetailsView value={details} />

@@ -371,6 +371,9 @@ describe('LogPage', () => {
           request_id: 123,
           from: '!alpha',
           to: '!bravo',
+          hop_start: 1,
+          hop_limit: 7,
+          bitfield: 3,
           forward_path: ['!alpha', '!relay', '!bravo'],
           return_path: ['!bravo', '!relay', '!alpha'],
           forward_snr: [9, -2],
@@ -396,8 +399,15 @@ describe('LogPage', () => {
     await user.click(screen.getByRole('button', { name: 'View details for Traceroute' }))
 
     const dialog = screen.getByRole('dialog')
-    expect(within(dialog).getByRole('heading', { name: 'Route traced toward destination:' })).toBeTruthy()
-    expect(within(dialog).getByRole('heading', { name: 'Route traced back to us:' })).toBeTruthy()
+    const forwardHeading = within(dialog).getByRole('heading', { name: 'Route traced toward destination:' })
+    const fromLabel = within(dialog).getByText('From')
+
+    expect(forwardHeading).toBeTruthy()
+    expect(within(dialog).getByRole('heading', { name: 'Route traced back:' })).toBeTruthy()
+    expect(forwardHeading.compareDocumentPosition(fromLabel) & 4).toBeTruthy()
+    expect(within(dialog).getByText('Hop start')).toBeTruthy()
+    expect(within(dialog).getByText('Hop limit')).toBeTruthy()
+    expect(within(dialog).queryByText('Bitfield')).toBeNull()
     expect(within(dialog).getByText('SNR: 9 dB')).toBeTruthy()
     expect(within(dialog).getByText('SNR: -2 dB')).toBeTruthy()
     expect(within(dialog).getByText('SNR: 7 dB')).toBeTruthy()
@@ -433,7 +443,7 @@ describe('LogPage', () => {
 
     const dialog = screen.getByRole('dialog')
     expect(within(dialog).getByRole('heading', { name: 'Route traced toward destination:' })).toBeTruthy()
-    expect(within(dialog).getByRole('heading', { name: 'Route traced back to us:' })).toBeTruthy()
+    expect(within(dialog).getByRole('heading', { name: 'Route traced back:' })).toBeTruthy()
     expect(within(dialog).getByText('SNR: 4 dB')).toBeTruthy()
     expect(within(dialog).getAllByText(/^!bravo$/)).toHaveLength(2)
     expect(within(dialog).queryByText('SNR: undefined dB')).toBeNull()
