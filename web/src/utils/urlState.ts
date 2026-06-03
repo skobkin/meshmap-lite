@@ -22,6 +22,7 @@ export interface FragmentState {
     eventKinds: number[]
     channel: string
     nodeID: string
+    eventID?: number
   }
 }
 
@@ -91,12 +92,16 @@ export function parseFragmentState(hash: string): FragmentState {
   }
 
   if (page === 'log') {
+    const eventID = parseURLNumber(params.get('event_id'))
     state.log = {
       eventKinds: params.getAll('event_kind')
         .map((value) => Number(value))
         .filter((value) => Number.isInteger(value) && value > 0),
       channel: params.get('channel') ?? '',
       nodeID: params.get('node_id') ?? ''
+    }
+    if (eventID && Number.isInteger(eventID) && eventID > 0) {
+      state.log.eventID = eventID
     }
   }
 
@@ -130,6 +135,7 @@ export function serializeFragmentState(state: FragmentState): string {
       }
       if (state.log?.channel) {params.set('channel', state.log.channel)}
       if (state.log?.nodeID) {params.set('node_id', state.log.nodeID)}
+      if (state.log?.eventID) {params.set('event_id', String(state.log.eventID))}
       break
     case 'stats':
       break

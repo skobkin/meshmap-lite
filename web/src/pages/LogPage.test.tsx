@@ -239,6 +239,34 @@ describe('LogPage', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
+  it('opens the shared event details when the selected event id is present', () => {
+    renderPage([
+      event(1),
+      event(2, {
+        node_display_name: 'Bravo Node',
+        details: {
+          answer: 42
+        }
+      })
+    ], {
+      selectedEventID: 2
+    })
+
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: /Map report · Bravo Node/i })).toBeTruthy()
+    expect(screen.getByText('"answer"').classList.contains('json-key')).toBe(true)
+  })
+
+  it('does not open shared event details when the selected event id is not loaded', () => {
+    renderPage([
+      event(1)
+    ], {
+      selectedEventID: 2
+    })
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
   it('keeps node navigation and details actions working in the mobile layout', async () => {
     mockViewport(true)
     useNodeStore.setState({

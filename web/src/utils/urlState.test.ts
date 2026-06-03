@@ -49,12 +49,24 @@ describe('urlState', () => {
   })
 
   it('parses repeated log event kinds and ignores invalid values', () => {
-    expect(parseFragmentState('#/log?event_kind=7&event_kind=bad&event_kind=4&event_kind=-1&channel=mesh&node_id=%21abc')).toEqual({
+    expect(parseFragmentState('#/log?event_kind=7&event_kind=bad&event_kind=4&event_kind=-1&channel=mesh&node_id=%21abc&event_id=42')).toEqual({
       page: 'log',
       log: {
         eventKinds: [7, 4],
         channel: 'mesh',
-        nodeID: '!abc'
+        nodeID: '!abc',
+        eventID: 42
+      }
+    })
+  })
+
+  it('ignores invalid log event ids', () => {
+    expect(parseFragmentState('#/log?event_id=bad')).toEqual({
+      page: 'log',
+      log: {
+        eventKinds: [],
+        channel: '',
+        nodeID: ''
       }
     })
   })
@@ -65,8 +77,9 @@ describe('urlState', () => {
       log: {
         eventKinds: [7, 4],
         channel: 'mesh room',
-        nodeID: '!abc'
+        nodeID: '!abc',
+        eventID: 42
       }
-    })).toBe('#/log?event_kind=7&event_kind=4&channel=mesh+room&node_id=%21abc')
+    })).toBe('#/log?event_kind=7&event_kind=4&channel=mesh+room&node_id=%21abc&event_id=42')
   })
 })

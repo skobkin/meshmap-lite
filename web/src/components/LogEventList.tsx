@@ -18,6 +18,9 @@ interface Props {
   compact?: boolean
   maxBodyRows?: number
   emptyText?: string
+  selectedEventID?: number
+  onSelectEvent?: (id: number) => void
+  onCloseEventDetails?: () => void
   onOpenNodeDetails: (id: string) => void
 }
 
@@ -125,16 +128,34 @@ export function LogEventList({
   compact,
   maxBodyRows,
   emptyText = 'No log events.',
+  selectedEventID,
+  onSelectEvent,
+  onCloseEventDetails,
   onOpenNodeDetails
 }: Props): JSX.Element {
-  const [selectedEvent, setSelectedEvent] = useState<LogEvent>()
+  const [localSelectedEventID, setLocalSelectedEventID] = useState<number>()
   const mobileLayout = useMobileLogLayout()
+  const eventSelectionControlled = selectedEventID !== undefined || Boolean(onSelectEvent ?? onCloseEventDetails)
+  const activeEventID = eventSelectionControlled ? selectedEventID : localSelectedEventID
+  const selectedEvent = items.find((item) => item.id === activeEventID && hasLogDetails(item.details))
   const dayGroups = groupLogItemsByDay(items)
   const firstRowIDs = new Set(dayGroups.map((group) => group.items[0]?.id).filter((id): id is number => typeof id === 'number'))
   const colSpan = showNodeColumn ? 7 : 6
   const scrollStyle = maxBodyRows && maxBodyRows > 0
     ? { maxHeight: `${maxBodyRows * 2.45}rem`, overflowY: 'auto' }
     : undefined
+  const selectEvent = (id: number): void => {
+    if (!eventSelectionControlled) {
+      setLocalSelectedEventID(id)
+    }
+    onSelectEvent?.(id)
+  }
+  const closeEventDetails = (): void => {
+    if (!eventSelectionControlled) {
+      setLocalSelectedEventID(undefined)
+    }
+    onCloseEventDetails?.()
+  }
 
   return (
     <>
@@ -191,7 +212,7 @@ export function LogEventList({
                             type="button"
                             className="secondary log-details-trigger"
                             aria-label={`View details for ${row.event_kind_title}`}
-                            onClick={() => setSelectedEvent(row)}
+                            onClick={() => selectEvent(row.id)}
                           >
                             View details
                           </button>
@@ -263,7 +284,7 @@ export function LogEventList({
                             type="button"
                             className="secondary log-details-trigger"
                             aria-label={`View details for ${row.event_kind_title}`}
-                            onClick={() => setSelectedEvent(row)}
+                            onClick={() => selectEvent(row.id)}
                           >
                             View
                           </button>
@@ -279,7 +300,7 @@ export function LogEventList({
       </div>
       <LogDetailsModal
         event={selectedEvent}
-        onClose={() => setSelectedEvent(undefined)}
+        onClose={closeEventDetails}
         onOpenNodeDetails={onOpenNodeDetails}
         renderers={[tracerouteLogDetailsRenderer, pkiLogDetailsRenderer, routingLogDetailsRenderer]}
       />

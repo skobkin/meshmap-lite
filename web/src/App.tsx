@@ -104,6 +104,7 @@ export function App(): JSX.Element {
   const [nodeLogError, setNodeLogError] = useState('')
   const [channels, setChannels] = useState<string[]>([])
   const [nodesFilter, setNodesFilter] = useState(() => initialURLState.current.page === 'nodes' ? initialURLState.current.nodes?.q ?? '' : '')
+  const [selectedLogEventID, setSelectedLogEventID] = useState<number | undefined>(() => initialURLState.current.page === 'log' ? initialURLState.current.log?.eventID : undefined)
   const [chatPanel, setChatPanel] = useState<'open' | 'collapsed'>(() => initialURLState.current.page === 'map' ? initialURLState.current.map?.chatPanel ?? 'open' : 'open')
   const [detailsCache, setDetailsCache] = useState(() => readNodeDetailsCache(localStorage))
   const [mapView, setMapView] = useState<SavedMapView>(() => initialURLState.current.map?.view ?? readSavedMapView() ?? { center: [64.5, 40.6], zoom: 12 })
@@ -179,17 +180,21 @@ export function App(): JSX.Element {
           log: {
             eventKinds: logFilters.eventKinds,
             channel: logFilters.channel,
-            nodeID: logFilters.nodeID
+            nodeID: logFilters.nodeID,
+            eventID: page === 'log' ? selectedLogEventID : undefined
           }
         }
       case 'stats':
         return { page: 'stats' }
     }
-  }, [channel, chatPanel, logFilters.channel, logFilters.eventKinds, logFilters.nodeID, mapView, nodesFilter, page, selectedId])
+  }, [channel, chatPanel, logFilters.channel, logFilters.eventKinds, logFilters.nodeID, mapView, nodesFilter, page, selectedId, selectedLogEventID])
 
   const applyFragmentState = useCallback((state: FragmentState): void => {
     setInfoRouteRequested(Boolean(state.infoRequested))
     setPage(state.page)
+    if (state.page !== 'log') {
+      setSelectedLogEventID(undefined)
+    }
     if (state.page === 'map') {
       if (state.map?.view) {setMapView(state.map.view)}
       setSelectedId(state.map?.node)
@@ -208,10 +213,12 @@ export function App(): JSX.Element {
     }
     if (state.page === 'log') {
       setLogFilters(state.log ?? { eventKinds: [], channel: '', nodeID: '' })
+      setSelectedLogEventID(state.log?.eventID)
       setMapFocusNodeId(undefined)
 
       return
     }
+    setSelectedLogEventID(undefined)
     setMapFocusNodeId(undefined)
   }, [setChannel, setLogFilters, setSelectedId])
 
@@ -430,8 +437,10 @@ export function App(): JSX.Element {
     if (page !== 'log') {return}
     if (!bootstrapDone) {return}
 
+    const selectedEventBeforeID = selectedLogEventID ? selectedLogEventID + 1 : undefined
     const requestKey = JSON.stringify({
       limit: meta?.log_page_size_default ?? 100,
+      before: selectedEventBeforeID,
       eventKinds: logFilters.eventKinds,
       channel: logFilters.channel,
       nodeID: logFilters.nodeID
@@ -444,6 +453,7 @@ export function App(): JSX.Element {
     setLogsLoading(true)
     void api.logEvents({
       limit: meta?.log_page_size_default ?? 100,
+      before: selectedEventBeforeID,
       eventKinds: logFilters.eventKinds,
       channel: logFilters.channel,
       nodeID: logFilters.nodeID
@@ -466,7 +476,7 @@ export function App(): JSX.Element {
       })
 
     return () => controller.abort()
-  }, [page, bootstrapDone, logLoadedOnce, logFilters.eventKinds, logFilters.channel, logFilters.nodeID, meta?.log_page_size_default, setLogInitial, setLogLoadError])
+  }, [page, bootstrapDone, logLoadedOnce, logFilters.eventKinds, logFilters.channel, logFilters.nodeID, meta?.log_page_size_default, selectedLogEventID, setLogInitial, setLogLoadError])
 
   useEffect(() => {
     if (!selectedId) {
@@ -594,12 +604,16 @@ export function App(): JSX.Element {
     if (nextPage !== 'map') {
       setMapFocusNodeId(undefined)
     }
+    if (nextPage !== 'log') {
+      setSelectedLogEventID(undefined)
+    }
     updateURL(currentFragmentState(nextPage), 'push')
   }, [currentFragmentState, updateURL])
 
   const openNodeDetails = useCallback((id: string): void => {
     setPage('nodes')
     setMapFocusNodeId(undefined)
+    setSelectedLogEventID(undefined)
     setSelectedId(id)
     updateURL({
       page: 'nodes',
@@ -688,6 +702,7 @@ export function App(): JSX.Element {
 
   const changeLogFilters = useCallback((filters: typeof logFilters): void => {
     setLogFilters(filters)
+    setSelectedLogEventID(undefined)
     updateURL({
       page: 'log',
       log: {
@@ -697,6 +712,31 @@ export function App(): JSX.Element {
       }
     }, 'replace')
   }, [setLogFilters, updateURL])
+
+  const selectLogEvent = useCallback((eventID: number): void => {
+    setSelectedLogEventID(eventID)
+    updateURL({
+      page: 'log',
+      log: {
+        eventKinds: logFilters.eventKinds,
+        channel: logFilters.channel,
+        nodeID: logFilters.nodeID,
+        eventID
+      }
+    }, 'push')
+  }, [logFilters.channel, logFilters.eventKinds, logFilters.nodeID, updateURL])
+
+  const closeLogEvent = useCallback((): void => {
+    setSelectedLogEventID(undefined)
+    updateURL({
+      page: 'log',
+      log: {
+        eventKinds: logFilters.eventKinds,
+        channel: logFilters.channel,
+        nodeID: logFilters.nodeID
+      }
+    }, 'replace')
+  }, [logFilters.channel, logFilters.eventKinds, logFilters.nodeID, updateURL])
 
   const loadMoreLogs = useCallback(() => {
     if (logsLoading) {return}
@@ -850,6 +890,7 @@ export function App(): JSX.Element {
           selectedKinds={logFilters.eventKinds}
           selectedChannel={logFilters.channel}
           selectedNodeID={logFilters.nodeID}
+          selectedEventID={selectedLogEventID}
           onChangeKinds={(eventKinds) => {
             changeLogFilters({ ...logFilters, eventKinds })
           }}
@@ -859,6 +900,8 @@ export function App(): JSX.Element {
           onChangeNodeID={(nodeID) => {
             changeLogFilters({ ...logFilters, nodeID })
           }}
+          onSelectEvent={selectLogEvent}
+          onCloseEventDetails={closeLogEvent}
           onOpenNodeDetails={openNodeDetails}
           onLoadMore={loadMoreLogs}
         />

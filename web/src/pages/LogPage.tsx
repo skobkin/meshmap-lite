@@ -10,9 +10,12 @@ interface Props {
   selectedKinds: number[]
   selectedChannel: string
   selectedNodeID?: string
+  selectedEventID?: number
   onChangeKinds: (kinds: number[]) => void
   onChangeChannel: (channel: string) => void
   onChangeNodeID?: (nodeID: string) => void
+  onSelectEvent?: (id: number) => void
+  onCloseEventDetails?: () => void
   onOpenNodeDetails: (id: string) => void
   onLoadMore: () => void
 }
@@ -49,9 +52,12 @@ export function LogPage({
   selectedKinds,
   selectedChannel,
   selectedNodeID = '',
+  selectedEventID,
   onChangeKinds,
   onChangeChannel,
   onChangeNodeID = () => undefined,
+  onSelectEvent,
+  onCloseEventDetails,
   onOpenNodeDetails,
   onLoadMore
 }: Props): JSX.Element {
@@ -118,7 +124,14 @@ export function LogPage({
       </details>
       <article className="log-table-wrap">
         {loadError && <p className="load-error">{loadError}</p>}
-        <LogEventList items={items} showNodeColumn onOpenNodeDetails={onOpenNodeDetails} />
+        <LogEventList
+          items={items}
+          showNodeColumn
+          selectedEventID={selectedEventID}
+          onSelectEvent={onSelectEvent}
+          onCloseEventDetails={onCloseEventDetails}
+          onOpenNodeDetails={onOpenNodeDetails}
+        />
         <button type="button" className="secondary" onClick={onLoadMore}>Load more</button>
       </article>
     </section>

@@ -390,17 +390,23 @@ function setupModuleMocks(): void {
       selectedKinds,
       selectedChannel,
       selectedNodeID,
+      selectedEventID,
       onChangeKinds,
       onChangeChannel,
-      onChangeNodeID
+      onChangeNodeID,
+      onSelectEvent,
+      onCloseEventDetails
     }: {
       items: LogEvent[]
       selectedKinds: number[]
       selectedChannel: string
       selectedNodeID?: string
+      selectedEventID?: number
       onChangeKinds: (kinds: number[]) => void
       onChangeChannel: (channel: string) => void
       onChangeNodeID: (nodeID: string) => void
+      onSelectEvent: (id: number) => void
+      onCloseEventDetails: () => void
     }): JSX.Element => (
       <section data-testid="log-page">
         <p>Log page</p>
@@ -408,9 +414,12 @@ function setupModuleMocks(): void {
         <p>Log kinds: {selectedKinds.join(',')}</p>
         <p>Log channel: {selectedChannel}</p>
         <p>Log node: {selectedNodeID ?? ''}</p>
+        <p>Log event: {selectedEventID ?? ''}</p>
         <button type="button" onClick={() => onChangeKinds([7])}>Set log kind 7</button>
         <button type="button" onClick={() => onChangeChannel('ops')}>Set log channel ops</button>
         <button type="button" onClick={() => onChangeNodeID('!alpha')}>Set log node alpha</button>
+        <button type="button" onClick={() => onSelectEvent(2)}>Open log event 2</button>
+        <button type="button" onClick={onCloseEventDetails}>Close log event</button>
       </section>
     )
   }))
@@ -638,7 +647,7 @@ describe('App', () => {
   })
 
   it('hydrates log URL filters and loads filtered log data', async () => {
-    window.history.replaceState(null, '', '/#/log?event_kind=7&event_kind=4&channel=ops&node_id=%21alpha')
+    window.history.replaceState(null, '', '/#/log?event_kind=7&event_kind=4&channel=ops&node_id=%21alpha&event_id=2')
     setupModuleMocks()
 
     await renderApp()
@@ -647,13 +656,54 @@ describe('App', () => {
     expect(screen.getByText('Log kinds: 7,4')).toBeTruthy()
     expect(screen.getByText('Log channel: ops')).toBeTruthy()
     expect(screen.getByText('Log node: !alpha')).toBeTruthy()
+    expect(screen.getByText('Log event: 2')).toBeTruthy()
     await waitFor(() => {
       expect(apiMock.logEvents).toHaveBeenCalledWith({
         limit: 100,
+        before: 3,
         eventKinds: [7, 4],
         channel: 'ops',
         nodeID: '!alpha'
       }, expect.anything())
+    })
+  })
+
+  it('keeps an opened log event in the route fragment and clears it on close', async () => {
+    const user = userEvent.setup()
+    window.history.replaceState(null, '', '/#/log?event_kind=7&channel=ops')
+    setupModuleMocks()
+
+    await renderApp()
+    await screen.findByTestId('log-page')
+
+    await user.click(screen.getByRole('button', { name: 'Open log event 2' }))
+
+    expect(screen.getByText('Log event: 2')).toBeTruthy()
+    expect(window.location.hash).toBe('#/log?event_kind=7&channel=ops&event_id=2')
+
+    await user.click(screen.getByRole('button', { name: 'Close log event' }))
+
+    expect(screen.getByText('Log event:')).toBeTruthy()
+    expect(window.location.hash).toBe('#/log?event_kind=7&channel=ops')
+  })
+
+  it('restores log event selection when browser history returns to an event fragment', async () => {
+    const user = userEvent.setup()
+    window.history.replaceState(null, '', '/#/log')
+    setupModuleMocks()
+
+    await renderApp()
+    await screen.findByTestId('log-page')
+
+    await user.click(screen.getByRole('button', { name: 'Open log event 2' }))
+    await user.click(screen.getByRole('button', { name: 'Nodes' }))
+    await screen.findByTestId('nodes-page')
+
+    window.history.back()
+
+    await waitFor(() => {
+      expect(screen.getByTestId('log-page')).toBeTruthy()
+      expect(screen.getByText('Log event: 2')).toBeTruthy()
     })
   })
 
