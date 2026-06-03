@@ -93,6 +93,7 @@ export function App(): JSX.Element {
   const [chatLoadingMore, setChatLoadingMore] = useState(false)
   const [chatLoadMoreError, setChatLoadMoreError] = useState('')
   const [chatHasMore, setChatHasMore] = useState(false)
+  const [infoRouteRequested, setInfoRouteRequested] = useState(() => Boolean(initialURLState.current.infoRequested))
   const [infoModalOpen, setInfoModalOpen] = useState(false)
   const [infoDismissedHash, setInfoDismissedHash] = useState(() => readInfoDismissedSourceHash())
   const [infoContent, setInfoContent] = useState<InfoResponse>()
@@ -187,6 +188,7 @@ export function App(): JSX.Element {
   }, [channel, chatPanel, logFilters.channel, logFilters.eventKinds, logFilters.nodeID, mapView, nodesFilter, page, selectedId])
 
   const applyFragmentState = useCallback((state: FragmentState): void => {
+    setInfoRouteRequested(Boolean(state.infoRequested))
     setPage(state.page)
     if (state.page === 'map') {
       if (state.map?.view) {setMapView(state.map.view)}
@@ -539,6 +541,12 @@ export function App(): JSX.Element {
     if (infoDismissedHash === meta.info_source_hash) {return}
     setInfoModalOpen(true)
   }, [infoDismissedHash, meta])
+
+  useEffect(() => {
+    if (!infoRouteRequested) {return}
+    if (!meta?.info_available || !meta.info_source_hash) {return}
+    setInfoModalOpen(true)
+  }, [infoRouteRequested, meta])
 
   useEffect(() => {
     if (!infoModalOpen) {return}

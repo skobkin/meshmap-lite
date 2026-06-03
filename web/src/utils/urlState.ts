@@ -7,6 +7,7 @@ export interface MapViewState {
 
 export interface FragmentState {
   page: FragmentPage
+  infoRequested?: boolean
   map?: {
     view?: MapViewState
     node?: string
@@ -50,22 +51,26 @@ function nonEmpty(value: string | null): string | undefined {
   return value && value.length > 0 ? value : undefined
 }
 
-function parsePage(raw: string): { page: FragmentPage; params: URLSearchParams; routed: boolean } {
+function parsePage(raw: string): { page: FragmentPage; params: URLSearchParams; routed: boolean; infoRequested: boolean } {
   const trimmed = raw.startsWith('#') ? raw.slice(1) : raw
   if (!trimmed.startsWith('/')) {
-    return { page: 'map', params: new URLSearchParams(), routed: false }
+    return { page: 'map', params: new URLSearchParams(), routed: false, infoRequested: false }
   }
   const queryStart = trimmed.indexOf('?')
   const path = queryStart >= 0 ? trimmed.slice(1, queryStart) : trimmed.slice(1)
   const query = queryStart >= 0 ? trimmed.slice(queryStart + 1) : ''
+  if (path === 'info') {
+    return { page: 'map', params: new URLSearchParams(query), routed: true, infoRequested: true }
+  }
   const page = pages.has(path as FragmentPage) ? path as FragmentPage : 'map'
 
-  return { page, params: new URLSearchParams(query), routed: true }
+  return { page, params: new URLSearchParams(query), routed: true, infoRequested: false }
 }
 
 export function parseFragmentState(hash: string): FragmentState {
-  const { page, params, routed } = parsePage(hash)
-  const state: FragmentState = { page }
+  const { page, params, routed, infoRequested } = parsePage(hash)
+  const state: FragmentState = { page, infoRequested: infoRequested || undefined }
+  if (infoRequested) {return state}
   if (!routed) {return state}
 
   if (page === 'map') {

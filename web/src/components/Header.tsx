@@ -70,15 +70,15 @@ export function Header({ appName, mqttStatus, page, version, ws, wsStats, infoAv
       </nav>
       <div className="header-icons">
         {infoAvailable && (
-          <button
+          <a
             aria-label="Site information"
-            className="header-icon-button info-header-button"
+            className="header-icon-button"
+            href="#/info"
             title="Site information"
-            type="button"
             onClick={onOpenInfo}
           >
             <span aria-hidden="true">i</span>
-          </button>
+          </a>
         )}
         <ConnectionStatus mqttStatus={mqttStatus} ws={ws} wsStats={wsStats} />
         <a className="repo-link" href="https://git.skobk.in/skobkin/meshmap-lite" target="_blank" rel="noreferrer" title="Source" aria-label="Source code">

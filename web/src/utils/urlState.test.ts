@@ -31,6 +31,13 @@ describe('urlState', () => {
     expect(parseFragmentState('#lat=64.5&lng=40.6&z=12')).toEqual({ page: 'map' })
   })
 
+  it('parses the shareable information popup route without changing the active page type', () => {
+    expect(parseFragmentState('#/info')).toEqual({
+      page: 'map',
+      infoRequested: true
+    })
+  })
+
   it('parses nodes state', () => {
     expect(parseFragmentState('#/nodes?node=%21abc&q=relay%20one')).toEqual({
       page: 'nodes',

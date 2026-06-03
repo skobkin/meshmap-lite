@@ -151,7 +151,7 @@ body {
   font-size: 0.82rem;
 }
 
-.header-icons a {
+.header-icons a:not(.header-icon-button) {
   display: inline-flex;
   align-items: center;
   height: 100%;
@@ -168,20 +168,17 @@ body {
   margin: 0;
   padding: 0;
   border-radius: 999px;
-  border-width: 1px;
+  border: 1px solid var(--pico-muted-border-color);
   color: var(--pico-muted-color);
   background: transparent;
   font-size: 0.9rem;
   line-height: 1;
+  text-decoration: none;
 }
 
 .header-icon-button:hover,
 .header-icon-button:focus-visible {
   color: var(--pico-color);
-}
-
-.info-header-button {
-  margin-right: 0.15rem;
 }
 
 .repo-link {

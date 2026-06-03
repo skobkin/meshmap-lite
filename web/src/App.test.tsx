@@ -571,7 +571,28 @@ describe('App', () => {
     await renderApp()
     await screen.findByTestId('map-page')
 
-    await user.click(screen.getByRole('button', { name: 'Site information' }))
+    const link = screen.getByRole('link', { name: 'Site information' })
+    expect(link.getAttribute('href')).toBe('#/info')
+
+    await user.click(link)
+
+    await screen.findByRole('dialog', { name: 'Site information' })
+    expect(window.location.hash).toBe('#/info')
+    await waitFor(() => {
+      expect(apiMock.info).toHaveBeenCalledWith('html', expect.any(Object))
+    })
+  })
+
+  it('opens site information from the shareable info fragment even after dismissal', async () => {
+    document.cookie = 'meshmap-lite.info.dismissed_source_hash=hash-1; Path=/; SameSite=Lax'
+    window.history.replaceState(null, '', '/#/info')
+    setupModuleMocks()
+    apiMock.meta.mockResolvedValue(meta({
+      info_available: true,
+      info_source_hash: 'hash-1'
+    }))
+
+    await renderApp()
 
     await screen.findByRole('dialog', { name: 'Site information' })
     await waitFor(() => {
