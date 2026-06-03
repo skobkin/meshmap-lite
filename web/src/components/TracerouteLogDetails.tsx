@@ -1,3 +1,5 @@
+import { useState } from 'preact/hooks'
+
 import { JsonDetailsView } from './JsonDetailsView'
 import { ResolvedNodeData } from './ResolvedNodeData'
 
@@ -251,6 +253,7 @@ function TracerouteLogDetailsView({
   event: LogEvent
   onOpenNodeDetails?: (id: string) => void
 }): JSX.Element {
+  const [activeView, setActiveView] = useState<'route' | 'json'>('route')
   const details = asRecord(event.details)
   if (!details) {
     return <JsonDetailsView value={event.details ?? {}} />
@@ -266,31 +269,63 @@ function TracerouteLogDetailsView({
 
   return (
     <div className="traceroute-log-details">
-      <div className="traceroute-summary">
-        {sections.map((section) => (
-          <TracerouteRouteSection
-            key={section.key}
-            section={section}
-            onOpenNodeDetails={onOpenNodeDetails}
-          />
-        ))}
-        {rows.length > 0 ? (
-          <dl className="log-details-grid traceroute-metadata">
-            {rows.map((row) => (
-              <div key={row.key} className="log-details-row">
-                <dt className="log-details-label">{row.label}</dt>
-                <dd className="log-details-value">
-                  {row.key === 'from' || row.key === 'to'
-                    ? <NodeReference nodeId={row.value} onOpenNodeDetails={onOpenNodeDetails} />
-                    : row.value}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        ) : null}
-        {steps.length > 0 ? <TracerouteSteps steps={steps} /> : null}
-      </div>
-      <JsonDetailsView value={details} />
+      <nav className="view-switch traceroute-view-switch" aria-label="Traceroute detail view">
+        <ul role="tablist">
+          <li>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeView === 'route'}
+              className={activeView === 'route' ? undefined : 'outline'}
+              onClick={() => setActiveView('route')}
+            >
+              Route
+            </button>
+          </li>
+          <li>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeView === 'json'}
+              className={activeView === 'json' ? undefined : 'outline'}
+              onClick={() => setActiveView('json')}
+            >
+              Raw
+            </button>
+          </li>
+        </ul>
+      </nav>
+
+      {activeView === 'route' ? (
+        <div className="traceroute-summary" role="tabpanel">
+          {sections.map((section) => (
+            <TracerouteRouteSection
+              key={section.key}
+              section={section}
+              onOpenNodeDetails={onOpenNodeDetails}
+            />
+          ))}
+          {rows.length > 0 ? (
+            <dl className="log-details-grid traceroute-metadata">
+              {rows.map((row) => (
+                <div key={row.key} className="log-details-row">
+                  <dt className="log-details-label">{row.label}</dt>
+                  <dd className="log-details-value">
+                    {row.key === 'from' || row.key === 'to'
+                      ? <NodeReference nodeId={row.value} onOpenNodeDetails={onOpenNodeDetails} />
+                      : row.value}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
+          {steps.length > 0 ? <TracerouteSteps steps={steps} /> : null}
+        </div>
+      ) : (
+        <div role="tabpanel">
+          <JsonDetailsView value={details} />
+        </div>
+      )}
     </div>
   )
 }

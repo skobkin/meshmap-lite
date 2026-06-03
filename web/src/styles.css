@@ -1372,6 +1372,15 @@ body {
   gap: 1rem;
 }
 
+.traceroute-view-switch {
+  justify-content: flex-start;
+  justify-self: start;
+}
+
+.traceroute-view-switch button[aria-selected="true"] {
+  font-weight: 600;
+}
+
 .traceroute-summary {
   display: grid;
   gap: 0.8rem;

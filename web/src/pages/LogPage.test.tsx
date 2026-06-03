@@ -412,7 +412,7 @@ describe('LogPage', () => {
     expect(within(dialog).getByText('SNR: -2 dB')).toBeTruthy()
     expect(within(dialog).getByText('SNR: 7 dB')).toBeTruthy()
     expect(within(dialog).getByText(/packet 91/)).toBeTruthy()
-    expect(within(dialog).getByText('"forward_path"').classList.contains('json-key')).toBe(true)
+    expect(within(dialog).queryByText('"forward_path"')).toBeNull()
 
     const relayButton = within(dialog).getAllByRole('button', { name: 'Relay Ridge' })[0]!
     expect(relayButton.getAttribute('title')).toBe('!relay')
@@ -420,6 +420,16 @@ describe('LogPage', () => {
     await user.click(relayButton)
 
     expect(onOpenNodeDetails).toHaveBeenCalledWith('!relay')
+
+    await user.click(within(dialog).getByRole('tab', { name: 'Raw' }))
+
+    expect(within(dialog).queryByRole('heading', { name: 'Route traced toward destination:' })).toBeNull()
+    expect(within(dialog).getByText('"forward_path"').classList.contains('json-key')).toBe(true)
+
+    await user.click(within(dialog).getByRole('tab', { name: 'Route' }))
+
+    expect(within(dialog).getByRole('heading', { name: 'Route traced toward destination:' })).toBeTruthy()
+    expect(within(dialog).queryByText('"forward_path"')).toBeNull()
   })
 
   it('renders raw traceroute packet routes and hides missing SNR rows', async () => {
@@ -447,6 +457,9 @@ describe('LogPage', () => {
     expect(within(dialog).getByText('SNR: 4 dB')).toBeTruthy()
     expect(within(dialog).getAllByText(/^!bravo$/)).toHaveLength(2)
     expect(within(dialog).queryByText('SNR: undefined dB')).toBeNull()
+
+    expect(within(dialog).queryByText('"route_back"')).toBeNull()
+    await user.click(within(dialog).getByRole('tab', { name: 'Raw' }))
     expect(within(dialog).getByText('"route_back"').classList.contains('json-key')).toBe(true)
   })
 
