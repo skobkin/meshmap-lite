@@ -11,10 +11,12 @@ interface Props {
   version: string
   ws: WSState
   wsStats: WSStats | null
+  infoAvailable?: boolean
   onPage: (p: Page) => void
+  onOpenInfo?: () => void
 }
 
-export function Header({ appName, mqttStatus, page, version, ws, wsStats, onPage }: Props): JSX.Element {
+export function Header({ appName, mqttStatus, page, version, ws, wsStats, infoAvailable = false, onPage, onOpenInfo }: Props): JSX.Element {
   const brandTitle = `${appName} ${version}`
 
   return (
@@ -67,6 +69,17 @@ export function Header({ appName, mqttStatus, page, version, ws, wsStats, onPage
         </ul>
       </nav>
       <div className="header-icons">
+        {infoAvailable && (
+          <button
+            aria-label="Site information"
+            className="header-icon-button info-header-button"
+            title="Site information"
+            type="button"
+            onClick={onOpenInfo}
+          >
+            <span aria-hidden="true">i</span>
+          </button>
+        )}
         <ConnectionStatus mqttStatus={mqttStatus} ws={ws} wsStats={wsStats} />
         <a className="repo-link" href="https://git.skobk.in/skobkin/meshmap-lite" target="_blank" rel="noreferrer" title="Source" aria-label="Source code">
           <span className="repo-link-icon" aria-hidden="true" />

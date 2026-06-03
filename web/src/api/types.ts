@@ -178,6 +178,8 @@ export interface Meta {
   log_live_updates: boolean
   log_page_size_default: number
   disconnected_threshold: string
+  info_available: boolean
+  info_source_hash?: string
   relevance: {
     telemetry_max_age: string
     topology_evidence_max_age: string
@@ -193,6 +195,14 @@ export interface Meta {
       zoom: number
     }
   }
+}
+
+export type InfoFormat = 'html' | 'markdown'
+
+export interface InfoResponse {
+  format: InfoFormat
+  source_hash: string
+  content: string
 }
 
 export interface ActivityBucket {

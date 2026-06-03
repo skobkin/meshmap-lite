@@ -272,6 +272,7 @@ describe('startWS', () => {
       log_live_updates: false,
       log_page_size_default: 50,
       disconnected_threshold: '10m',
+      info_available: false,
       relevance: {
         telemetry_max_age: '24h',
         topology_evidence_max_age: '72h',

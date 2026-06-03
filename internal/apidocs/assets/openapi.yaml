@@ -19,6 +19,8 @@ tags:
     description: Process health and readiness checks.
   - name: Meta
     description: UI bootstrap and runtime metadata.
+  - name: Info
+    description: Optional startup-loaded site information content.
   - name: Channels
     description: Configured channel metadata.
   - name: Map
@@ -86,6 +88,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Meta'
+  /api/v1/info:
+    get:
+      tags: [Info]
+      summary: Fetch optional site information content
+      operationId: getInfo
+      parameters:
+        - name: format
+          in: query
+          required: false
+          description: Defaults to `html`.
+          schema:
+            type: string
+            enum: [html, markdown]
+      responses:
+        '200':
+          description: Cached site information content loaded at startup.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Info'
+        '400':
+          description: Unknown format.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: invalid_format
+        '404':
+          description: Site information is not configured.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: info_not_configured
   /api/v1/channels:
     get:
       tags: [Channels]
@@ -430,6 +468,7 @@ components:
         - log_live_updates
         - log_page_size_default
         - disconnected_threshold
+        - info_available
         - map
         - relevance
       properties:
@@ -453,10 +492,28 @@ components:
         disconnected_threshold:
           type: string
           description: Go duration string.
+        info_available:
+          type: boolean
+          description: Whether `/api/v1/info` has configured content.
+        info_source_hash:
+          type: string
+          description: SHA-256 of the Markdown source. Present when `info_available` is true.
         map:
           $ref: '#/components/schemas/MetaMap'
         relevance:
           $ref: '#/components/schemas/MetaRelevance'
+    Info:
+      type: object
+      required: [format, source_hash, content]
+      properties:
+        format:
+          type: string
+          enum: [html, markdown]
+        source_hash:
+          type: string
+          description: SHA-256 of the Markdown source.
+        content:
+          type: string
     MetaMap:
       type: object
       required:

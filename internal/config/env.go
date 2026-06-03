@@ -54,6 +54,7 @@ var envSetters = map[string]envSetter{
 	"ingest.map_reports.topic_suffix": func(cfg *Config, value string) { cfg.Ingest.MapReports.TopicSuffix = value },
 	"web.listen_addr":                 func(cfg *Config, value string) { cfg.Web.ListenAddr = value },
 	"web.base_path":                   func(cfg *Config, value string) { cfg.Web.BasePath = value },
+	"web.info.file":                   func(cfg *Config, value string) { cfg.Web.Info.File = value },
 	"web.chat.enabled":                func(cfg *Config, value string) { cfg.Web.Chat.Enabled = mustBool(value, cfg.Web.Chat.Enabled) },
 	"web.chat.default_channel":        func(cfg *Config, value string) { cfg.Web.Chat.DefaultChannel = value },
 	"web.chat.show_recent_messages": func(cfg *Config, value string) {

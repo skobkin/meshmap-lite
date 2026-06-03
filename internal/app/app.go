@@ -22,6 +22,7 @@ import (
 	"meshmap-lite/internal/logging"
 	"meshmap-lite/internal/mqttclient"
 	"meshmap-lite/internal/persistence/sqlite"
+	"meshmap-lite/internal/siteinfo"
 )
 
 const missingFrontendBuildHint = "frontend assets are not built; run `cd web && npm run build`"
@@ -49,6 +50,14 @@ func Run(configPath string) error {
 		"mqtt_root_topic", cfg.MQTT.RootTopic,
 		"log_level", cfg.Logging.Level,
 	)
+
+	info, err := siteinfo.Load(cfg.Web.Info.File)
+	if err != nil {
+		return err
+	}
+	if info != nil {
+		log.Info("site info loaded", "file", cfg.Web.Info.File, "source_hash", info.SourceHash)
+	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -115,6 +124,7 @@ func Run(configPath string) error {
 		Version:  buildinfo.Version,
 		Web:      cfg.Web,
 		Channels: cfg.Channels,
+		Info:     info,
 	}, store, logMgr.Logger("internal/api/http"), mqttReady.Load, hub.ClientCount, mqtt.ConnectionStatus)
 	apiMux := api.Routes(hub, apidocs.Handler(apidocs.Options{
 		SpecURL: "/api/openapi.yaml",

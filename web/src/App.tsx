@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { api } from './api/client'
 import { startWS } from './api/ws'
 import { Header } from './components/Header'
+import { InfoModal } from './components/InfoModal'
 import { LogPage } from './pages/LogPage'
 import { MapPage } from './pages/MapPage'
 import { NodesPage } from './pages/NodesPage'
@@ -12,11 +13,12 @@ import { useLogStore } from './stores/log'
 import { useMetaStore } from './stores/meta'
 import { useNodeStore } from './stores/nodes'
 import { useWSStore } from './stores/ws'
+import { readInfoDismissedSourceHash, writeInfoDismissedSourceHash } from './utils/infoCookie'
 import { isNodeDetailsCacheFresh, persistNodeDetailsCache, readNodeDetailsCache, upsertNodeDetailsCache } from './utils/nodeDetailsCache'
 import { pruneMapNodesByRelevance, pruneNodeDetailsByRelevance, pruneNodeDetailsCacheByRelevance, pruneNodeSummariesByRelevance } from './utils/relevance'
 import { parseFragmentState, serializeFragmentState } from './utils/urlState'
 
-import type { LogEvent, NodeDetails } from './api/types'
+import type { InfoResponse, LogEvent, NodeDetails } from './api/types'
 import type { FragmentState, MapViewState } from './utils/urlState'
 import type { JSX } from 'preact'
 
@@ -91,6 +93,11 @@ export function App(): JSX.Element {
   const [chatLoadingMore, setChatLoadingMore] = useState(false)
   const [chatLoadMoreError, setChatLoadMoreError] = useState('')
   const [chatHasMore, setChatHasMore] = useState(false)
+  const [infoModalOpen, setInfoModalOpen] = useState(false)
+  const [infoDismissedHash, setInfoDismissedHash] = useState(() => readInfoDismissedSourceHash())
+  const [infoContent, setInfoContent] = useState<InfoResponse>()
+  const [infoLoading, setInfoLoading] = useState(false)
+  const [infoError, setInfoError] = useState('')
   const [nodeLogItems, setNodeLogItems] = useState<LogEvent[]>([])
   const [nodeLogLoading, setNodeLogLoading] = useState(false)
   const [nodeLogError, setNodeLogError] = useState('')
@@ -527,6 +534,38 @@ export function App(): JSX.Element {
     })
   }, [meta])
 
+  useEffect(() => {
+    if (!meta?.info_available || !meta.info_source_hash) {return}
+    if (infoDismissedHash === meta.info_source_hash) {return}
+    setInfoModalOpen(true)
+  }, [infoDismissedHash, meta])
+
+  useEffect(() => {
+    if (!infoModalOpen) {return}
+    if (!meta?.info_available || !meta.info_source_hash) {return}
+    if (infoContent?.source_hash === meta.info_source_hash && infoContent.format === 'html') {return}
+
+    const controller = new AbortController()
+    setInfoLoading(true)
+    setInfoError('')
+    void api.info('html', { signal: controller.signal })
+      .then((item) => {
+        setInfoContent(item)
+        setInfoError('')
+      })
+      .catch((err) => {
+        if (isAbortError(err)) {return}
+        setInfoError('Failed to load site information.')
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setInfoLoading(false)
+        }
+      })
+
+    return () => controller.abort()
+  }, [infoContent?.format, infoContent?.source_hash, infoModalOpen, meta])
+
   const onMapViewChange = useCallback((center: [number, number], zoom: number): void => {
     const next = { center, zoom }
     setMapView(next)
@@ -695,6 +734,20 @@ export function App(): JSX.Element {
       .finally(() => setChatLoadingMore(false))
   }, [appendOlderMessages, channel, chatHasMore, chatLoadingMore, chatMessages, meta?.show_recent_messages])
 
+  const openInfoModal = useCallback(() => {
+    if (!meta?.info_available) {return}
+    setInfoModalOpen(true)
+  }, [meta?.info_available])
+
+  const dismissInfoModal = useCallback(() => {
+    const hash = meta?.info_source_hash
+    if (hash) {
+      writeInfoDismissedSourceHash(hash)
+      setInfoDismissedHash(hash)
+    }
+    setInfoModalOpen(false)
+  }, [meta?.info_source_hash])
+
   const center = useMemo<[number, number]>(() => mapView.center, [mapView.center])
   const zoom = mapView.zoom
   const topologyNodeId = hoveredTopologyNodeId ?? selectedId
@@ -702,6 +755,9 @@ export function App(): JSX.Element {
 
   const bannerText = bootstrapErrors.length > 0
     ? `Degraded mode: ${bootstrapErrors[bootstrapErrors.length - 1]}`
+    : ''
+  const visibleInfoContent = infoContent && infoContent.source_hash === meta?.info_source_hash
+    ? infoContent.content
     : ''
 
   const mainClass = page === 'map'
@@ -712,15 +768,27 @@ export function App(): JSX.Element {
 
   return (
     <main className={mainClass}>
-        <Header
-          appName={meta?.app_name ?? defaultAppName}
-          mqttStatus={mqttStatus}
-          page={page}
-          version={meta?.version ?? defaultAppVersion}
-          ws={ws}
+      <Header
+        appName={meta?.app_name ?? defaultAppName}
+        infoAvailable={Boolean(meta?.info_available)}
+        mqttStatus={mqttStatus}
+        page={page}
+        version={meta?.version ?? defaultAppVersion}
+        ws={ws}
         wsStats={wsStats}
+        onOpenInfo={openInfoModal}
         onPage={navigateToPage}
       />
+      {infoModalOpen && (
+        <InfoModal
+          content={visibleInfoContent}
+          error={infoError}
+          loading={infoLoading}
+          showUpdatedNotice={Boolean(infoDismissedHash && meta?.info_source_hash && infoDismissedHash !== meta.info_source_hash)}
+          onClose={() => setInfoModalOpen(false)}
+          onDismiss={dismissInfoModal}
+        />
+      )}
       {bannerText && <p className="banner warning" role="alert">{bannerText}</p>}
       {page === 'map' && (
         <MapPage

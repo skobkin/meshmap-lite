@@ -1,4 +1,4 @@
-import type { ActivityStats, ChannelItem, ChatEvent, LogEvent, MapNode, Meta, NodeDetails, NodeSummary, TopologyEdge } from './types'
+import type { ActivityStats, ChannelItem, ChatEvent, InfoFormat, InfoResponse, LogEvent, MapNode, Meta, NodeDetails, NodeSummary, TopologyEdge } from './types'
 
 interface RequestOptions {
   signal?: AbortSignal
@@ -15,6 +15,7 @@ async function request<T>(path: string, options?: RequestOptions): Promise<T> {
 
 export const api = {
   meta: (options?: RequestOptions) => request<Meta>('/api/v1/meta', options),
+  info: (format: InfoFormat = 'html', options?: RequestOptions) => request<InfoResponse>(`/api/v1/info?format=${encodeURIComponent(format)}`, options),
   channels: (options?: RequestOptions) => request<ChannelItem[]>('/api/v1/channels', options),
   mapNodes: (options?: RequestOptions) => request<MapNode[]>('/api/v1/map/nodes', options),
   chatMessages: (params: { channel: string; limit?: number; before?: number }, options?: RequestOptions) => {

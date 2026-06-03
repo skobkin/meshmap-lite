@@ -24,8 +24,16 @@ type metaPayload struct {
 	LogLiveUpdates        bool                 `json:"log_live_updates"`
 	LogPageSizeDefault    int                  `json:"log_page_size_default"`
 	DisconnectedThreshold string               `json:"disconnected_threshold"`
+	InfoAvailable         bool                 `json:"info_available"`
+	InfoSourceHash        string               `json:"info_source_hash,omitempty"`
 	Map                   metaMapPayload       `json:"map"`
 	Relevance             metaRelevancePayload `json:"relevance"`
+}
+
+type infoPayload struct {
+	Format     string `json:"format"`
+	SourceHash string `json:"source_hash"`
+	Content    string `json:"content"`
 }
 
 type metaMapPayload struct {

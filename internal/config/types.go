@@ -95,6 +95,12 @@ type WebConfig struct {
 	Relevance  RelevanceConfig `koanf:"relevance"`
 	Log        LogConfig       `koanf:"log"`
 	Stats      StatsConfig     `koanf:"stats"`
+	Info       InfoConfig      `koanf:"info"`
+}
+
+// InfoConfig controls optional startup-loaded site information content.
+type InfoConfig struct {
+	File string `koanf:"file"`
 }
 
 // MapPrecisionCirclesMode controls how node precision circles are rendered on the web map.

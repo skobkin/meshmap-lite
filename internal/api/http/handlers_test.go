@@ -14,6 +14,7 @@ import (
 	"meshmap-lite/internal/domain"
 	"meshmap-lite/internal/repo"
 	"meshmap-lite/internal/repo/testkit"
+	"meshmap-lite/internal/siteinfo"
 )
 
 func TestTopologyEdgesHandlerReturnsFilteredItems(t *testing.T) {
@@ -169,6 +170,123 @@ func TestMetaHandlerReturnsRelevance(t *testing.T) {
 		payload.Relevance.TopologyEvidenceMaxAge != "72h0m0s" ||
 		payload.Relevance.MapPositionMaxAge != "336h0m0s" {
 		t.Fatalf("unexpected relevance payload: %+v", payload.Relevance)
+	}
+}
+
+func TestMetaHandlerReturnsInfoAvailability(t *testing.T) {
+	srv := New(Config{
+		Info: &siteinfo.Info{
+			SourceHash: "abc123",
+		},
+	}, &testkit.FakeStore{}, nil, nil, nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/meta", nil)
+	rec := httptest.NewRecorder()
+
+	srv.meta(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	var payload metaPayload
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if !payload.InfoAvailable || payload.InfoSourceHash != "abc123" {
+		t.Fatalf("unexpected info payload: available=%v hash=%q", payload.InfoAvailable, payload.InfoSourceHash)
+	}
+}
+
+func TestInfoHandlerReturnsHTMLByDefault(t *testing.T) {
+	srv := New(Config{
+		Info: &siteinfo.Info{
+			Markdown:   "# Hello",
+			HTML:       "<h1>Hello</h1>\n",
+			SourceHash: "abc123",
+		},
+	}, &testkit.FakeStore{}, nil, nil, nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/info", nil)
+	rec := httptest.NewRecorder()
+
+	srv.info(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	var payload infoPayload
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload.Format != "html" || payload.SourceHash != "abc123" || payload.Content != "<h1>Hello</h1>\n" {
+		t.Fatalf("unexpected info payload: %+v", payload)
+	}
+}
+
+func TestInfoHandlerReturnsMarkdown(t *testing.T) {
+	srv := New(Config{
+		Info: &siteinfo.Info{
+			Markdown:   "# Hello",
+			HTML:       "<h1>Hello</h1>\n",
+			SourceHash: "abc123",
+		},
+	}, &testkit.FakeStore{}, nil, nil, nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/info?format=markdown", nil)
+	rec := httptest.NewRecorder()
+
+	srv.info(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	var payload infoPayload
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload.Format != "markdown" || payload.Content != "# Hello" {
+		t.Fatalf("unexpected info payload: %+v", payload)
+	}
+}
+
+func TestInfoHandlerReturnsNotConfigured(t *testing.T) {
+	srv := New(Config{}, &testkit.FakeStore{}, nil, nil, nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/info", nil)
+	rec := httptest.NewRecorder()
+
+	srv.info(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	var payload errorPayload
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload.Error != "info_not_configured" {
+		t.Fatalf("unexpected error payload: %+v", payload)
+	}
+}
+
+func TestInfoHandlerRejectsInvalidFormat(t *testing.T) {
+	srv := New(Config{
+		Info: &siteinfo.Info{
+			Markdown:   "# Hello",
+			HTML:       "<h1>Hello</h1>\n",
+			SourceHash: "abc123",
+		},
+	}, &testkit.FakeStore{}, nil, nil, nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/info?format=json", nil)
+	rec := httptest.NewRecorder()
+
+	srv.info(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	var payload errorPayload
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload.Error != "invalid_format" {
+		t.Fatalf("unexpected error payload: %+v", payload)
 	}
 }
 

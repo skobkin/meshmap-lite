@@ -10,6 +10,7 @@ import (
 	"meshmap-lite/internal/domain"
 	"meshmap-lite/internal/mqttclient"
 	"meshmap-lite/internal/repo"
+	"meshmap-lite/internal/siteinfo"
 )
 
 // Server serves HTTP API routes and shared operational endpoints.
@@ -31,6 +32,7 @@ type Config struct {
 	Version  string
 	Web      config.WebConfig
 	Channels map[string]config.ChannelConfig
+	Info     *siteinfo.Info
 }
 
 // New creates an HTTP API server with configured dependencies.

@@ -97,6 +97,7 @@ Reference:
 | `channels[].ChannelName.primary`    | `MML_CHANNELS__<CHANNEL_NAME>__PRIMARY`   | `false`                                               | Marks primary channel. At most one channel can be primary.                            |
 | `web.listen_addr`                   | `MML_WEB__LISTEN_ADDR`                    | `":8080"`                                             | HTTP listen address.                                                                  |
 | `web.base_path`                     | `MML_WEB__BASE_PATH`                      | `"/"`                                                 | Base path for web/API routing.                                                        |
+| `web.info.file`                     | `MML_WEB__INFO__FILE`                     | `""`                                                  | Optional Markdown file loaded at startup and shown as a site information modal. Relative paths resolve from process working directory; prefer absolute paths in deployments. |
 | `web.chat.enabled`                  | `MML_WEB__CHAT__ENABLED`                  | `true`                                                | Enable chat API/UI features.                                                          |
 | `web.chat.default_channel`          | `MML_WEB__CHAT__DEFAULT_CHANNEL`          | first channel name (sorted)                           | Default channel for chat UI/API.                                                      |
 | `web.chat.show_recent_messages`     | `MML_WEB__CHAT__SHOW_RECENT_MESSAGES`     | `50`                                                  | Initial recent messages count.                                                        |
@@ -123,6 +124,7 @@ Notes:
 - Channel names are preserved as configured.
 - ENV overrides are parsed as: `bool` (`true/false`), `int`, `float`, `time.Duration` (`10s`, `60m`, `6h`), or string.
 - Unknown ENV keys are ignored.
+- If `web.info.file` is set and the file cannot be read or rendered, startup fails. Changing the file requires restarting the app; clients see changed content again because dismissal is keyed to the Markdown source hash.
 - Stats activity periods are normalized to positive durations and capped at 1440 buckets per period. The minimum effective bucket is therefore `1m` for daily and `7m` for weekly; any smaller value is silently raised to the minimum.
 - `mqtt.root_topic` must be set and at least one channel must be configured.
 - PSK shorthand behavior is documented in [`docs/keys.md`](docs/keys.md).

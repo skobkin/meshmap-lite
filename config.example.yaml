@@ -48,6 +48,10 @@ channels:
 
 web:
   listen_addr: :8080
+  info:
+    # Optional Markdown file loaded once at startup and shown as an acknowledgement modal.
+    # Prefer an absolute path in deployments. Empty disables the feature.
+    file: ""
   chat:
     enabled: true
     default_channel: LongFast

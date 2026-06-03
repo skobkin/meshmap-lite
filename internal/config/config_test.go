@@ -34,6 +34,7 @@ channels:
 	t.Setenv("MML_WEB__MAP__PRECISION_CIRCLES_MODE", "always")
 	t.Setenv("MML_WEB__CHAT__HISTORY_WINDOW", "24h")
 	t.Setenv("MML_WEB__STATS__ACTIVITY__DAILY__BUCKET", "10m")
+	t.Setenv("MML_WEB__INFO__FILE", "/srv/meshmap/info.md")
 	cfg, err := Load(path)
 	if err != nil {
 		t.Fatal(err)
@@ -82,6 +83,9 @@ channels:
 	}
 	if cfg.Web.Stats.Activity.Daily.Bucket != 10*time.Minute {
 		t.Fatalf("expected web.stats.activity.daily.bucket env override, got %v", cfg.Web.Stats.Activity.Daily.Bucket)
+	}
+	if cfg.Web.Info.File != "/srv/meshmap/info.md" {
+		t.Fatalf("expected web.info.file env override, got %q", cfg.Web.Info.File)
 	}
 }
 
@@ -172,6 +176,31 @@ channels:
 	}
 	if cfg.Web.Chat.HistoryWindow != 48*time.Hour {
 		t.Fatalf("expected YAML web.chat.history_window, got %v", cfg.Web.Chat.HistoryWindow)
+	}
+}
+
+func TestLoadReadsWebInfoFileFromYAML(t *testing.T) {
+	d := t.TempDir()
+	path := filepath.Join(d, "cfg.yaml")
+	if err := os.WriteFile(path, []byte(`
+mqtt:
+  root_topic: msh/test
+web:
+  info:
+    file: ./site-info.md
+channels:
+  LongFast:
+    psk: AQ==
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Web.Info.File != "./site-info.md" {
+		t.Fatalf("expected YAML web.info.file, got %q", cfg.Web.Info.File)
 	}
 }
 

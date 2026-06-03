@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { chatStorageKey } from './stores/chatState'
 
-import type { ActivityStats, ChannelItem, ChatEvent, LogEvent, MQTTConnectionStatus, MapNode, Meta, NodeDetails, NodeSummary, WSState, WSStats } from './api/types'
+import type { ActivityStats, ChannelItem, ChatEvent, InfoResponse, LogEvent, MQTTConnectionStatus, MapNode, Meta, NodeDetails, NodeSummary, WSState, WSStats } from './api/types'
 import type { JSX } from 'preact'
 
 type Selector<T, U> = (state: T) => U
@@ -70,6 +70,8 @@ function meta(overrides: Partial<Meta> = {}): Meta {
     log_live_updates: true,
     log_page_size_default: 100,
     disconnected_threshold: '10m',
+    info_available: false,
+    info_source_hash: undefined,
     relevance: {
       telemetry_max_age: '24h',
       topology_evidence_max_age: '72h',
@@ -189,6 +191,7 @@ let apiMock: {
   node: ReturnType<typeof vi.fn>
   logEvents: ReturnType<typeof vi.fn>
   statsActivity: ReturnType<typeof vi.fn>
+  info: ReturnType<typeof vi.fn>
 }
 let startWSMock: ReturnType<typeof vi.fn>
 
@@ -262,7 +265,12 @@ function setupModuleMocks(): void {
     nodes: vi.fn().mockResolvedValue([] satisfies NodeSummary[]),
     node: vi.fn().mockResolvedValue(nodeDetails('!alpha')),
     logEvents: vi.fn().mockResolvedValue([logEvent(1)]),
-    statsActivity: vi.fn().mockResolvedValue({ generated_at: '2026-05-04T12:00:00Z', periods: [] } satisfies ActivityStats)
+    statsActivity: vi.fn().mockResolvedValue({ generated_at: '2026-05-04T12:00:00Z', periods: [] } satisfies ActivityStats),
+    info: vi.fn().mockResolvedValue({
+      format: 'html',
+      source_hash: 'hash-1',
+      content: '<h1>Site info</h1>'
+    } satisfies InfoResponse)
   }
   startWSMock = vi.fn().mockReturnValue(vi.fn())
 
@@ -420,6 +428,7 @@ describe('App', () => {
     vi.resetModules()
     vi.clearAllMocks()
     localStorage.clear()
+    document.cookie = 'meshmap-lite.info.dismissed_source_hash=; Max-Age=0; Path=/'
     window.location.hash = ''
     window.history.replaceState(null, '', '/')
     setupModuleMocks()
@@ -496,6 +505,78 @@ describe('App', () => {
 
     await user.click(screen.getByRole('button', { name: 'Stats' }))
     await screen.findByTestId('stats-page')
+  })
+
+  it('auto-opens site information when the current source hash is not dismissed', async () => {
+    apiMock.meta.mockResolvedValue(meta({
+      info_available: true,
+      info_source_hash: 'hash-1'
+    }))
+
+    await renderApp()
+
+    await screen.findByRole('dialog', { name: 'Site information' })
+    await waitFor(() => {
+      expect(apiMock.info).toHaveBeenCalled()
+      const options = apiMock.info.mock.calls[0]?.[1] as RequestOptions | undefined
+      expect(options?.signal).toBeInstanceOf(AbortSignal)
+    })
+    expect(screen.getByText('Site info')).toBeTruthy()
+  })
+
+  it('does not auto-open site information after a matching dismissal cookie', async () => {
+    document.cookie = 'meshmap-lite.info.dismissed_source_hash=hash-1; Path=/; SameSite=Lax'
+    apiMock.meta.mockResolvedValue(meta({
+      info_available: true,
+      info_source_hash: 'hash-1'
+    }))
+
+    await renderApp()
+    await screen.findByTestId('map-page')
+
+    await waitFor(() => {
+      expect(apiMock.meta).toHaveBeenCalled()
+    })
+    expect(screen.queryByRole('dialog', { name: 'Site information' })).toBeNull()
+    expect(apiMock.info).not.toHaveBeenCalled()
+  })
+
+  it('shows an update notice when the dismissed hash is stale and writes the new hash on dismiss', async () => {
+    const user = userEvent.setup()
+    document.cookie = 'meshmap-lite.info.dismissed_source_hash=old-hash; Path=/; SameSite=Lax'
+    apiMock.meta.mockResolvedValue(meta({
+      info_available: true,
+      info_source_hash: 'hash-1'
+    }))
+
+    await renderApp()
+
+    await screen.findByRole('dialog', { name: 'Site information' })
+    expect(screen.getByText('This information was updated since you last dismissed it.')).toBeTruthy()
+
+    await user.click(screen.getByRole('button', { name: 'Got it' }))
+
+    expect(document.cookie).toContain('meshmap-lite.info.dismissed_source_hash=hash-1')
+    expect(screen.queryByRole('dialog', { name: 'Site information' })).toBeNull()
+  })
+
+  it('opens site information from the header button', async () => {
+    const user = userEvent.setup()
+    document.cookie = 'meshmap-lite.info.dismissed_source_hash=hash-1; Path=/; SameSite=Lax'
+    apiMock.meta.mockResolvedValue(meta({
+      info_available: true,
+      info_source_hash: 'hash-1'
+    }))
+
+    await renderApp()
+    await screen.findByTestId('map-page')
+
+    await user.click(screen.getByRole('button', { name: 'Site information' }))
+
+    await screen.findByRole('dialog', { name: 'Site information' })
+    await waitFor(() => {
+      expect(apiMock.info).toHaveBeenCalledWith('html', expect.any(Object))
+    })
   })
 
   it('hydrates map URL state and keeps marker selection in the fragment', async () => {

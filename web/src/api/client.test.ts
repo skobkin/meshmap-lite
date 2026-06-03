@@ -71,6 +71,18 @@ describe('api client', () => {
     expect(fetchMock).toHaveBeenCalledWith('/api/v1/stats/activity', { signal: undefined })
   })
 
+  it('requests site information with the selected format', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ format: 'markdown', content: '# Hello', source_hash: 'abc' })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await api.info('markdown')
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/info?format=markdown', { signal: undefined })
+  })
+
   it('builds topology edge query strings from optional filters', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

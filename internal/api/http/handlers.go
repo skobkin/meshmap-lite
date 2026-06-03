@@ -23,6 +23,12 @@ func (s *Server) readyz(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) meta(w http.ResponseWriter, _ *http.Request) {
+	infoAvailable := s.cfg.Info != nil
+	infoSourceHash := ""
+	if infoAvailable {
+		infoSourceHash = s.cfg.Info.SourceHash
+	}
+
 	writeJSON(w, http.StatusOK, metaPayload{
 		AppName:               s.cfg.AppName,
 		Version:               s.cfg.Version,
@@ -33,6 +39,8 @@ func (s *Server) meta(w http.ResponseWriter, _ *http.Request) {
 		LogLiveUpdates:        s.cfg.Web.Log.LiveUpdates,
 		LogPageSizeDefault:    s.cfg.Web.Log.PageSizeDefault,
 		DisconnectedThreshold: s.cfg.Web.Map.DisconnectedThreshold.String(),
+		InfoAvailable:         infoAvailable,
+		InfoSourceHash:        infoSourceHash,
 		Map: metaMapPayload{
 			Clustering:           s.cfg.Web.Map.Clustering,
 			TopologyCacheTTL:     s.cfg.Web.Map.TopologyCacheTTL.String(),
@@ -48,6 +56,37 @@ func (s *Server) meta(w http.ResponseWriter, _ *http.Request) {
 			TopologyEvidenceMaxAge: s.cfg.Web.Relevance.TopologyEvidenceMaxAge.String(),
 			MapPositionMaxAge:      s.cfg.Web.Relevance.MapPositionMaxAge.String(),
 		},
+	})
+}
+
+func (s *Server) info(w http.ResponseWriter, r *http.Request) {
+	if s.cfg.Info == nil {
+		writeError(w, http.StatusNotFound, "info_not_configured")
+
+		return
+	}
+
+	format := r.URL.Query().Get("format")
+	if format == "" {
+		format = "html"
+	}
+
+	content := ""
+	switch format {
+	case "html":
+		content = s.cfg.Info.HTML
+	case "markdown":
+		content = s.cfg.Info.Markdown
+	default:
+		writeError(w, http.StatusBadRequest, "invalid_format")
+
+		return
+	}
+
+	writeJSON(w, http.StatusOK, infoPayload{
+		Format:     format,
+		SourceHash: s.cfg.Info.SourceHash,
+		Content:    content,
 	})
 }
 
