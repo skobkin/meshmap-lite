@@ -1367,6 +1367,85 @@ body {
   color: var(--pico-muted-color);
 }
 
+.traceroute-log-details {
+  display: grid;
+  gap: 1rem;
+}
+
+.traceroute-summary {
+  display: grid;
+  gap: 1rem;
+}
+
+.traceroute-metadata {
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.traceroute-route-section,
+.traceroute-steps {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.traceroute-route-section h4,
+.traceroute-steps h4 {
+  margin: 0;
+  font-size: 0.98rem;
+}
+
+.traceroute-hop-list,
+.traceroute-step-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.traceroute-hop,
+.traceroute-step {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.55rem;
+  align-items: start;
+  min-width: 0;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-bg) 82%, var(--pico-card-background-color) 18%);
+}
+
+.traceroute-hop-index {
+  display: inline-grid;
+  place-items: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 999px;
+  color: var(--pico-muted-color);
+  background: color-mix(in srgb, var(--surface-border) 55%, transparent);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.traceroute-hop-node,
+.traceroute-step {
+  min-width: 0;
+}
+
+.traceroute-hop-snr,
+.traceroute-step-meta {
+  display: block;
+  margin-top: 0.18rem;
+  color: var(--pico-muted-color);
+  font-size: 0.84rem;
+  overflow-wrap: anywhere;
+}
+
+.traceroute-step-type {
+  font-weight: 700;
+}
+
 .json-view {
   margin: 0;
   padding: 0.9rem;
@@ -1608,6 +1687,12 @@ body {
 
   .log-details-row {
     grid-template-columns: minmax(7rem, 10rem) minmax(0, 1fr);
+  }
+
+  .traceroute-hop,
+  .traceroute-step {
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: 0.5rem;
   }
 
   .log-details-modal-header {

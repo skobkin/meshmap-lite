@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { render, screen } from '@testing-library/preact'
+import { render, screen, within } from '@testing-library/preact'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'preact/hooks'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -329,6 +329,136 @@ describe('LogPage', () => {
     await user.click(senderLink)
 
     expect(onOpenNodeDetails).toHaveBeenCalledWith('!alpha')
+  })
+
+  it('renders traceroute lifecycle paths with SNR values and full JSON details', async () => {
+    useNodeStore.setState({
+      mapNodes: [
+        {
+          node: {
+            node_id: '!alpha',
+            long_name: 'Alpha Router',
+            last_seen_any_event_at: '2026-03-11T12:00:00Z'
+          }
+        },
+        {
+          node: {
+            node_id: '!relay',
+            long_name: 'Relay Ridge',
+            last_seen_any_event_at: '2026-03-11T12:00:00Z'
+          }
+        },
+        {
+          node: {
+            node_id: '!bravo',
+            long_name: 'Bravo Base',
+            last_seen_any_event_at: '2026-03-11T12:00:00Z'
+          }
+        }
+      ]
+    })
+
+    const user = userEvent.setup()
+    const onOpenNodeDetails = vi.fn()
+
+    renderPage([
+      event(5, {
+        event_kind_value: 5,
+        event_kind_title: 'Traceroute',
+        details: {
+          scope: 'lifecycle',
+          status: 'completed',
+          request_id: 123,
+          from: '!alpha',
+          to: '!bravo',
+          forward_path: ['!alpha', '!relay', '!bravo'],
+          return_path: ['!bravo', '!relay', '!alpha'],
+          forward_snr: [9, -2],
+          return_snr: [7],
+          started_at: '2026-03-11T12:00:00Z',
+          completed_at: '2026-03-11T12:00:03Z',
+          steps: [
+            {
+              type: 'request',
+              observed_at: '2026-03-11T12:00:00Z',
+              packet_id: 91
+            },
+            {
+              type: 'reply',
+              observed_at: '2026-03-11T12:00:03Z',
+              packet_id: 92
+            }
+          ]
+        }
+      })
+    ], { onOpenNodeDetails })
+
+    await user.click(screen.getByRole('button', { name: 'View details for Traceroute' }))
+
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByRole('heading', { name: 'Route traced toward destination:' })).toBeTruthy()
+    expect(within(dialog).getByRole('heading', { name: 'Route traced back to us:' })).toBeTruthy()
+    expect(within(dialog).getByText('SNR: 9 dB')).toBeTruthy()
+    expect(within(dialog).getByText('SNR: -2 dB')).toBeTruthy()
+    expect(within(dialog).getByText('SNR: 7 dB')).toBeTruthy()
+    expect(within(dialog).getByText(/packet 91/)).toBeTruthy()
+    expect(within(dialog).getByText('"forward_path"').classList.contains('json-key')).toBe(true)
+
+    const relayButton = within(dialog).getAllByRole('button', { name: 'Relay Ridge' })[0]!
+    expect(relayButton.getAttribute('title')).toBe('!relay')
+
+    await user.click(relayButton)
+
+    expect(onOpenNodeDetails).toHaveBeenCalledWith('!relay')
+  })
+
+  it('renders raw traceroute packet routes and hides missing SNR rows', async () => {
+    const user = userEvent.setup()
+
+    renderPage([
+      event(5, {
+        event_kind_value: 5,
+        event_kind_title: 'Traceroute',
+        details: {
+          role: 'reply',
+          status: 'ok',
+          route: ['!alpha', '!relay', '!bravo'],
+          route_back: ['!bravo', '!alpha'],
+          forward_snr: [4]
+        }
+      })
+    ])
+
+    await user.click(screen.getByRole('button', { name: 'View details for Traceroute' }))
+
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByRole('heading', { name: 'Route traced toward destination:' })).toBeTruthy()
+    expect(within(dialog).getByRole('heading', { name: 'Route traced back to us:' })).toBeTruthy()
+    expect(within(dialog).getByText('SNR: 4 dB')).toBeTruthy()
+    expect(within(dialog).getAllByText(/^!bravo$/)).toHaveLength(2)
+    expect(within(dialog).queryByText('SNR: undefined dB')).toBeNull()
+    expect(within(dialog).getByText('"route_back"').classList.contains('json-key')).toBe(true)
+  })
+
+  it('falls back to JSON-only traceroute details when no structured route data is present', async () => {
+    const user = userEvent.setup()
+
+    renderPage([
+      event(5, {
+        event_kind_value: 5,
+        event_kind_title: 'Traceroute',
+        details: {
+          note: 'raw-only'
+        }
+      })
+    ])
+
+    await user.click(screen.getByRole('button', { name: 'View details for Traceroute' }))
+
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).queryByText('Route traced toward destination:')).toBeNull()
+    expect(within(dialog).getByText('"note"').classList.contains('json-key')).toBe(true)
+    expect(within(dialog).getByText('"raw-only"').classList.contains('json-string')).toBe(true)
   })
 
   it('renders the node cell as an in-app navigation control when a node id is available', async () => {

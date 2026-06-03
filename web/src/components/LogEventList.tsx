@@ -7,6 +7,7 @@ import { LogDetailsModal, hasLogDetails } from './LogDetailsModal'
 import { pkiLogDetailsRenderer } from './PKILogDetails'
 import { ResolvedNodeData } from './ResolvedNodeData'
 import { routingLogDetailsRenderer } from './RoutingLogDetails'
+import { tracerouteLogDetailsRenderer } from './TracerouteLogDetails'
 
 import type { LogEvent } from '../api/types'
 import type { JSX } from 'preact'
@@ -280,7 +281,7 @@ export function LogEventList({
         event={selectedEvent}
         onClose={() => setSelectedEvent(undefined)}
         onOpenNodeDetails={onOpenNodeDetails}
-        renderers={[pkiLogDetailsRenderer, routingLogDetailsRenderer]}
+        renderers={[tracerouteLogDetailsRenderer, pkiLogDetailsRenderer, routingLogDetailsRenderer]}
       />
     </>
   )
