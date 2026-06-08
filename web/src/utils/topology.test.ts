@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { sortedNeighbors, topologyColor, topologyEvidenceLabel, topologySignalLabel } from './topology'
+import { sortedNeighbors, topologyColor, topologyColorFromEdge, topologyEvidenceLabel, topologySignalLabel } from './topology'
 
-import type { NodeDetails, NodeNeighbor } from '../api/types'
+import type { NodeDetails, NodeNeighbor, TopologyEdge } from '../api/types'
 
 function neighbor(overrides: Partial<NodeNeighbor> = {}): NodeNeighbor {
   return {
@@ -10,6 +10,18 @@ function neighbor(overrides: Partial<NodeNeighbor> = {}): NodeNeighbor {
     display_name: overrides.display_name ?? 'Peer',
     has_position: overrides.has_position ?? true,
     evidence_kind: overrides.evidence_kind ?? 'neighbor_info',
+    last_observed_at: overrides.last_observed_at ?? '2026-03-11T12:00:00Z',
+    updated_at: overrides.updated_at ?? '2026-03-11T12:00:00Z',
+    ...overrides
+  }
+}
+
+function edge(overrides: Partial<TopologyEdge> = {}): TopologyEdge {
+  return {
+    source_kind: overrides.source_kind ?? 'neighbor_info',
+    from_node_id: overrides.from_node_id ?? '!a',
+    to_node_id: overrides.to_node_id ?? '!b',
+    first_observed_at: overrides.first_observed_at ?? '2026-03-11T12:00:00Z',
     last_observed_at: overrides.last_observed_at ?? '2026-03-11T12:00:00Z',
     updated_at: overrides.updated_at ?? '2026-03-11T12:00:00Z',
     ...overrides
@@ -59,5 +71,14 @@ describe('topology helpers', () => {
       '!mqtt',
       '!inferred'
     ])
+  })
+
+  it('maps raw topology edges to the same colour buckets', () => {
+    expect(topologyColorFromEdge(edge({ inferred: true }))).toBe('#94a3b8')
+    expect(topologyColorFromEdge(edge({ source_kind: 'mqtt_direct' }))).toBe('#38bdf8')
+    expect(topologyColorFromEdge(edge())).toBe('#2563eb')
+    expect(topologyColorFromEdge(edge({ snr: -1 }))).toBe('#dc2626')
+    expect(topologyColorFromEdge(edge({ snr: 5 }))).toBe('#eab308')
+    expect(topologyColorFromEdge(edge({ snr: 12 }))).toBe('#16a34a')
   })
 })

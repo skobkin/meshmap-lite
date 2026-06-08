@@ -3,7 +3,7 @@ import L from 'leaflet'
 import 'leaflet.markercluster'
 import { parseDurationMs } from '../utils/duration'
 import { relativeTime } from '../utils/time'
-import { topologyColor } from '../utils/topology'
+import { topologyColor, topologyColorFromEdge } from '../utils/topology'
 
 import {
   MARKER_FRESHNESS,
@@ -18,7 +18,7 @@ import {
   markerIconKeyForRole
 } from './markerIcons'
 
-import type { MapNode, MapPrecisionCirclesMode, NodeNeighbor } from '../api/types'
+import type { MapNode, MapPrecisionCirclesMode, NodeNeighbor, TopologyEdge } from '../api/types'
 import type { Map } from 'leaflet'
 
 type MarkerMap = Record<string, L.Marker>
@@ -62,6 +62,7 @@ export class LeafletMapAdapter {
   private mapNodesByID = new globalThis.Map<string, MapNode>()
   private readonly precisionCircleLayer: L.FeatureGroup
   private readonly topologyLayer: L.FeatureGroup
+  private readonly topologyAllLayer: L.FeatureGroup
   private precisionCircles = new globalThis.Map<string, L.Circle>()
   private readonly precisionCirclesMode: MapPrecisionCirclesMode
   private lastDisconnectedThreshold?: string
@@ -81,6 +82,9 @@ export class LeafletMapAdapter {
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(this.map)
     this.precisionCircleLayer = L.featureGroup().addTo(this.map)
+    // The "all topology" layer sits below the focal-node layer so the
+    // per-node polylines read first when both are visible.
+    this.topologyAllLayer = L.featureGroup().addTo(this.map)
     this.topologyLayer = L.featureGroup().addTo(this.map)
     this.markerLayer = L.markerClusterGroup(markerClusterOptions(opts.clustering ?? true))
     this.markerLayer.addTo(this.map)
@@ -225,6 +229,34 @@ export class LeafletMapAdapter {
     }
   }
 
+  public renderAllTopology(edges: TopologyEdge[] = []): void {
+    this.topologyAllLayer.clearLayers()
+    if (edges.length === 0) {
+      return
+    }
+
+    for (const edge of edges) {
+      const from = this.mapNodesByID.get(edge.from_node_id)?.position
+      const to = this.mapNodesByID.get(edge.to_node_id)?.position
+      if (!from || !to) {
+        continue
+      }
+
+      const fromIsFocal = this.selectedID === edge.from_node_id || this.selectedID === edge.to_node_id
+
+      L.polyline([
+        [from.latitude, from.longitude],
+        [to.latitude, to.longitude]
+      ], {
+        color: topologyColorFromEdge(edge),
+        weight: fromIsFocal ? 2.5 : 1.5,
+        opacity: 0.55,
+        interactive: false,
+        bubblingMouseEvents: false
+      }).addTo(this.topologyAllLayer)
+    }
+  }
+
   public setSelectedNode(id?: string): void {
     if (id === this.selectedID) {return}
     if (!id) {
@@ -275,6 +307,7 @@ export class LeafletMapAdapter {
     this.precisionCircleLayer.clearLayers()
     this.precisionCircles.clear()
     this.topologyLayer.clearLayers()
+    this.topologyAllLayer.clearLayers()
     this.map.remove()
   }
 

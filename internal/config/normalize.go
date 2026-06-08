@@ -82,6 +82,9 @@ func normalize(cfg *Config) {
 	if cfg.Web.Map.TopologyCacheTTL <= 0 {
 		cfg.Web.Map.TopologyCacheTTL = defaultMapTopologyCacheTTL
 	}
+	if cfg.Web.Map.TopologyMaxEdges <= 0 {
+		cfg.Web.Map.TopologyMaxEdges = defaultMapTopologyMaxEdges
+	}
 	if cfg.Web.Relevance.TelemetryMaxAge <= 0 {
 		cfg.Web.Relevance.TelemetryMaxAge = defaultRelevanceTelemetryMaxAge
 	}

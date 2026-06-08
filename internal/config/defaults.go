@@ -31,6 +31,7 @@ const (
 	defaultStorageKVTTL                    = 6 * time.Hour
 	defaultMapDisconnectedThreshold        = 60 * time.Minute
 	defaultMapTopologyCacheTTL             = 10 * time.Minute
+	defaultMapTopologyMaxEdges             = 2000
 	defaultRelevanceTelemetryMaxAge        = 24 * time.Hour
 	defaultRelevanceTopologyEvidenceMaxAge = 72 * time.Hour
 	defaultRelevanceMapPositionMaxAge      = 14 * 24 * time.Hour
@@ -87,6 +88,7 @@ func defaultConfig() Config {
 				Clustering:            false,
 				DisconnectedThreshold: defaultMapDisconnectedThreshold,
 				TopologyCacheTTL:      defaultMapTopologyCacheTTL,
+				TopologyMaxEdges:      defaultMapTopologyMaxEdges,
 				PrecisionCirclesMode:  MapPrecisionCirclesSelected,
 				DefaultView:           DefaultViewConfig{Latitude: 64.5, Longitude: 40.6, Zoom: 13},
 			},

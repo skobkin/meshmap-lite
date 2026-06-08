@@ -127,6 +127,11 @@ export interface TopologyEdge {
   updated_at: string
 }
 
+export interface TopologyEdgesResponse {
+  items: TopologyEdge[]
+  truncated: boolean
+}
+
 export interface NodeNeighbor {
   node_id: string
   display_name: string

@@ -64,6 +64,7 @@ web:
     clustering: false
     disconnected_threshold: 60m
     topology_cache_ttl: 10m
+    topology_max_edges: 2000
     precision_circles_mode: selected
     default_view:
       latitude: 64.5

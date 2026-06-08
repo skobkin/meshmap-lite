@@ -1,6 +1,6 @@
 import { relativeTime } from './time'
 
-import type { NodeDetails, NodeNeighbor } from '../api/types'
+import type { NodeDetails, NodeNeighbor, TopologyEdge } from '../api/types'
 
 export const TOPOLOGY_COLOR = {
   inferred: '#94a3b8',
@@ -26,6 +26,30 @@ export function topologyColor(neighbor: NodeNeighbor): string {
     return TOPOLOGY_COLOR.poor
   }
   if (neighbor.snr < 10) {
+    return TOPOLOGY_COLOR.fair
+  }
+
+  return TOPOLOGY_COLOR.good
+}
+
+// topologyColorFromEdge returns the same colour scheme as topologyColor but
+// driven by a raw TopologyEdge. It lets the map adapter draw the global
+// edge set without first converting each row to a NodeNeighbor.
+export function topologyColorFromEdge(edge: TopologyEdge): string {
+  if (edge.inferred) {
+    return TOPOLOGY_COLOR.inferred
+  }
+  if (typeof edge.snr !== 'number') {
+    if (edge.source_kind === 'mqtt_direct') {
+      return TOPOLOGY_COLOR.mqttDirect
+    }
+
+    return TOPOLOGY_COLOR.noSNR
+  }
+  if (edge.snr < 0) {
+    return TOPOLOGY_COLOR.poor
+  }
+  if (edge.snr < 10) {
     return TOPOLOGY_COLOR.fair
   }
 

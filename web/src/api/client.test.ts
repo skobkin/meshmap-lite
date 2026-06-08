@@ -86,7 +86,7 @@ describe('api client', () => {
   it('builds topology edge query strings from optional filters', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
-      json: async () => []
+      json: async () => ({ items: [], truncated: false })
     })
     vi.stubGlobal('fetch', fetchMock)
 

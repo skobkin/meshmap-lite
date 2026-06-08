@@ -28,6 +28,7 @@ channels:
 	t.Setenv("MML_INGEST__MAP_REPORTS__TOPIC_SUFFIX", "custom/map")
 	t.Setenv("MML_WEB__WS__STATS_INTERVAL", "90s")
 	t.Setenv("MML_WEB__MAP__TOPOLOGY_CACHE_TTL", "25m")
+	t.Setenv("MML_WEB__MAP__TOPOLOGY_MAX_EDGES", "1500")
 	t.Setenv("MML_WEB__RELEVANCE__TELEMETRY_MAX_AGE", "12h")
 	t.Setenv("MML_WEB__RELEVANCE__TOPOLOGY_EVIDENCE_MAX_AGE", "48h")
 	t.Setenv("MML_WEB__RELEVANCE__MAP_POSITION_MAX_AGE", "168h")
@@ -65,6 +66,9 @@ channels:
 	}
 	if cfg.Web.Map.TopologyCacheTTL != 25*time.Minute {
 		t.Fatalf("expected web.map.topology_cache_ttl env override, got %v", cfg.Web.Map.TopologyCacheTTL)
+	}
+	if cfg.Web.Map.TopologyMaxEdges != 1500 {
+		t.Fatalf("expected web.map.topology_max_edges env override, got %d", cfg.Web.Map.TopologyMaxEdges)
 	}
 	if cfg.Web.Relevance.TelemetryMaxAge != 12*time.Hour {
 		t.Fatalf("expected web.relevance.telemetry_max_age env override, got %v", cfg.Web.Relevance.TelemetryMaxAge)
@@ -139,6 +143,9 @@ channels:
 	}
 	if cfg.Web.Map.TopologyCacheTTL != 10*time.Minute {
 		t.Fatalf("expected web.map.topology_cache_ttl default to be 10 minutes, got %v", cfg.Web.Map.TopologyCacheTTL)
+	}
+	if cfg.Web.Map.TopologyMaxEdges != 2000 {
+		t.Fatalf("expected web.map.topology_max_edges default to be 2000, got %d", cfg.Web.Map.TopologyMaxEdges)
 	}
 	if cfg.Web.Relevance.TelemetryMaxAge != 24*time.Hour {
 		t.Fatalf("expected web.relevance.telemetry_max_age default to be 24 hours, got %v", cfg.Web.Relevance.TelemetryMaxAge)
@@ -407,6 +414,31 @@ channels:
 	}
 	if cfg.Web.Map.TopologyCacheTTL != 10*time.Minute {
 		t.Fatalf("expected default topology cache ttl, got %v", cfg.Web.Map.TopologyCacheTTL)
+	}
+}
+
+func TestLoadNormalizesInvalidTopologyMaxEdges(t *testing.T) {
+	d := t.TempDir()
+	path := filepath.Join(d, "cfg.yaml")
+	if err := os.WriteFile(path, []byte(`
+mqtt:
+  root_topic: msh/test
+web:
+  map:
+    topology_max_edges: 0
+channels:
+  LongFast:
+    psk: AQ==
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Web.Map.TopologyMaxEdges != 2000 {
+		t.Fatalf("expected default topology max edges, got %d", cfg.Web.Map.TopologyMaxEdges)
 	}
 }
 

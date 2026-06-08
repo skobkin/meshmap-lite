@@ -1,6 +1,7 @@
 import { Fragment } from 'preact'
 import { useCallback, useEffect, useMemo, useRef } from 'preact/hooks'
 
+import { MapTopologyToggle } from '../components/MapTopologyToggle'
 import { ResolvedNodeData } from '../components/ResolvedNodeData'
 import { LeafletMapAdapter } from '../maps/leafletMap'
 import { useChatStore } from '../stores/chat'
@@ -8,7 +9,7 @@ import { useNodeStore } from '../stores/nodes'
 import { dayKey, dayLabel, hhmm } from '../utils/time'
 import { TOPOLOGY_COLOR, sortedNeighbors } from '../utils/topology'
 
-import type { ChatEvent, MapPrecisionCirclesMode, NodeDetails } from '../api/types'
+import type { ChatEvent, MapPrecisionCirclesMode, NodeDetails, TopologyEdge } from '../api/types'
 import type { JSX } from 'preact'
 
 interface Props {
@@ -21,6 +22,11 @@ interface Props {
   focusNodeId?: string
   topologyDetails?: NodeDetails
   topologyNodeId?: string
+  topologyAllEnabled: boolean
+  topologyAllLoading: boolean
+  topologyAllCount?: number
+  topologyAllTruncated: boolean
+  topologyAllEdges: TopologyEdge[]
   chatPanel?: 'open' | 'collapsed'
   channel?: string
   onFocusNodeHandled: () => void
@@ -30,6 +36,7 @@ interface Props {
   onLoadMoreChat: () => void
   onOpenNodeDetails: (id: string) => void
   onSelectNode?: (id?: string) => void
+  onToggleTopologyAll: (next: boolean) => void
   onViewChange: (center: [number, number], zoom: number) => void
   chatHasMore: boolean
   chatLoadingMore: boolean
@@ -146,6 +153,11 @@ export function MapPage({
   focusNodeId,
   topologyDetails,
   topologyNodeId,
+  topologyAllEnabled,
+  topologyAllLoading,
+  topologyAllCount,
+  topologyAllTruncated,
+  topologyAllEdges,
   chatPanel = 'open',
   channel = '',
   onFocusNodeHandled,
@@ -155,6 +167,7 @@ export function MapPage({
   onLoadMoreChat,
   onOpenNodeDetails,
   onSelectNode = () => undefined,
+  onToggleTopologyAll,
   onViewChange,
   chatHasMore,
   chatLoadingMore,
@@ -242,6 +255,10 @@ export function MapPage({
   }, [activeNeighbors, topologyNodeId])
 
   useEffect(() => {
+    adapterRef.current?.renderAllTopology(topologyAllEnabled ? topologyAllEdges : [])
+  }, [topologyAllEdges, topologyAllEnabled])
+
+  useEffect(() => {
     adapterRef.current?.setSelectedNode(selectedId)
   }, [selectedId])
 
@@ -278,7 +295,7 @@ export function MapPage({
     <section className={`map-layout${collapsed ? ' chat-collapsed' : ''}`}>
       <div className="map-stage">
         <div className="map-canvas" ref={ref} />
-        {topologyNodeId && activeNeighbors.some((item) => item.has_position) && (
+        {(topologyNodeId && activeNeighbors.some((item) => item.has_position)) || topologyAllEnabled ? (
           <aside className="map-topology-legend" aria-label="Topology legend">
             <strong>Topology</strong>
             <span><i style={{ backgroundColor: TOPOLOGY_COLOR.inferred }} /> Inferred</span>
@@ -288,7 +305,14 @@ export function MapPage({
             <span><i style={{ backgroundColor: TOPOLOGY_COLOR.fair }} /> Fair SNR</span>
             <span><i style={{ backgroundColor: TOPOLOGY_COLOR.good }} /> Good SNR</span>
           </aside>
-        )}
+        ) : null}
+        <MapTopologyToggle
+          enabled={topologyAllEnabled}
+          loading={topologyAllLoading}
+          {...(typeof topologyAllCount === 'number' ? { count: topologyAllCount } : {})}
+          truncated={topologyAllTruncated}
+          onToggle={onToggleTopologyAll}
+        />
         {collapsed && (
           <button
             type="button"

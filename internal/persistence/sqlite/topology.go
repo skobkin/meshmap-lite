@@ -178,6 +178,10 @@ FROM topology_edges`)
 		b.WriteString(strings.Join(w, ` AND `))
 	}
 	b.WriteString(` ORDER BY last_observed_at DESC, source_kind, from_node_id, to_node_id`)
+	if q.Limit > 0 {
+		b.WriteString(` LIMIT ?`)
+		a = append(a, q.Limit)
+	}
 
 	rows, err := s.db.QueryContext(ctx, b.String(), a...)
 	if err != nil {

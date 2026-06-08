@@ -1,4 +1,4 @@
-import type { ActivityStats, ChannelItem, ChatEvent, InfoFormat, InfoResponse, LogEvent, MapNode, Meta, NodeDetails, NodeSummary, TopologyEdge } from './types'
+import type { ActivityStats, ChannelItem, ChatEvent, InfoFormat, InfoResponse, LogEvent, MapNode, Meta, NodeDetails, NodeSummary, TopologyEdge, TopologyEdgesResponse } from './types'
 
 interface RequestOptions {
   signal?: AbortSignal
@@ -49,7 +49,7 @@ export const api = {
     }
     const suffix = q.toString()
 
-    return request<TopologyEdge[]>(`/api/v1/topology/edges${suffix ? `?${suffix}` : ''}`, options)
+    return request<TopologyEdgesResponse>(`/api/v1/topology/edges${suffix ? `?${suffix}` : ''}`, options)
   },
   statsActivity: (options?: RequestOptions) => request<ActivityStats>('/api/v1/stats/activity', options),
   nodes: (options?: RequestOptions) => request<NodeSummary[]>('/api/v1/nodes', options),

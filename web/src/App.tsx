@@ -12,10 +12,13 @@ import { useChatStore } from './stores/chat'
 import { useLogStore } from './stores/log'
 import { useMetaStore } from './stores/meta'
 import { useNodeStore } from './stores/nodes'
+import { useTopologyAllStore } from './stores/topologyAll'
 import { useWSStore } from './stores/ws'
+import { parseDurationMs } from './utils/duration'
 import { readInfoDismissedSourceHash, writeInfoDismissedSourceHash } from './utils/infoCookie'
 import { isNodeDetailsCacheFresh, persistNodeDetailsCache, readNodeDetailsCache, upsertNodeDetailsCache } from './utils/nodeDetailsCache'
 import { pruneMapNodesByRelevance, pruneNodeDetailsByRelevance, pruneNodeDetailsCacheByRelevance, pruneNodeSummariesByRelevance } from './utils/relevance'
+import { isTopologyAllFresh } from './utils/topologyAllCache'
 import { parseFragmentState, serializeFragmentState } from './utils/urlState'
 
 import type { InfoResponse, LogEvent, NodeDetails } from './api/types'
@@ -140,6 +143,14 @@ export function App(): JSX.Element {
   const inFlightNodeDetails = useRef(new Map<string, Promise<void>>())
   const initialChannelRef = useRef(initialURLState.current.page === 'map' ? initialURLState.current.map?.chatChannel ?? channel : channel)
   const topologyCacheTTL = meta?.map.topology_cache_ttl ?? defaultTopologyCacheTTL
+  const topologyAllEnabled = useTopologyAllStore((s) => s.enabled)
+  const topologyAllEdges = useTopologyAllStore((s) => s.edges)
+  const topologyAllTruncated = useTopologyAllStore((s) => s.truncated)
+  const topologyAllLoading = useTopologyAllStore((s) => s.loading)
+  const topologyAllCount = topologyAllEdges.length
+  const setTopologyAllEnabled = useTopologyAllStore((s) => s.setEnabled)
+  const refreshTopologyAll = useTopologyAllStore((s) => s.refresh)
+  const resetTopologyAll = useTopologyAllStore((s) => s.reset)
 
   const applyRelevance = useCallback((activeMeta: NonNullable<typeof meta>): void => {
     const state = useNodeStore.getState()
@@ -285,6 +296,24 @@ export function App(): JSX.Element {
 
     return () => window.clearInterval(timer)
   }, [applyRelevance, meta])
+
+  // The "show all topology" toggle is intentionally in-memory only. When the
+  // user navigates away from the map page or unmounts, we drop the snapshot.
+  useEffect(() => () => resetTopologyAll(), [resetTopologyAll])
+
+  // Reuse the cached snapshot while the meta-supplied TTL is fresh. On expiry
+  // we refetch in the background; the user can also force a refresh by
+  // toggling the switch off and on again.
+  useEffect(() => {
+    if (!topologyAllEnabled) {return}
+    if (!meta) {return}
+    const ttlMs = parseDurationMs(topologyCacheTTL) ?? 10 * 60 * 1000
+    const state = useTopologyAllStore.getState()
+    if (isTopologyAllFresh(state.lastFetchedAt, ttlMs)) {
+      return
+    }
+    void refreshTopologyAll()
+  }, [meta, refreshTopologyAll, topologyAllEnabled, topologyCacheTTL])
 
   useEffect(() => {
     let stopWS: (() => void) | undefined
@@ -678,6 +707,10 @@ export function App(): JSX.Element {
     }, 'replace')
   }, [chatPanel, mapView, selectedId, setChannel, updateURL])
 
+  const toggleTopologyAll = useCallback((next: boolean): void => {
+    setTopologyAllEnabled(next)
+  }, [setTopologyAllEnabled])
+
   const changeNodesFilter = useCallback((q: string): void => {
     setNodesFilter(q)
     updateURL({
@@ -849,6 +882,11 @@ export function App(): JSX.Element {
           focusNodeId={mapFocusNodeId}
           topologyDetails={topologyDetails}
           topologyNodeId={topologyNodeId}
+          topologyAllEnabled={topologyAllEnabled}
+          topologyAllLoading={topologyAllLoading}
+          topologyAllCount={topologyAllCount}
+          topologyAllTruncated={topologyAllTruncated}
+          topologyAllEdges={topologyAllEdges}
           chatPanel={chatPanel}
           channel={channel}
           onFocusNodeHandled={() => setMapFocusNodeId(undefined)}
@@ -858,6 +896,7 @@ export function App(): JSX.Element {
           onLoadMoreChat={loadMoreChat}
           onOpenNodeDetails={openNodeDetails}
           onSelectNode={selectMapNode}
+          onToggleTopologyAll={toggleTopologyAll}
           onViewChange={onMapViewChange}
           chatHasMore={chatHasMore}
           chatLoadingMore={chatLoadingMore}

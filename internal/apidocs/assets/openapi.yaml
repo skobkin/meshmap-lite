@@ -312,14 +312,22 @@ paths:
       responses:
         '200':
           description: |
-            Edge snapshots ordered newest-first. Neighbor-info rows may include
-            `snr`, `neighbor_last_rx_at`, and `neighbor_broadcast_interval_secs`.
+            Edge snapshots ordered newest-first, capped at `web.map.topology_max_edges`
+            (default 2000). The response is wrapped: `items` is the edge list, and
+            `truncated` is `true` when the cap was reached. Neighbor-info rows may
+            include `snr`, `neighbor_last_rx_at`, and `neighbor_broadcast_interval_secs`.
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/TopologyEdge'
+                type: object
+                required: [items, truncated]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TopologyEdge'
+                  truncated:
+                    type: boolean
         '500':
           $ref: '#/components/responses/InternalError'
   /api/v1/nodes:

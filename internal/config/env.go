@@ -76,6 +76,9 @@ var envSetters = map[string]envSetter{
 	"web.map.topology_cache_ttl": func(cfg *Config, value string) {
 		cfg.Web.Map.TopologyCacheTTL = mustDuration(value, cfg.Web.Map.TopologyCacheTTL)
 	},
+	"web.map.topology_max_edges": func(cfg *Config, value string) {
+		cfg.Web.Map.TopologyMaxEdges = mustInt(value, cfg.Web.Map.TopologyMaxEdges)
+	},
 	"web.relevance.telemetry_max_age": func(cfg *Config, value string) {
 		cfg.Web.Relevance.TelemetryMaxAge = mustDuration(value, 0)
 	},

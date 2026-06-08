@@ -96,6 +96,10 @@ vi.mock('../maps/leafletMap', () => ({
       return undefined
     }
 
+    public renderAllTopology(): void {
+      return undefined
+    }
+
     public renderTopology(): void {
       return undefined
     }
@@ -109,6 +113,16 @@ vi.mock('../maps/leafletMap', () => ({
     }
   }
 }))
+
+type TopologyAllOverrides = Partial<Pick<Parameters<typeof MapPage>[0], 'topologyAllEnabled' | 'topologyAllLoading' | 'topologyAllTruncated' | 'topologyAllEdges' | 'onToggleTopologyAll'>>
+
+const defaultTopologyAll: Required<TopologyAllOverrides> = {
+  topologyAllEnabled: false,
+  topologyAllLoading: false,
+  topologyAllTruncated: false,
+  topologyAllEdges: [],
+  onToggleTopologyAll: () => undefined
+}
 
 describe('MapPage chat timeline', () => {
   afterEach(() => {
@@ -175,6 +189,7 @@ describe('MapPage chat timeline', () => {
         chatHasMore={false}
         chatLoadingMore={false}
         chatLoadMoreError=""
+        {...defaultTopologyAll}
       />
     )
 
@@ -224,6 +239,7 @@ describe('MapPage chat timeline', () => {
         chatHasMore={true}
         chatLoadingMore={false}
         chatLoadMoreError=""
+        {...defaultTopologyAll}
       />
     )
 
@@ -245,6 +261,7 @@ describe('MapPage chat timeline', () => {
         chatHasMore={false}
         chatLoadingMore={false}
         chatLoadMoreError="Failed to load older chat messages."
+        {...defaultTopologyAll}
       />
     )
 
@@ -280,6 +297,7 @@ describe('MapPage chat timeline', () => {
         chatHasMore={false}
         chatLoadingMore={false}
         chatLoadMoreError=""
+        {...defaultTopologyAll}
       />
     )
 

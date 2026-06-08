@@ -29,6 +29,9 @@ func TestTopologyEdgesHandlerReturnsFilteredItems(t *testing.T) {
 				q.SourceKinds[1] != domain.TopologySourceMQTTDirect {
 				t.Fatalf("unexpected source kinds: %+v", q.SourceKinds)
 			}
+			if q.Limit != 2000 {
+				t.Fatalf("expected limit to default to web.map.topology_max_edges (2000), got %d", q.Limit)
+			}
 			wantCutoff := now.Add(-72 * time.Hour)
 			if !q.UpdatedSince.Equal(wantCutoff) {
 				t.Fatalf("expected updated cutoff %s, got %s", wantCutoff, q.UpdatedSince)
@@ -47,7 +50,7 @@ func TestTopologyEdgesHandlerReturnsFilteredItems(t *testing.T) {
 		},
 	}
 
-	srv := New(Config{Web: config.WebConfig{Relevance: config.RelevanceConfig{TopologyEvidenceMaxAge: 72 * time.Hour}}}, store, nil, nil, nil, nil)
+	srv := New(Config{Web: config.WebConfig{Map: config.MapConfig{TopologyMaxEdges: 2000}, Relevance: config.RelevanceConfig{TopologyEvidenceMaxAge: 72 * time.Hour}}}, store, nil, nil, nil, nil)
 	srv.now = func() time.Time { return now }
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/topology/edges?node_id=!49b5976c&channel=LongFast&source_kind=neighbor_info,mqtt_direct", nil)
 	rec := httptest.NewRecorder()
@@ -57,12 +60,95 @@ func TestTopologyEdgesHandlerReturnsFilteredItems(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", rec.Code)
 	}
-	var items []domain.TopologyEdge
-	if err := json.Unmarshal(rec.Body.Bytes(), &items); err != nil {
+	var payload topologyEdgesPayload
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if len(items) != 1 || items[0].SourceKind != domain.TopologySourceNeighborInfo {
-		t.Fatalf("unexpected response payload: %#v", items)
+	if len(payload.Items) != 1 || payload.Items[0].SourceKind != domain.TopologySourceNeighborInfo {
+		t.Fatalf("unexpected response payload: %#v", payload.Items)
+	}
+	if payload.Truncated {
+		t.Fatalf("expected truncated=false, got true")
+	}
+}
+
+func TestTopologyEdgesHandlerReusesCacheAndReportsTruncated(t *testing.T) {
+	now := time.Unix(1772296589, 0).UTC()
+	calls := 0
+	store := &testkit.FakeStore{
+		ListTopologyEdgesFn: func(_ context.Context, q repo.TopologyEdgeQuery) ([]domain.TopologyEdge, error) {
+			calls++
+			if q.Limit != 3 {
+				t.Fatalf("expected limit=3, got %d", q.Limit)
+			}
+			items := make([]domain.TopologyEdge, 0, q.Limit)
+			for i := 0; i < q.Limit; i++ {
+				items = append(items, domain.TopologyEdge{
+					SourceKind:      domain.TopologySourceNeighborInfo,
+					ChannelName:     "LongFast",
+					FromNodeID:      "!49b5976c",
+					ToNodeID:        "!11111111",
+					FirstObservedAt: now,
+					LastObservedAt:  now.Add(-time.Duration(i) * time.Minute),
+					UpdatedAt:       now,
+				})
+			}
+
+			return items, nil
+		},
+	}
+	srv := New(Config{Web: config.WebConfig{Map: config.MapConfig{TopologyMaxEdges: 3, TopologyCacheTTL: time.Minute}}}, store, nil, nil, nil, nil)
+	srv.now = func() time.Time { return now }
+
+	hit := func() topologyEdgesPayload {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/topology/edges", nil)
+		rec := httptest.NewRecorder()
+		srv.topologyEdges(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("unexpected status: %d", rec.Code)
+		}
+		var payload topologyEdgesPayload
+		if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+
+		return payload
+	}
+
+	first := hit()
+	if !first.Truncated {
+		t.Fatalf("expected truncated=true on first response, got false")
+	}
+	if len(first.Items) != 3 {
+		t.Fatalf("expected 3 items, got %d", len(first.Items))
+	}
+	if calls != 1 {
+		t.Fatalf("expected one store call, got %d", calls)
+	}
+
+	second := hit()
+	if calls != 1 {
+		t.Fatalf("expected cache reuse (no extra store call), got %d", calls)
+	}
+	if !second.Truncated || len(second.Items) != 3 {
+		t.Fatalf("unexpected cached payload: %#v", second)
+	}
+
+	// Defensive copy check: mutating the second response must not poison the cache.
+	second.Items[0].ToNodeID = "!mutated"
+	third := hit()
+	if third.Items[0].ToNodeID == "!mutated" {
+		t.Fatalf("cached payload was mutated by caller")
+	}
+
+	// Cache expires: one more store call expected.
+	srv.now = func() time.Time { return now.Add(2 * time.Minute) }
+	fourth := hit()
+	if calls != 2 {
+		t.Fatalf("expected cache expiry to trigger a new store call, got %d calls", calls)
+	}
+	if !fourth.Truncated {
+		t.Fatalf("expected truncated=true after expiry, got false")
 	}
 }
 

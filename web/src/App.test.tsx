@@ -177,11 +177,24 @@ interface WSStoreState {
   setStats: (stats: WSStats) => void
 }
 
+interface TopologyAllStoreState {
+  enabled: boolean
+  edges: []
+  truncated: boolean
+  loading: boolean
+  error: string
+  lastFetchedAt: number
+  setEnabled: (next: boolean) => void
+  refresh: (signal?: AbortSignal) => Promise<void>
+  reset: () => void
+}
+
 let chatStore: StoreHook<ChatStoreState>
 let logStore: StoreHook<LogStoreState>
 let metaStore: StoreHook<MetaStoreState>
 let nodeStore: StoreHook<NodeStoreState>
 let wsStore: StoreHook<WSStoreState>
+let topologyAllStore: StoreHook<TopologyAllStoreState>
 let apiMock: {
   meta: ReturnType<typeof vi.fn>
   channels: ReturnType<typeof vi.fn>
@@ -253,8 +266,20 @@ function setupModuleMocks(): void {
       state,
       mqttStatus: state === 'connected' ? get().mqttStatus : null
     }),
-    setMQTTStatus: (mqttStatus) => set({ mqttStatus }),
+    setMQTTStatus: (status) => set({ mqttStatus: status }),
     setStats: (stats) => set({ stats })
+  }))
+
+  topologyAllStore = createStoreHook<TopologyAllStoreState>(() => ({
+    enabled: false,
+    edges: [],
+    truncated: false,
+    loading: false,
+    error: '',
+    lastFetchedAt: 0,
+    setEnabled: () => undefined,
+    refresh: async () => undefined,
+    reset: () => undefined
   }))
 
   apiMock = {
@@ -294,6 +319,9 @@ function setupModuleMocks(): void {
   }))
   vi.doMock('./stores/ws', () => ({
     useWSStore: wsStore
+  }))
+  vi.doMock('./stores/topologyAll', () => ({
+    useTopologyAllStore: topologyAllStore
   }))
   vi.doMock('./pages/MapPage', () => ({
     MapPage: ({

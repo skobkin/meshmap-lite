@@ -117,6 +117,67 @@ func TestUpsertTopologyEdges_KeepsDistinctSourceKindsAndSupportsFilters(t *testi
 	}
 }
 
+func TestListTopologyEdges_LimitRespectsOrderAndCap(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, config.SQLConfig{URL: "file::memory:?cache=shared", AutoMigrate: true}, nil)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	// Five edges with distinct (to_node_id) so the upsert doesn't collapse
+	// them, ordered by last_observed_at. We expect the cap=2 response to
+	// return the two newest rows.
+	const fromID = "!49b5976c"
+	nodeIDs := []string{fromID, "!11111110", "!11111111", "!11111112", "!11111113", "!11111114"}
+	for _, nodeID := range nodeIDs {
+		if _, err := s.UpsertNode(ctx, domain.Node{
+			NodeID:             nodeID,
+			FirstSeenAt:        now,
+			LastSeenAnyEventAt: now,
+			UpdatedAt:          now,
+		}); err != nil {
+			t.Fatalf("upsert seed node %s: %v", nodeID, err)
+		}
+	}
+	edges := make([]domain.TopologyEdge, 0, 5)
+	for i := 0; i < 5; i++ {
+		edges = append(edges, domain.TopologyEdge{
+			SourceKind:      domain.TopologySourceNeighborInfo,
+			ChannelName:     "LongFast",
+			FromNodeID:      fromID,
+			ToNodeID:        nodeIDs[i+1],
+			FirstObservedAt: now.Add(time.Duration(i) * time.Minute),
+			LastObservedAt:  now.Add(time.Duration(i) * time.Minute),
+			UpdatedAt:       now.Add(time.Duration(i) * time.Minute),
+		})
+	}
+	if err := s.UpsertTopologyEdges(ctx, edges); err != nil {
+		t.Fatalf("seed topology edges: %v", err)
+	}
+
+	capped, err := s.ListTopologyEdges(ctx, repo.TopologyEdgeQuery{Limit: 2})
+	if err != nil {
+		t.Fatalf("list capped topology edges: %v", err)
+	}
+	if len(capped) != 2 {
+		t.Fatalf("expected 2 edges with Limit=2, got %d", len(capped))
+	}
+	if !capped[0].LastObservedAt.Equal(now.Add(4*time.Minute)) ||
+		!capped[1].LastObservedAt.Equal(now.Add(3*time.Minute)) {
+		t.Fatalf("expected newest-first ordering, got %v and %v", capped[0].LastObservedAt, capped[1].LastObservedAt)
+	}
+
+	all, err := s.ListTopologyEdges(ctx, repo.TopologyEdgeQuery{})
+	if err != nil {
+		t.Fatalf("list uncapped topology edges: %v", err)
+	}
+	if len(all) != 5 {
+		t.Fatalf("expected Limit=0 to behave as no cap, got %d edges", len(all))
+	}
+}
+
 func TestUpsertTopologyEdges_MQTTDirectStoresAndFilters(t *testing.T) {
 	ctx := context.Background()
 	s, err := Open(ctx, config.SQLConfig{URL: "file::memory:?cache=shared", AutoMigrate: true}, nil)

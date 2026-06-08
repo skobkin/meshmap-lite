@@ -197,7 +197,7 @@ func (s *Server) nodes(w http.ResponseWriter, r *http.Request) {
 func (s *Server) topologyEdges(w http.ResponseWriter, r *http.Request) {
 	query := parseTopologyEdgeQuery(r.URL.Query())
 	query.UpdatedSince = s.now().UTC().Add(-s.cfg.Web.Relevance.TopologyEvidenceMaxAge)
-	items, err := s.store.ListTopologyEdges(r.Context(), query)
+	payload, err := s.loadTopologyEdges(r.Context(), query, s.now().UTC())
 	if err != nil {
 		if isRequestCanceled(err) {
 			s.log.Debug("list topology edges canceled", "err", err)
@@ -209,7 +209,7 @@ func (s *Server) topologyEdges(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
-	writeJSON(w, http.StatusOK, items)
+	writeJSON(w, http.StatusOK, payload)
 }
 
 func (s *Server) nodeByID(w http.ResponseWriter, r *http.Request) {

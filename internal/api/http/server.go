@@ -23,6 +23,8 @@ type Server struct {
 	mqttStatus    func() mqttclient.ConnectionStatus
 	activityMu    sync.Mutex
 	activityCache map[string]activityPeriodCache
+	topologyMu    sync.Mutex
+	topologyCache topologyEdgesCache
 	now           func() time.Time
 }
 

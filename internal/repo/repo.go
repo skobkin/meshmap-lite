@@ -129,4 +129,8 @@ type TopologyEdgeQuery struct {
 	Channel      string
 	SourceKinds  []domain.TopologySourceKind
 	UpdatedSince time.Time
+	// Limit caps the number of returned rows. Zero means "no cap" (legacy
+	// callers). Adapters that support limiting should treat positive values as
+	// an exclusive bound and negative values as "no cap".
+	Limit int
 }
