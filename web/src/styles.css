@@ -782,6 +782,7 @@ body {
   cursor: pointer;
   font: inherit;
   text-align: left;
+  margin-block-end: 0;
 }
 
 .chat-reaction-reactor:hover,
