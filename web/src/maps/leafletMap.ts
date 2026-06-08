@@ -3,7 +3,7 @@ import L from 'leaflet'
 import 'leaflet.markercluster'
 import { parseDurationMs } from '../utils/duration'
 import { relativeTime } from '../utils/time'
-import { topologyColor, topologyColorFromEdge } from '../utils/topology'
+import { topologyColor } from '../utils/topology'
 
 import {
   MARKER_FRESHNESS,
@@ -220,7 +220,11 @@ export class LeafletMapAdapter {
         [origin.latitude, origin.longitude],
         [peer.latitude, peer.longitude]
       ], {
-        color: topologyColor(neighbor),
+        color: topologyColor({
+          inferred: neighbor.evidence_kind === 'inferred',
+          mqttDirect: neighbor.evidence_kind === 'mqtt_direct',
+          snr: neighbor.snr
+        }),
         weight: this.selectedID === nodeID ? 3 : 2.5,
         opacity: 0.82,
         interactive: false,
@@ -242,15 +246,17 @@ export class LeafletMapAdapter {
         continue
       }
 
-      const fromIsFocal = this.selectedID === edge.from_node_id || this.selectedID === edge.to_node_id
-
       L.polyline([
         [from.latitude, from.longitude],
         [to.latitude, to.longitude]
       ], {
-        color: topologyColorFromEdge(edge),
-        weight: fromIsFocal ? 2.5 : 1.5,
-        opacity: 0.55,
+        color: topologyColor({
+          inferred: edge.inferred === true,
+          mqttDirect: edge.source_kind === 'mqtt_direct',
+          snr: edge.snr
+        }),
+        weight: 2.5,
+        opacity: 0.82,
         interactive: false,
         bubblingMouseEvents: false
       }).addTo(this.topologyAllLayer)

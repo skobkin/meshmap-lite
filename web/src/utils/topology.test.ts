@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { sortedNeighbors, topologyColor, topologyColorFromEdge, topologyEvidenceLabel, topologySignalLabel } from './topology'
+import { sortedNeighbors, topologyColor, topologyEvidenceLabel, topologySignalLabel } from './topology'
 
 import type { NodeDetails, NodeNeighbor, TopologyEdge } from '../api/types'
 
@@ -16,27 +16,35 @@ function neighbor(overrides: Partial<NodeNeighbor> = {}): NodeNeighbor {
   }
 }
 
-function edge(overrides: Partial<TopologyEdge> = {}): TopologyEdge {
-  return {
-    source_kind: overrides.source_kind ?? 'neighbor_info',
-    from_node_id: overrides.from_node_id ?? '!a',
-    to_node_id: overrides.to_node_id ?? '!b',
-    first_observed_at: overrides.first_observed_at ?? '2026-03-11T12:00:00Z',
-    last_observed_at: overrides.last_observed_at ?? '2026-03-11T12:00:00Z',
-    updated_at: overrides.updated_at ?? '2026-03-11T12:00:00Z',
-    ...overrides
-  }
+// neighbourColor and edgeColor project their respective shapes onto the
+// shared TopologyColorInput. The tests below exercise the colour buckets
+// through these projections so they double as documentation of the
+// mapping between API types and the colour policy.
+function neighbourColor(neighbor: NodeNeighbor): string {
+  return topologyColor({
+    inferred: neighbor.evidence_kind === 'inferred',
+    mqttDirect: neighbor.evidence_kind === 'mqtt_direct',
+    snr: neighbor.snr
+  })
+}
+
+function edgeColor(edge: TopologyEdge): string {
+  return topologyColor({
+    inferred: edge.inferred === true,
+    mqttDirect: edge.source_kind === 'mqtt_direct',
+    snr: edge.snr
+  })
 }
 
 describe('topology helpers', () => {
   it('maps evidence and SNR to colors and labels', () => {
-    expect(topologyColor(neighbor({ evidence_kind: 'inferred' }))).toBe('#94a3b8')
-    expect(topologyColor(neighbor({ evidence_kind: 'mqtt_direct' }))).toBe('#38bdf8')
-    expect(topologyColor(neighbor({ evidence_kind: 'mqtt_direct', snr: 12 }))).toBe('#16a34a')
-    expect(topologyColor(neighbor())).toBe('#2563eb')
-    expect(topologyColor(neighbor({ snr: -1 }))).toBe('#dc2626')
-    expect(topologyColor(neighbor({ snr: 5 }))).toBe('#eab308')
-    expect(topologyColor(neighbor({ snr: 12 }))).toBe('#16a34a')
+    expect(neighbourColor(neighbor({ evidence_kind: 'inferred' }))).toBe('#94a3b8')
+    expect(neighbourColor(neighbor({ evidence_kind: 'mqtt_direct' }))).toBe('#38bdf8')
+    expect(neighbourColor(neighbor({ evidence_kind: 'mqtt_direct', snr: 12 }))).toBe('#16a34a')
+    expect(neighbourColor(neighbor())).toBe('#2563eb')
+    expect(neighbourColor(neighbor({ snr: -1 }))).toBe('#dc2626')
+    expect(neighbourColor(neighbor({ snr: 5 }))).toBe('#eab308')
+    expect(neighbourColor(neighbor({ snr: 12 }))).toBe('#16a34a')
 
     expect(topologySignalLabel(neighbor({ evidence_kind: 'inferred' }))).toBe('Inferred')
     expect(topologySignalLabel(neighbor({ evidence_kind: 'mqtt_direct' }))).toBe('Direct upload')
@@ -73,12 +81,20 @@ describe('topology helpers', () => {
     ])
   })
 
-  it('maps raw topology edges to the same colour buckets', () => {
-    expect(topologyColorFromEdge(edge({ inferred: true }))).toBe('#94a3b8')
-    expect(topologyColorFromEdge(edge({ source_kind: 'mqtt_direct' }))).toBe('#38bdf8')
-    expect(topologyColorFromEdge(edge())).toBe('#2563eb')
-    expect(topologyColorFromEdge(edge({ snr: -1 }))).toBe('#dc2626')
-    expect(topologyColorFromEdge(edge({ snr: 5 }))).toBe('#eab308')
-    expect(topologyColorFromEdge(edge({ snr: 12 }))).toBe('#16a34a')
+  it('maps raw topology edges to the same colour buckets as neighbours', () => {
+    const edge: TopologyEdge = {
+      source_kind: 'neighbor_info',
+      from_node_id: '!a',
+      to_node_id: '!b',
+      first_observed_at: '2026-03-11T12:00:00Z',
+      last_observed_at: '2026-03-11T12:00:00Z',
+      updated_at: '2026-03-11T12:00:00Z'
+    }
+    expect(edgeColor({ ...edge, inferred: true })).toBe('#94a3b8')
+    expect(edgeColor({ ...edge, source_kind: 'mqtt_direct' })).toBe('#38bdf8')
+    expect(edgeColor(edge)).toBe('#2563eb')
+    expect(edgeColor({ ...edge, snr: -1 })).toBe('#dc2626')
+    expect(edgeColor({ ...edge, snr: 5 })).toBe('#eab308')
+    expect(edgeColor({ ...edge, snr: 12 })).toBe('#16a34a')
   })
 })
