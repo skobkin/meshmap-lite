@@ -691,7 +691,7 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem;
-  margin: 0.2rem 0 0 2.35rem;
+  margin: 0.2rem 0 0;
 }
 
 .chat-reaction-pill {
@@ -714,6 +714,14 @@ body {
   user-select: none;
   border: 1px solid transparent;
   transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+/* PicoCSS injects a ▸ chevron on every <details><summary> via ::after and a
+   marker on Firefox. Suppress them on reaction pills: the popover opens on
+   hover/focus, so the affordance is in the background highlight, not the marker. */
+.chat-reaction-pill > summary::after,
+.chat-reaction-pill > summary::marker {
+  content: none;
 }
 
 .chat-reaction-pill > summary::-webkit-details-marker {
