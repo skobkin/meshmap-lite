@@ -1331,3 +1331,70 @@ func TestLogEventFromParsedOmitsHopMetadataWhenZero(t *testing.T) {
 		t.Fatalf("expected nil HopLimit, got %#v", *e.HopLimit)
 	}
 }
+
+// TestHandleChatPreservesZeroHopLimit guards the regression that
+// the old `if evt.HopLimit > 0` guard silently dropped a hop_limit
+// of 0, hiding the signal-exhausted state from the UI. A packet
+// with HopStart=5 and HopLimit=0 means the packet used the last of
+// its hop budget — the most informative hop state — and must be
+// persisted verbatim.
+func TestHandleChatPreservesZeroHopLimit(t *testing.T) {
+	store := &testStore{}
+	emitter := &capturingEmitter{}
+	now := time.Unix(1772296589, 0).UTC()
+	svc := &Service{
+		store:   store,
+		emitter: emitter,
+		log:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	if !svc.handleChat(context.Background(), meshtastic.ParsedEvent{
+		Kind:     meshtastic.ParsedChat,
+		NodeID:   "!a55e5e56",
+		Chat:     &meshtastic.ChatPayload{Text: "exhausted"},
+		HopStart: 5,
+		HopLimit: 0,
+	}, "LongFast", "!gateway", now) {
+		t.Fatalf("expected chat to be processed")
+	}
+
+	if store.lastChat == nil {
+		t.Fatalf("expected chat to be persisted")
+	}
+	if store.lastChat.HopStart == nil || *store.lastChat.HopStart != 5 {
+		t.Fatalf("expected HopStart=5, got %#v", store.lastChat.HopStart)
+	}
+	if store.lastChat.HopLimit == nil {
+		t.Fatalf("expected non-nil HopLimit pointer for exhausted packet, got nil")
+	}
+	if *store.lastChat.HopLimit != 0 {
+		t.Fatalf("expected HopLimit=0 (exhausted), got %d", *store.lastChat.HopLimit)
+	}
+}
+
+// TestLogEventFromParsedPreservesZeroHopLimit is the log-event-side
+// counterpart to TestHandleChatPreservesZeroHopLimit.
+func TestLogEventFromParsedPreservesZeroHopLimit(t *testing.T) {
+	now := time.Unix(1772296589, 0).UTC()
+	evt := meshtastic.ParsedEvent{
+		Kind:     meshtastic.ParsedTelemetry,
+		NodeID:   "!a55e5e56",
+		HopStart: 5,
+		HopLimit: 0,
+	}
+
+	e, ok := (&Service{log: slog.New(slog.NewTextHandler(io.Discard, nil))}).
+		logEventFromParsed(evt, "LongFast", "!gateway", now)
+	if !ok {
+		t.Fatalf("expected log event to be produced")
+	}
+	if e.HopStart == nil || *e.HopStart != 5 {
+		t.Fatalf("expected HopStart=5, got %#v", e.HopStart)
+	}
+	if e.HopLimit == nil {
+		t.Fatalf("expected non-nil HopLimit pointer for exhausted packet, got nil")
+	}
+	if *e.HopLimit != 0 {
+		t.Fatalf("expected HopLimit=0 (exhausted), got %d", *e.HopLimit)
+	}
+}
