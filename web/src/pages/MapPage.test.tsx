@@ -366,6 +366,7 @@ describe('MapPage chat timeline', () => {
         chatHasMore={false}
         chatLoadingMore={false}
         chatLoadMoreError=""
+        {...defaultTopologyAll}
       />
     )
 
@@ -426,6 +427,7 @@ describe('MapPage chat timeline', () => {
         chatHasMore={false}
         chatLoadingMore={false}
         chatLoadMoreError=""
+        {...defaultTopologyAll}
       />
     )
 
