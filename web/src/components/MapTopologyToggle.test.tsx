@@ -21,7 +21,7 @@ describe('MapTopologyToggle', () => {
     )
 
     expect(screen.getByLabelText('Show all topology')).toBeTruthy()
-    expect(screen.getByText('🕸️ Show all topology')).toBeTruthy()
+    expect(screen.getByText('🕸️')).toBeTruthy()
     expect(screen.queryByText(/Capped at/)).toBeNull()
 
     await user.click(screen.getByLabelText('Show all topology'))

@@ -11,7 +11,7 @@ interface Props {
 export function MapTopologyToggle({ enabled, loading, count, truncated, onToggle }: Props): JSX.Element {
   const label = enabled
     ? (typeof count === 'number' ? `🕸️ (${count}${truncated ? '+' : ''})` : '🕸️')
-    : '🕸️ Show all topology'
+    : '🕸️'
 
   const hint = loading
     ? 'Loading topology…'
