@@ -335,7 +335,9 @@ func checkedUint32Ptr(v int64) *uint32 {
 	if v < 0 || v > math.MaxUint32 {
 		return nil
 	}
+	//nolint:gosec // Safe: value is range-checked to fit into uint32 above.
 	x := uint32(v)
+
 	return &x
 }
 
