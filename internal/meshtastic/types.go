@@ -51,10 +51,14 @@ type ParsedEvent struct {
 	Other      *OtherPortnumPayload
 }
 
-// ChatPayload contains decoded text message fields.
+// ChatPayload contains decoded text message fields. When Emoji is true the
+// Text field carries a single emoji character and the message is a reaction
+// to the chat packet whose id equals ReplyID.
 type ChatPayload struct {
-	Text   string `json:"text"`
-	Sender string `json:"sender"`
+	Text    string `json:"text"`
+	Sender  string `json:"sender"`
+	Emoji   bool   `json:"emoji,omitempty"`
+	ReplyID uint32 `json:"reply_id,omitempty"`
 }
 
 // NodeInfoPayload contains decoded node identity and capabilities fields.

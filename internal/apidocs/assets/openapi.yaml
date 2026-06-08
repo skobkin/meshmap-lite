@@ -395,7 +395,7 @@ paths:
         - `ts`: server-side event timestamp in RFC3339 format
         - `payload`: event-specific JSON payload
 
-        The stream emits `chat.message`, `chat.system`, `node.upsert`,
+        The stream emits `chat.message`, `chat.system`, `chat.reaction`, `node.upsert`,
         `node.position`, `node.telemetry`, `log.event`, `stats`, and `ws.heartbeat`.
       responses:
         '101':
@@ -410,6 +410,9 @@ paths:
             payload:
               $ref: '#/components/schemas/ChatEvent'
           - type: chat.system
+            payload:
+              $ref: '#/components/schemas/ChatEvent'
+          - type: chat.reaction
             payload:
               $ref: '#/components/schemas/ChatEvent'
           - type: node.upsert
@@ -690,7 +693,7 @@ components:
           type: integer
         event_type:
           type: string
-          enum: [message, system]
+          enum: [message, system, reaction]
         channel_name:
           type: string
         node_id:
@@ -708,6 +711,19 @@ components:
           enum: [node_discovered]
         message_text:
           type: string
+        reaction_emoji:
+          type: string
+          description: |
+            Emoji character. Set on rows with `event_type=reaction`; always empty
+            for `message`/`system` rows.
+        reply_to_packet_id:
+          type: integer
+          minimum: 0
+          description: |
+            Packet id of the message being reacted to. Set on rows with
+            `event_type=reaction`; null otherwise. May reference a packet that
+            is not present in the current chat window (e.g. the target scrolled
+            out of the most recent N messages).
         message_time:
           type: string
           format: date-time
@@ -1123,6 +1139,7 @@ components:
           enum:
             - chat.message
             - chat.system
+            - chat.reaction
             - node.upsert
             - node.position
             - node.telemetry

@@ -12,6 +12,16 @@ function message(id: number): ChatEvent {
   }
 }
 
+function reaction(id: number): ChatEvent {
+  return {
+    id,
+    event_type: 'reaction',
+    reaction_emoji: '👍',
+    reply_to_packet_id: 100,
+    observed_at: '2026-03-11T10:00:30Z'
+  }
+}
+
 describe('chat state helpers', () => {
   it('reads the stored channel and falls back to empty string', () => {
     const storage = {
@@ -41,5 +51,25 @@ describe('chat state helpers', () => {
     )
 
     expect(messages.map((item) => item.id)).toEqual([5, 4, 3, 2])
+  })
+
+  it('keeps reactions in the same live ring buffer as messages', () => {
+    const messages = pushChatMessage([], message(1))
+    const withReaction = pushChatMessage(messages, reaction(2))
+    // pushChatMessage prepends (newest first), so the reaction is at index 0.
+    expect(withReaction.map((item) => item.event_type)).toEqual(['reaction', 'message'])
+    expect(withReaction[0]?.reaction_emoji).toBe('👍')
+    expect(withReaction[1]?.message_text).toBeUndefined()
+  })
+
+  it('deduplicates reactions when paginating older history', () => {
+    const messages = appendOlderChatMessages(
+      [message(5), reaction(4)],
+      [reaction(4), message(3), message(2)]
+    )
+
+    expect(messages.map((item) => item.id)).toEqual([5, 4, 3, 2])
+    const reactionCount = messages.filter((item) => item.event_type === 'reaction').length
+    expect(reactionCount).toBe(1)
   })
 })

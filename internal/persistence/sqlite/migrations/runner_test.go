@@ -790,3 +790,52 @@ CREATE TABLE log_events (
 		t.Fatalf("re-apply migrations on already-current schema: %v", err)
 	}
 }
+
+func TestApply_AddsChatReactionColumns(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite", "file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	_, err = db.ExecContext(ctx, `
+PRAGMA user_version = 15;
+CREATE TABLE chat_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_type TEXT NOT NULL,
+  message_text TEXT,
+  message_time TEXT NOT NULL,
+  observed_at TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+`)
+	if err != nil {
+		t.Fatalf("seed schema: %v", err)
+	}
+
+	if err := Apply(ctx, db, nil); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	for _, tc := range []struct {
+		table  string
+		column string
+	}{
+		{"chat_events", "reaction_emoji"},
+		{"chat_events", "reply_to_packet_id"},
+	} {
+		hasColumn, err := tableHasColumn(ctx, db, tc.table, tc.column)
+		if err != nil {
+			t.Fatalf("check column %s.%s: %v", tc.table, tc.column, err)
+		}
+		if !hasColumn {
+			t.Fatalf("expected column %s.%s", tc.table, tc.column)
+		}
+	}
+
+	// Re-applying migrations must be a no-op (idempotent on existing columns).
+	if err := Apply(ctx, db, nil); err != nil {
+		t.Fatalf("re-apply migrations on already-current schema: %v", err)
+	}
+}

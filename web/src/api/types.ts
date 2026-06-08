@@ -68,7 +68,7 @@ export interface MapNode {
 
 export interface ChatEvent {
   id: number
-  event_type: 'message' | 'system'
+  event_type: 'message' | 'system' | 'reaction'
   channel_name?: string
   node_id?: string
   node_display_name?: string
@@ -76,7 +76,10 @@ export interface ChatEvent {
   mqtt_uploader_display_name?: string
   system_code?: string
   message_text?: string
+  reaction_emoji?: string
+  reply_to_packet_id?: number
   observed_at: string
+  packet_id?: number
   hop_start?: number
   hop_limit?: number
 }

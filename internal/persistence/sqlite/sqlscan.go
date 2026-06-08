@@ -192,8 +192,9 @@ func scanMapNodeWithTelemetry(rows *sql.Rows) (domain.Node, *domain.NodePosition
 func scanChat(rows *sql.Rows) (domain.ChatEvent, error) {
 	var e domain.ChatEvent
 	var eventType, channel, nodeID, longName, shortName, messageText, systemCode, msgTime, reported, observed, packetID, uploaderID, uploaderLong, uploaderShort, created sql.NullString
-	var hopStart, hopLimit sql.NullInt64
-	if err := rows.Scan(&e.ID, &eventType, &channel, &nodeID, &longName, &shortName, &messageText, &systemCode, &msgTime, &reported, &observed, &packetID, &uploaderID, &hopStart, &hopLimit, &uploaderLong, &uploaderShort, &created); err != nil {
+	var hopStart, hopLimit, replyToPacketID sql.NullInt64
+	var reactionEmoji sql.NullString
+	if err := rows.Scan(&e.ID, &eventType, &channel, &nodeID, &longName, &shortName, &messageText, &systemCode, &msgTime, &reported, &observed, &packetID, &uploaderID, &hopStart, &hopLimit, &reactionEmoji, &replyToPacketID, &uploaderLong, &uploaderShort, &created); err != nil {
 		return e, err
 	}
 	e.EventType = domain.ChatEventType(eventType.String)
@@ -210,10 +211,16 @@ func scanChat(rows *sql.Rows) (domain.ChatEvent, error) {
 	e.MQTTUploaderNodeID = uploaderID.String
 	e.MQTTUploaderDisplayName = displayName(uploaderLong.String, uploaderShort.String, uploaderID.String)
 	e.CreatedAt = mustTime(created)
+	if reactionEmoji.Valid {
+		e.ReactionEmoji = reactionEmoji.String
+	}
 	if packetID.Valid {
 		if v, err := parseUint32(packetID.String); err == nil {
 			e.PacketID = &v
 		}
+	}
+	if replyToPacketID.Valid {
+		e.ReplyToPacketID = checkedUint32Ptr(replyToPacketID.Int64)
 	}
 	if hopStart.Valid {
 		e.HopStart = checkedUint32Ptr(hopStart.Int64)

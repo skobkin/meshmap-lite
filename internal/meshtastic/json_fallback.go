@@ -15,6 +15,8 @@ func parseJSONFallback(kind TopicKind, payload []byte) (ParsedEvent, error) {
 		PacketID   uint32              `json:"packet_id"`
 		Portnum    int32               `json:"portnum"`
 		Timestamp  *time.Time          `json:"timestamp"`
+		Emoji      bool                `json:"emoji,omitempty"`
+		ReplyID    uint32              `json:"reply_id,omitempty"`
 		Chat       ChatPayload         `json:"chat"`
 		NodeInfo   NodeInfoPayload     `json:"node_info"`
 		Position   PositionPayload     `json:"position"`
@@ -50,7 +52,12 @@ func parseJSONFallback(kind TopicKind, payload []byte) (ParsedEvent, error) {
 	switch raw.Type {
 	case "chat", "text_message":
 		out.Kind = ParsedChat
-		out.Chat = &raw.Chat
+		chat := raw.Chat
+		chat.Emoji = chat.Emoji || raw.Emoji
+		if chat.ReplyID == 0 {
+			chat.ReplyID = raw.ReplyID
+		}
+		out.Chat = &chat
 	case "node_info":
 		out.Kind = ParsedNodeInfo
 		out.NodeInfo = &raw.NodeInfo

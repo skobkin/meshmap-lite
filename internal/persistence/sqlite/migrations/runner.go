@@ -7,7 +7,7 @@ import (
 	"log/slog"
 )
 
-const targetSchemaVersion = 15
+const targetSchemaVersion = 16
 
 type migrationStep struct {
 	version int
@@ -31,6 +31,7 @@ var schemaMigrations = []migrationStep{
 	{version: 13, name: "topology_mqtt_direct_source", apply: migrateV13TopologyMQTTDirectSource},
 	{version: 14, name: "discard_zero_positions", apply: migrateV14DiscardZeroPositions},
 	{version: 15, name: "hop_tracking", apply: migrateV15HopTracking},
+	{version: 16, name: "chat_reactions", apply: migrateV16ChatReactions},
 }
 
 // Apply upgrades the SQLite schema to the latest supported version.

@@ -6,6 +6,7 @@ import { ResolvedNodeData } from '../components/ResolvedNodeData'
 import { LeafletMapAdapter } from '../maps/leafletMap'
 import { useChatStore } from '../stores/chat'
 import { useNodeStore } from '../stores/nodes'
+import { type ChatMessageEntry, type ChatReaction, type ChatReactionEntry, groupChatEvents } from '../utils/chat'
 import { classifyHops } from '../utils/signal'
 import { dayKey, dayLabel, hhmm } from '../utils/time'
 import { TOPOLOGY_COLOR, sortedNeighbors } from '../utils/topology'
@@ -93,27 +94,107 @@ function ChatGatewayLink({
   )
 }
 
-function renderChatTimeline(messages: ChatEvent[], { onOpenNodeDetails, onSelectNode, systemText }: ChatTimelineOptions): JSX.Element[] {
+function ChatReactionPill({
+  reaction,
+  onSelectNode
+}: {
+  reaction: ChatReaction
+  onSelectNode: (id: string) => void
+}): JSX.Element {
+  const reactors = reaction.reactors
+  const count = reactors.length
+
+  // PicoCSS <details>/<summary> provides accessible keyboard toggle; we also
+  // open on focus/blur to mirror mouse hover. No JS state is needed.
+  return (
+    <details className="chat-reaction-pill">
+      <summary
+        aria-label={`${reaction.emoji} ${count} ${count === 1 ? 'reaction' : 'reactions'}`}
+        title={reactors.map((r) => r.displayName).join(', ')}
+      >
+        <span className="chat-reaction-emoji" aria-hidden="true">{reaction.emoji}</span>
+        <span className="chat-reaction-count">{count}</span>
+      </summary>
+      <ul className="chat-reaction-reactors">
+        {reactors.map((r) => (
+          <li key={`${r.nodeId}-${r.observedAt}`}>
+            {r.nodeId ? (
+              <button type="button" className="chat-reaction-reactor" onClick={() => onSelectNode(r.nodeId)}>
+                {r.displayName}
+              </button>
+            ) : (
+              <span className="chat-reaction-reactor">{r.displayName}</span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </details>
+  )
+}
+
+function renderChatTimeline(
+  messages: ChatEvent[],
+  { onOpenNodeDetails, onSelectNode, systemText }: ChatTimelineOptions
+): JSX.Element[] {
+  const entries = groupChatEvents(messages)
+  const out: JSX.Element[] = []
   let previousDay = ''
 
-  return messages.map((m) => {
+  for (const entry of entries) {
+    if (entry.kind === 'reaction') {
+      out.push(renderOrphanedReaction(entry, previousDay))
+      // An orphaned reaction is just a hint pill; do not advance the day
+      // separator (keep the day of the last real message), so previousDay
+      // is intentionally left untouched.
+      continue
+    }
+    const m = entry.event
     const currentDay = dayKey(m.observed_at)
     const needsSeparator = currentDay !== previousDay
     previousDay = currentDay
-    const isNodeClickable = typeof m.node_id === 'string'
-    const showUploader = typeof m.mqtt_uploader_node_id === 'string' &&
-      m.mqtt_uploader_node_id.length > 0 &&
-      m.mqtt_uploader_node_id !== m.node_id
-    const hopsInfo = classifyHops(m.hop_start, m.hop_limit)
-    const showHops = hopsInfo.traversed !== undefined && hopsInfo.traversed > 0
+    out.push(renderMessageEntry(entry, needsSeparator, { onOpenNodeDetails, onSelectNode, systemText }))
+  }
 
-    return (
-      <Fragment key={m.id}>
-        {needsSeparator && (
-          <div className="chat-day-separator" role="separator" aria-label={dayLabel(m.observed_at)}>
-            <span>{dayLabel(m.observed_at)}</span>
-          </div>
-        )}
+  return out
+}
+
+function renderOrphanedReaction(entry: ChatReactionEntry, _previousDay: string): JSX.Element {
+  // Renders a compact hint that a reaction exists whose target message is
+  // not in the current 500-row window. Hovering/focusing reveals the
+  // reactor.
+  return (
+    <div className="chat-message chat-message-orphan" key={entry.event.id}>
+      <p className="chat-orphan">
+        <code>{hhmm(entry.event.observed_at)}</code>{' '}
+        <span className="chat-orphan-emoji" aria-hidden="true">{entry.event.reaction_emoji}</span>{' '}
+        <span className="muted">{entry.event.node_display_name ?? entry.event.node_id ?? 'unknown'}</span>
+        <span className="muted"> {'\u00b7 reacting to an earlier message'}</span>
+      </p>
+    </div>
+  )
+}
+
+function renderMessageEntry(
+  entry: ChatMessageEntry,
+  needsSeparator: boolean,
+  { onOpenNodeDetails, onSelectNode, systemText }: ChatTimelineOptions
+): JSX.Element {
+  const m = entry.event
+  const isNodeClickable = typeof m.node_id === 'string'
+  const showUploader = typeof m.mqtt_uploader_node_id === 'string' &&
+    m.mqtt_uploader_node_id.length > 0 &&
+    m.mqtt_uploader_node_id !== m.node_id
+  const hopsInfo = classifyHops(m.hop_start, m.hop_limit)
+  const showHops = hopsInfo.traversed !== undefined && hopsInfo.traversed > 0
+
+  return (
+    <Fragment key={m.id}>
+      {needsSeparator && (
+        <div className="chat-day-separator" role="separator" aria-label={dayLabel(m.observed_at)}>
+          <span>{dayLabel(m.observed_at)}</span>
+        </div>
+      )}
+      <div className="chat-message">
         <p className={m.event_type === 'system' ? 'system' : ''}>
           <code>{hhmm(m.observed_at)}</code>{' '}
           {isNodeClickable && m.node_id ? (
@@ -149,9 +230,16 @@ function renderChatTimeline(messages: ChatEvent[], { onOpenNodeDetails, onSelect
           )}
           {m.event_type === 'system' ? systemText(m.system_code) : (m.message_text ?? '')}
         </p>
-      </Fragment>
-    )
-  })
+        {entry.reactions.length > 0 && (
+          <div className="chat-reactions" role="list">
+            {entry.reactions.map((r) => (
+              <ChatReactionPill key={`${m.id}-${r.emoji}`} reaction={r} onSelectNode={onSelectNode} />
+            ))}
+          </div>
+        )}
+      </div>
+    </Fragment>
+  )
 }
 
 export function MapPage({

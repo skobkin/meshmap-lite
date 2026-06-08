@@ -188,12 +188,20 @@ func (s *Service) HandleMessage(ctx context.Context, topic string, payload []byt
 		if s.handleChat(ctx, evt, channel, mqttUploaderNodeID, now) {
 			// Info logs are intentionally limited to decrypted Meshtastic chat only.
 			if evt.Format == "protobuf" && evt.Encrypted && evt.Decrypted && evt.Chat != nil {
-				s.log.Info("processed decrypted chat message",
+				logFields := []any{
 					"channel", channel,
 					"node_id", evt.NodeID,
 					"packet_id", evt.PacketID,
-					"text", evt.Chat.Text,
-				)
+				}
+				if evt.Chat.Emoji {
+					s.log.Info("processed decrypted chat reaction",
+						append(logFields, "emoji", evt.Chat.Text, "reply_to_packet_id", evt.Chat.ReplyID)...,
+					)
+				} else {
+					s.log.Info("processed decrypted chat message",
+						append(logFields, "text", evt.Chat.Text)...,
+					)
+				}
 			} else {
 				s.log.Debug("processed chat message",
 					"channel", channel,
@@ -202,6 +210,7 @@ func (s *Service) HandleMessage(ctx context.Context, topic string, payload []byt
 					"format", evt.Format,
 					"encrypted", evt.Encrypted,
 					"decrypted", evt.Decrypted,
+					"emoji", evt.Chat != nil && evt.Chat.Emoji,
 				)
 			}
 		}
@@ -1003,7 +1012,35 @@ func (s *Service) upsertNodeEvidence(ctx context.Context, evidence nodeEvidence,
 }
 
 func (s *Service) handleChat(ctx context.Context, evt meshtastic.ParsedEvent, channel, mqttUploaderNodeID string, now time.Time) bool {
-	ce := domain.ChatEvent{EventType: domain.ChatEventMessage, ChannelName: channel, NodeID: evt.NodeID, MQTTUploaderNodeID: mqttUploaderNodeID, MessageText: evt.Chat.Text, MessageTime: now, ReportedAt: evt.Timestamp, ObservedAt: now, CreatedAt: now}
+	isReaction := evt.Chat != nil && evt.Chat.Emoji
+	eventType := domain.ChatEventMessage
+	if isReaction {
+		eventType = domain.ChatEventReaction
+	}
+	ce := domain.ChatEvent{
+		EventType:          eventType,
+		ChannelName:        channel,
+		NodeID:             evt.NodeID,
+		MQTTUploaderNodeID: mqttUploaderNodeID,
+		MessageText:        evt.Chat.Text,
+		MessageTime:        now,
+		ReportedAt:         evt.Timestamp,
+		ObservedAt:         now,
+		CreatedAt:          now,
+	}
+	if isReaction {
+		// For reactions the wire payload is the emoji character; message_text
+		// stays the source of truth in storage but the typed ReactionEmoji
+		// field is what the UI renders. A reaction with ReplyID == 0 has no
+		// target on this server and is still stored (and rendered with an
+		// "earlier message" hint) so that the timeline stays complete.
+		ce.ReactionEmoji = evt.Chat.Text
+		ce.MessageText = ""
+		if evt.Chat.ReplyID > 0 {
+			target := evt.Chat.ReplyID
+			ce.ReplyToPacketID = &target
+		}
+	}
 	// See logEventFromParsed for why HopLimit must be preserved verbatim
 	// when HopStart is non-zero (the hop-limit-exhausted case is the most
 	// informative hop state and must not be silently dropped).
@@ -1025,7 +1062,11 @@ func (s *Service) handleChat(ctx context.Context, evt meshtastic.ParsedEvent, ch
 	}
 	ce.ID = id
 	s.populateChatDisplay(ctx, &ce)
-	s.emitter.Emit(domain.RealtimeEvent{Type: "chat.message", TS: now, Payload: ce})
+	wsType := "chat.message"
+	if isReaction {
+		wsType = "chat.reaction"
+	}
+	s.emitter.Emit(domain.RealtimeEvent{Type: wsType, TS: now, Payload: ce})
 
 	return true
 }

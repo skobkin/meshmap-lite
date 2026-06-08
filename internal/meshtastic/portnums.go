@@ -14,7 +14,11 @@ func parseDecodedPacketPayload(base ParsedEvent, packet *generated.MeshPacket, d
 	// Text payloads.
 	case generated.PortNum_TEXT_MESSAGE_APP, generated.PortNum_TEXT_MESSAGE_COMPRESSED_APP:
 		base.Kind = ParsedChat
-		base.Chat = &ChatPayload{Text: string(data.GetPayload())}
+		base.Chat = &ChatPayload{
+			Text:    string(data.GetPayload()),
+			Emoji:   data.GetEmoji() != 0,
+			ReplyID: data.GetReplyId(),
+		}
 
 	// Node identity and discovery payloads.
 	case generated.PortNum_NODEINFO_APP:

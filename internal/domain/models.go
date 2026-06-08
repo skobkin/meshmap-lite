@@ -93,8 +93,9 @@ type ChatEventType string
 
 // Chat event types stored in chat history.
 const (
-	ChatEventMessage ChatEventType = "message"
-	ChatEventSystem  ChatEventType = "system"
+	ChatEventMessage  ChatEventType = "message"
+	ChatEventSystem   ChatEventType = "system"
+	ChatEventReaction ChatEventType = "reaction"
 )
 
 // ChatSystemCode identifies the system message subtype.
@@ -116,6 +117,8 @@ type ChatEvent struct {
 	MQTTUploaderDisplayName string         `json:"mqtt_uploader_display_name,omitempty"`
 	SystemCode              ChatSystemCode `json:"system_code,omitempty"`
 	MessageText             string         `json:"message_text,omitempty"`
+	ReactionEmoji           string         `json:"reaction_emoji,omitempty"`
+	ReplyToPacketID         *uint32        `json:"reply_to_packet_id,omitempty"`
 	MessageTime             time.Time      `json:"message_time"`
 	ReportedAt              *time.Time     `json:"reported_at,omitempty"`
 	ObservedAt              time.Time      `json:"observed_at"`

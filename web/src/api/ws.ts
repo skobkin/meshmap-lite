@@ -125,7 +125,7 @@ export function startWS(path: string): () => void {
         return
       }
       const msg = parsed
-      if (msg.type === 'chat.message' || msg.type === 'chat.system') {
+      if (msg.type === 'chat.message' || msg.type === 'chat.system' || msg.type === 'chat.reaction') {
         useChatStore.getState().pushMessage(msg.payload as never)
 
         return

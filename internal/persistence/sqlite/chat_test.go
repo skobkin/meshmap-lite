@@ -291,3 +291,54 @@ func TestChatEventHopMetadataRoundTrip(t *testing.T) {
 		}
 	}
 }
+
+func TestChatEventReactionRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, config.SQLConfig{URL: "file::memory:?cache=shared", AutoMigrate: true}, nil)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	now := time.Now().UTC()
+	target := uint32(0xdeadbeef)
+
+	id, err := s.InsertChatEvent(ctx, domain.ChatEvent{
+		EventType:       domain.ChatEventReaction,
+		ChannelName:     "LongFast",
+		NodeID:          "!reactor01",
+		NodeDisplay:     "reactor01",
+		ReactionEmoji:   "\U0001F44D", // 👍
+		ReplyToPacketID: &target,
+		MessageTime:     now,
+		ObservedAt:      now,
+		CreatedAt:       now,
+	})
+	if err != nil {
+		t.Fatalf("insert reaction: %v", err)
+	}
+	if id == 0 {
+		t.Fatalf("expected non-zero id")
+	}
+
+	items, err := s.ListChatEvents(ctx, repo.ChatEventQuery{Channel: "LongFast", Limit: 10})
+	if err != nil {
+		t.Fatalf("list chat events: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 row, got %d", len(items))
+	}
+	got := items[0]
+	if got.EventType != domain.ChatEventReaction {
+		t.Fatalf("expected event_type=reaction, got %q", got.EventType)
+	}
+	if got.ReactionEmoji != "\U0001F44D" {
+		t.Fatalf("expected reaction_emoji to survive round-trip, got %q", got.ReactionEmoji)
+	}
+	if got.ReplyToPacketID == nil || *got.ReplyToPacketID != target {
+		t.Fatalf("expected reply_to_packet_id=%d, got %#v", target, got.ReplyToPacketID)
+	}
+	if got.MessageText != "" {
+		t.Fatalf("expected message_text empty for reaction, got %q", got.MessageText)
+	}
+}
