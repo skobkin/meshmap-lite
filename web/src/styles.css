@@ -626,6 +626,7 @@ body {
   color: inherit;
   font: inherit;
   cursor: pointer;
+  margin-block-end: 0;
 }
 
 .chat-node-link:hover mark,
