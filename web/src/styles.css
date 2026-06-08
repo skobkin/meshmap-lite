@@ -741,6 +741,7 @@ body {
 .chat-reaction-pill[open] > summary {
   background: color-mix(in srgb, var(--pico-muted-color) 24%, transparent);
   border-color: var(--pico-primary-border);
+  margin-block-end: 0;
 }
 
 .chat-reaction-emoji {
