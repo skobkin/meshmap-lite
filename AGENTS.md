@@ -97,6 +97,7 @@
 ## Completion Checklist
 
 Before considering work finished, run the same baseline checks as CI, adjusted to what exists in the repo.
+When all checks have passed and you're going to finish your work, give a commit message in the end of work summary.
 
 ### Backend
 
