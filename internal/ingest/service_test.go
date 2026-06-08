@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"testing"
@@ -13,7 +14,6 @@ import (
 	"meshmap-lite/internal/domain"
 	"meshmap-lite/internal/meshtastic"
 	generated "meshmap-lite/internal/meshtasticpb"
-	"meshmap-lite/internal/repo"
 	"meshmap-lite/internal/repo/testkit"
 )
 
@@ -28,7 +28,6 @@ type testStore struct {
 	lastLogEvent  *domain.LogEvent
 	logEventsSeen []domain.LogEvent
 	topologySeen  []domain.TopologyEdge
-	nodeDisplay   string
 }
 
 func (s *testStore) UpsertNode(_ context.Context, node domain.Node) (bool, error) {
@@ -60,14 +59,6 @@ func (s *testStore) UpsertTopologyEdges(_ context.Context, edges []domain.Topolo
 	return nil
 }
 
-func (s *testStore) GetNodeDetails(ctx context.Context, nodeID string) (repo.NodeDetails, error) {
-	if s.GetNodeDetailsFn != nil {
-		return s.GetNodeDetailsFn(ctx, repo.NodeDetailsQuery{NodeID: nodeID})
-	}
-
-	return repo.NodeDetails{}, nil
-}
-
 func (s *testStore) InsertChatEvent(_ context.Context, event domain.ChatEvent) (int64, error) {
 	chat := event
 	s.lastChat = &chat
@@ -81,14 +72,6 @@ func (s *testStore) InsertLogEvent(_ context.Context, e domain.LogEvent) (int64,
 	s.logEventsSeen = append(s.logEventsSeen, ev)
 
 	return int64(len(s.logEventsSeen)), nil
-}
-
-func (s *testStore) ResolveNodeDisplay(_ context.Context, nodeID string) (string, error) {
-	if s.nodeDisplay != "" {
-		return s.nodeDisplay, nil
-	}
-
-	return nodeID, nil
 }
 
 type testEmitter struct{}
@@ -606,7 +589,10 @@ func TestHandleMessagePersistsPKILogEventWithoutConfiguredPKIChannel(t *testing.
 }
 
 func TestHandleChatEmitsResolvedNodeDisplay(t *testing.T) {
-	store := &testStore{nodeDisplay: "skobkin-cap"}
+	store := &testStore{}
+	store.ResolveNodeDisplayFn = func(_ context.Context, _ string) (string, error) {
+		return "skobkin-cap", nil
+	}
 	emitter := &capturingEmitter{}
 	now := time.Unix(1772296589, 0).UTC()
 	svc := &Service{
@@ -634,20 +620,21 @@ func TestHandleChatEmitsResolvedNodeDisplay(t *testing.T) {
 	}
 }
 
-func TestPersistLogEvent_EmitsResolvedNodeDisplayName(t *testing.T) {
+func TestPersistLogEvent_EmitsResolvedNodeDisplayNames(t *testing.T) {
 	store := &testStore{}
-	store.GetNodeDetailsFn = func(_ context.Context, q repo.NodeDetailsQuery) (repo.NodeDetails, error) {
-		if q.NodeID != "!11223344" {
-			t.Fatalf("unexpected node id lookup: %q", q.NodeID)
-		}
+	var resolvedNodeIDs []string
+	store.ResolveNodeDisplayFn = func(_ context.Context, nodeID string) (string, error) {
+		resolvedNodeIDs = append(resolvedNodeIDs, nodeID)
+		switch nodeID {
+		case "!11223344":
+			return "Alpha Base", nil
+		case "!a55e5e56":
+			return "Gateway", nil
+		default:
+			t.Fatalf("unexpected node id lookup: %q", nodeID)
 
-		return repo.NodeDetails{
-			Node: domain.Node{
-				NodeID:    q.NodeID,
-				LongName:  "Alpha Base",
-				ShortName: "AB",
-			},
-		}, nil
+			return "", nil
+		}
 	}
 	emitter := &capturingEmitter{}
 	now := time.Unix(1772296589, 0).UTC()
@@ -661,11 +648,12 @@ func TestPersistLogEvent_EmitsResolvedNodeDisplayName(t *testing.T) {
 	}
 
 	svc.persistLogEvent(context.Background(), domain.LogEvent{
-		ObservedAt: now,
-		NodeID:     "!11223344",
-		EventKind:  domain.LogEventKindRoutingValue,
-		Encrypted:  true,
-		Channel:    "LongFast",
+		ObservedAt:         now,
+		NodeID:             "!11223344",
+		MQTTUploaderNodeID: "!a55e5e56",
+		EventKind:          domain.LogEventKindRoutingValue,
+		Encrypted:          true,
+		Channel:            "LongFast",
 	})
 
 	if len(emitter.events) != 1 {
@@ -677,6 +665,57 @@ func TestPersistLogEvent_EmitsResolvedNodeDisplayName(t *testing.T) {
 	}
 	if view.NodeDisplay != "Alpha Base" {
 		t.Fatalf("expected resolved node display, got %q", view.NodeDisplay)
+	}
+	if view.MQTTUploaderDisplayName != "Gateway" {
+		t.Fatalf("expected resolved MQTT uploader display, got %q", view.MQTTUploaderDisplayName)
+	}
+	if len(resolvedNodeIDs) != 2 || resolvedNodeIDs[0] != "!11223344" || resolvedNodeIDs[1] != "!a55e5e56" {
+		t.Fatalf("unexpected display lookups: %#v", resolvedNodeIDs)
+	}
+}
+
+func TestResolveNodeDisplayName_FallsBackToRawNodeID(t *testing.T) {
+	lookupErr := errors.New("lookup failed")
+	tests := []struct {
+		name     string
+		nodeID   string
+		resolved string
+		err      error
+		want     string
+	}{
+		{
+			name:     "unknown node",
+			nodeID:   "!unknown",
+			resolved: "!unknown",
+			want:     "!unknown",
+		},
+		{
+			name:   "lookup error",
+			nodeID: "!error",
+			err:    lookupErr,
+			want:   "!error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := &testStore{}
+			store.ResolveNodeDisplayFn = func(_ context.Context, nodeID string) (string, error) {
+				if nodeID != tt.nodeID {
+					t.Fatalf("unexpected node id lookup: %q", nodeID)
+				}
+
+				return tt.resolved, tt.err
+			}
+			svc := &Service{
+				store: store,
+				log:   slog.New(slog.NewTextHandler(io.Discard, nil)),
+			}
+
+			if got := svc.resolveNodeDisplayName(context.Background(), tt.nodeID); got != tt.want {
+				t.Fatalf("resolveNodeDisplayName() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 

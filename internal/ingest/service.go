@@ -2,8 +2,6 @@ package ingest
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -310,31 +308,14 @@ func (s *Service) resolveNodeDisplayName(ctx context.Context, nodeID string) str
 		return ""
 	}
 
-	type nodeDetailsReader interface {
-		GetNodeDetails(context.Context, string) (repo.NodeDetails, error)
-	}
-
-	reader, ok := s.store.(nodeDetailsReader)
-	if !ok {
-		return nodeID
-	}
-
-	details, err := reader.GetNodeDetails(ctx, nodeID)
+	name, err := s.store.ResolveNodeDisplay(ctx, nodeID)
 	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			s.log.Debug("resolve log event node display failed", "node_id", nodeID, "err", err)
-		}
+		s.log.Debug("resolve log event node display failed", "node_id", nodeID, "err", err)
 
 		return nodeID
 	}
-	if details.Node.LongName != "" {
-		return details.Node.LongName
-	}
-	if details.Node.ShortName != "" {
-		return details.Node.ShortName
-	}
 
-	return nodeID
+	return name
 }
 
 func (s *Service) flushExpiredTraceroutes(ctx context.Context, now time.Time) {
