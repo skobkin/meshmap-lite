@@ -9,11 +9,15 @@ describe('classifyHops', () => {
     expect(classifyHops(7, undefined).qualityClass).toBe('')
   })
 
-  it('returns no badge for self-uploaded packets', () => {
+  it('returns no badge when the uploader received the packet without any intermediate relay', () => {
+    // hop_start == hop_limit means the packet reached the uploader with
+    // zero rebroadcasts between originator and uploader — the most common
+    // case being a direct LoRa transmission to a node that is itself an
+    // MQTT gateway.
     const result = classifyHops(7, 7)
     expect(result.traversed).toBeUndefined()
     expect(result.qualityClass).toBe('')
-    expect(result.title).toContain('self-uploaded')
+    expect(result.title).toContain('no relay between originator and uploader')
     expect(result.exhausted).toBe(false)
   })
 

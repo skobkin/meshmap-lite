@@ -278,11 +278,15 @@ func TestChatEventHopMetadataRoundTrip(t *testing.T) {
 	}
 	for _, item := range items {
 		if item.NodeID == "!abcdef02" {
+			// hopStart == hopLimit == 0: packet reached the uploader with
+			// no intermediate relay (e.g. direct LoRa transmission to an
+			// MQTT gateway). The downstream classifier uses this case to
+			// suppress the hop badge entirely.
 			if item.HopStart == nil || *item.HopStart != 0 {
-				t.Fatalf("expected HopStart=0 for self-upload, got %#v", item.HopStart)
+				t.Fatalf("expected HopStart=0 for direct-to-uploader packet, got %#v", item.HopStart)
 			}
 			if item.HopLimit == nil || *item.HopLimit != 0 {
-				t.Fatalf("expected HopLimit=0 for self-upload, got %#v", item.HopLimit)
+				t.Fatalf("expected HopLimit=0 for direct-to-uploader packet, got %#v", item.HopLimit)
 			}
 		}
 	}

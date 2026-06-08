@@ -17,16 +17,22 @@ export interface HopsClassification {
 }
 
 /**
- * Classify the number of hops a packet traversed before reaching the MQTT
- * gateway, based on the Meshtastic `hop_start` / `hop_limit` header values.
+ * Classify the number of LoRa rebroadcasts a packet went through before
+ * reaching the MQTT gateway, based on the Meshtastic `hop_start` / `hop_limit`
+ * header values. Note that a "hop" in Meshtastic counts *rebroadcasts* (relay
+ * hops) — a single direct LoRa transmission between two radios is zero hops,
+ * and the first relay's rebroadcast is hop 1.
  *
- *  - 1-2 hops:                 good (close to the gateway, strong link)
- *  - 3 hops up to (hop_start-2): warn (mid-distance, expected relay behavior)
+ *  - 1-2 hops:                 good (well within the configured budget)
+ *  - 3 hops up to (hop_start-2): warn (mid-distance, expected relay behaviour)
  *  - last 2 hops of the budget:  bad  (one more hop and the packet would die)
- *  - hop_limit=0 with hop_start>0: "exhausted" — the packet was one hop from
- *    being dropped; always rendered with the "bad" colour but with a distinct
- *    CSS modifier so it can be styled differently in the future.
- *  - hop_start=0, hop_limit=0, or hop_start<=hop_limit: unknown / self-upload
+ *  - hop_limit=0 with hop_start>0: "exhausted" — the packet used the very last
+ *    of its hop budget; always rendered with the "bad" colour but with a
+ *    distinct CSS modifier so it can be styled differently in the future.
+ *  - hop_start=0, hop_limit=0, or hop_start<=hop_limit: no badge — either
+ *    the parser did not provide hop accounting, or the packet reached the
+ *    uploader with no intermediate relay (for example: a direct LoRa
+ *    transmission to a node that is itself an MQTT gateway).
  */
 export function classifyHops(hopStart: number | undefined, hopLimit: number | undefined): HopsClassification {
   if (
@@ -38,9 +44,13 @@ export function classifyHops(hopStart: number | undefined, hopLimit: number | un
     return { qualityClass: '', title: '', exhausted: false }
   }
 
-  // Self-uploaded packet (no hops consumed between origin and gateway).
+  // No relay between the originator and the uploader (traversed === 0).
+  // This is most often a direct LoRa transmission to a node that is itself
+  // an MQTT gateway, but it also covers the case where the originator is
+  // the uploader. The two are observationally indistinguishable from the
+  // hop-header values alone.
   if (hopStart <= hopLimit) {
-    return { qualityClass: '', title: 'Hops traversed: 0 (self-uploaded)', exhausted: false }
+    return { qualityClass: '', title: 'Hops traversed: 0 (no relay between originator and uploader)', exhausted: false }
   }
 
   const traversed = hopStart - hopLimit

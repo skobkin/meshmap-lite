@@ -719,19 +719,27 @@ components:
           type: integer
           minimum: 0
           description: |
-            Original `hop_start` value from the packet header (initial hop budget).
-            The number of hops traversed before reaching the MQTT gateway is
-            `hop_start - hop_limit`. Omitted when the upstream parser did not
-            provide a value.
+            Original `hop_start` value from the Meshtastic packet header
+            (the initial hop budget the originator set on the packet).
+            The number of LoRa rebroadcasts the packet went through
+            between the originator and the MQTT gateway is
+            `hop_start - hop_limit`. A direct LoRa transmission between
+            two radios is zero hops; only relay rebroadcasts count, so a
+            packet uploaded by a node that received it directly over LoRa
+            from the originator will typically have `hop_start == hop_limit`.
+            Omitted when the upstream parser did not provide a value.
         hop_limit:
           type: integer
           minimum: 0
           description: |
-            Remaining `hop_limit` value observed when the MQTT gateway received
-            the packet. The number of hops traversed is
-            `hop_start - hop_limit`. A value of `0` together with a positive
-            `hop_start` indicates the packet had reached the edge of its hop
-            budget. Omitted when the upstream parser did not provide a value.
+            Remaining `hop_limit` value observed when the MQTT gateway
+            received the packet. The number of rebroadcasts the packet
+            went through is `hop_start - hop_limit`. A value of `0`
+            together with a positive `hop_start` indicates the packet
+            has reached the very last of its configured hop budget
+            (the gateway received it on the "consumed" side of the final
+            relay's rebroadcast). Omitted when the upstream parser did
+            not provide a value.
     LogEvent:
       type: object
       required:
@@ -781,19 +789,27 @@ components:
           type: integer
           minimum: 0
           description: |
-            Original `hop_start` value from the packet header (initial hop budget).
-            The number of hops traversed before reaching the MQTT gateway is
-            `hop_start - hop_limit`. Omitted when the upstream parser did not
-            provide a value.
+            Original `hop_start` value from the Meshtastic packet header
+            (the initial hop budget the originator set on the packet).
+            The number of LoRa rebroadcasts the packet went through
+            between the originator and the MQTT gateway is
+            `hop_start - hop_limit`. A direct LoRa transmission between
+            two radios is zero hops; only relay rebroadcasts count, so a
+            packet uploaded by a node that received it directly over LoRa
+            from the originator will typically have `hop_start == hop_limit`.
+            Omitted when the upstream parser did not provide a value.
         hop_limit:
           type: integer
           minimum: 0
           description: |
-            Remaining `hop_limit` value observed when the MQTT gateway received
-            the packet. The number of hops traversed is
-            `hop_start - hop_limit`. A value of `0` together with a positive
-            `hop_start` indicates the packet had reached the edge of its hop
-            budget. Omitted when the upstream parser did not provide a value.
+            Remaining `hop_limit` value observed when the MQTT gateway
+            received the packet. The number of rebroadcasts the packet
+            went through is `hop_start - hop_limit`. A value of `0`
+            together with a positive `hop_start` indicates the packet
+            has reached the very last of its configured hop budget
+            (the gateway received it on the "consumed" side of the final
+            relay's rebroadcast). Omitted when the upstream parser did
+            not provide a value.
     TopologyEdge:
       type: object
       required:
