@@ -6,6 +6,7 @@ export const TOPOLOGY_COLOR = {
   inferred: '#94a3b8',
   mqttDirect: '#38bdf8',
   noSNR: '#2563eb',
+  bad: '#991b1b',
   poor: '#dc2626',
   fair: '#eab308',
   good: '#16a34a'
@@ -32,7 +33,10 @@ export function topologyColor(input: TopologyColorInput): string {
 
     return TOPOLOGY_COLOR.noSNR
   }
-  if (input.snr < 0) {
+  if (input.snr < -15) {
+    return TOPOLOGY_COLOR.bad
+  }
+  if (input.snr < -7) {
     return TOPOLOGY_COLOR.poor
   }
   if (input.snr < 10) {
