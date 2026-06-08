@@ -210,3 +210,80 @@ func TestListChatEvents_PaginatesWithinObservedSinceAt(t *testing.T) {
 		t.Fatalf("unexpected paginated message: %#v", items[0])
 	}
 }
+
+func TestChatEventHopMetadataRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, config.SQLConfig{URL: "file::memory:?cache=shared", AutoMigrate: true}, nil)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	now := time.Now().UTC()
+	hopStart := uint32(7)
+	hopLimit := uint32(4)
+	id, err := s.InsertChatEvent(ctx, domain.ChatEvent{
+		EventType:   domain.ChatEventMessage,
+		ChannelName: "LongFast",
+		NodeID:      "!abcdef01",
+		MessageText: "relayed",
+		MessageTime: now,
+		ObservedAt:  now,
+		CreatedAt:   now,
+		HopStart:    &hopStart,
+		HopLimit:    &hopLimit,
+	})
+	if err != nil {
+		t.Fatalf("insert chat event: %v", err)
+	}
+
+	items, err := s.ListChatEvents(ctx, repo.ChatEventQuery{Channel: "LongFast", Limit: 50})
+	if err != nil {
+		t.Fatalf("list chat events: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 chat event, got %d", len(items))
+	}
+	if items[0].ID != id {
+		t.Fatalf("expected id=%d, got %d", id, items[0].ID)
+	}
+	if items[0].HopStart == nil || *items[0].HopStart != 7 {
+		t.Fatalf("expected HopStart=7, got %#v", items[0].HopStart)
+	}
+	if items[0].HopLimit == nil || *items[0].HopLimit != 4 {
+		t.Fatalf("expected HopLimit=4, got %#v", items[0].HopLimit)
+	}
+
+	hopZero := uint32(0)
+	if _, err := s.InsertChatEvent(ctx, domain.ChatEvent{
+		EventType:   domain.ChatEventMessage,
+		ChannelName: "LongFast",
+		NodeID:      "!abcdef02",
+		MessageText: "self upload",
+		MessageTime: now,
+		ObservedAt:  now,
+		CreatedAt:   now,
+		HopStart:    &hopZero,
+		HopLimit:    &hopZero,
+	}); err != nil {
+		t.Fatalf("insert zero-hop chat event: %v", err)
+	}
+
+	items, err = s.ListChatEvents(ctx, repo.ChatEventQuery{Channel: "LongFast", Limit: 50})
+	if err != nil {
+		t.Fatalf("list chat events: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("expected 2 chat events, got %d", len(items))
+	}
+	for _, item := range items {
+		if item.NodeID == "!abcdef02" {
+			if item.HopStart == nil || *item.HopStart != 0 {
+				t.Fatalf("expected HopStart=0 for self-upload, got %#v", item.HopStart)
+			}
+			if item.HopLimit == nil || *item.HopLimit != 0 {
+				t.Fatalf("expected HopLimit=0 for self-upload, got %#v", item.HopLimit)
+			}
+		}
+	}
+}

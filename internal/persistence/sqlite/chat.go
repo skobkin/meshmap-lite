@@ -15,10 +15,10 @@ func (s *Store) InsertChatEvent(ctx context.Context, e domain.ChatEvent) (int64,
 		messageText = nil
 	}
 	res, err := s.db.ExecContext(ctx, `
-INSERT INTO chat_events(event_type,channel_name,node_id,message_text,system_code,message_time,reported_at,observed_at,packet_id,mqtt_uploader_node_id,created_at)
-VALUES(?,?,?,?,?,?,?,?,?,?,?)
+INSERT INTO chat_events(event_type,channel_name,node_id,message_text,system_code,message_time,reported_at,observed_at,packet_id,mqtt_uploader_node_id,hop_start,hop_limit,created_at)
+VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
 `, string(e.EventType), e.ChannelName, nullIfEmpty(e.NodeID), messageText, nullIfEmpty(string(e.SystemCode)),
-		e.MessageTime.UTC().Format(time.RFC3339Nano), ptrTime(e.ReportedAt), e.ObservedAt.UTC().Format(time.RFC3339Nano), ptrUint32(e.PacketID), nullIfEmpty(e.MQTTUploaderNodeID), e.CreatedAt.UTC().Format(time.RFC3339Nano))
+		e.MessageTime.UTC().Format(time.RFC3339Nano), ptrTime(e.ReportedAt), e.ObservedAt.UTC().Format(time.RFC3339Nano), ptrUint32(e.PacketID), nullIfEmpty(e.MQTTUploaderNodeID), ptrUint32(e.HopStart), ptrUint32(e.HopLimit), e.CreatedAt.UTC().Format(time.RFC3339Nano))
 	if err != nil {
 		return 0, err
 	}
@@ -40,7 +40,7 @@ func (s *Store) ListChatEvents(ctx context.Context, q repo.ChatEventQuery) ([]do
 	}
 	query := `
 SELECT e.id,e.event_type,e.channel_name,e.node_id,n.long_name,n.short_name,
-       e.message_text,e.system_code,e.message_time,e.reported_at,e.observed_at,e.packet_id,e.mqtt_uploader_node_id,mu.long_name,mu.short_name,e.created_at
+       e.message_text,e.system_code,e.message_time,e.reported_at,e.observed_at,e.packet_id,e.mqtt_uploader_node_id,e.hop_start,e.hop_limit,mu.long_name,mu.short_name,e.created_at
 FROM chat_events e
 LEFT JOIN nodes n ON n.node_id=e.node_id
 LEFT JOIN nodes mu ON mu.node_id=e.mqtt_uploader_node_id

@@ -1,6 +1,7 @@
 import { Fragment } from 'preact'
 import { useEffect, useState } from 'preact/hooks'
 
+import { classifyHops } from '../utils/signal'
 import { dayKey, dayLabel, fullDateTime, hhmmss } from '../utils/time'
 
 import { LogDetailsModal, hasLogDetails } from './LogDetailsModal'
@@ -11,6 +12,24 @@ import { tracerouteLogDetailsRenderer } from './TracerouteLogDetails'
 
 import type { LogEvent } from '../api/types'
 import type { JSX } from 'preact'
+
+function getHopsBadge(event: LogEvent): { traversed: number; qualityClass: string; title: string; exhausted: boolean } | undefined {
+  if (typeof event.hop_start !== 'number' || typeof event.hop_limit !== 'number') {
+    return undefined
+  }
+
+  const result = classifyHops(event.hop_start, event.hop_limit)
+  if (result.traversed === undefined) {
+    return undefined
+  }
+
+  return {
+    traversed: result.traversed,
+    qualityClass: result.qualityClass,
+    title: result.title,
+    exhausted: result.exhausted,
+  }
+}
 
 interface Props {
   items: LogEvent[]
@@ -140,7 +159,7 @@ export function LogEventList({
   const selectedEvent = items.find((item) => item.id === activeEventID && hasLogDetails(item.details))
   const dayGroups = groupLogItemsByDay(items)
   const firstRowIDs = new Set(dayGroups.map((group) => group.items[0]?.id).filter((id): id is number => typeof id === 'number'))
-  const colSpan = showNodeColumn ? 7 : 6
+  const colSpan = showNodeColumn ? 8 : 7
   const scrollStyle = maxBodyRows && maxBodyRows > 0
     ? { maxHeight: `${maxBodyRows * 2.45}rem`, overflowY: 'auto' }
     : undefined
@@ -205,6 +224,16 @@ export function LogEventList({
                           <dt>Encrypted</dt>
                           <dd>{row.encrypted ? 'yes' : 'no'}</dd>
                         </div>
+                        {(() => {
+                          const hops = getHopsBadge(row)
+
+                          return hops !== undefined ? (
+                            <div>
+                              <dt>Hops</dt>
+                              <dd title={hops.title}>↓{hops.traversed}</dd>
+                            </div>
+                          ) : null
+                        })()}
                       </dl>
                       <div className="log-card-actions">
                         {hasLogDetails(row.details) ? (
@@ -239,6 +268,7 @@ export function LogEventList({
                 <th>Encrypted</th>
                 <th>Channel</th>
                 <th>Gateway</th>
+                <th>Hops</th>
                 <th>Details</th>
               </tr>
             </thead>
@@ -277,6 +307,22 @@ export function LogEventList({
                           fallbackLabel={row.mqtt_uploader_display_name}
                           onOpenNodeDetails={onOpenNodeDetails}
                         />
+                      </td>
+                      <td>
+                        {(() => {
+                          const hops = getHopsBadge(row)
+
+                          return hops !== undefined ? (
+                            <span
+                              className={`log-hop-badge ${hops.qualityClass}`.trim()}
+                              title={hops.title}
+                            >
+                              ↓{hops.traversed}
+                            </span>
+                          ) : (
+                            <span className="log-hop-badge">-</span>
+                          )
+                        })()}
                       </td>
                       <td>
                         {hasLogDetails(row.details) ? (

@@ -121,6 +121,10 @@ type ChatEvent struct {
 	ObservedAt              time.Time      `json:"observed_at"`
 	PacketID                *uint32        `json:"packet_id,omitempty"`
 	CreatedAt               time.Time      `json:"created_at"`
+	// HopStart is the hop_start value from the parsed packet (max hops).
+	HopStart *uint32 `json:"hop_start,omitempty"`
+	// HopLimit is the hop_limit value from the parsed packet (remaining hops when received).
+	HopLimit *uint32 `json:"hop_limit,omitempty"`
 }
 
 // Stats is an operational snapshot exposed over API and websocket.
@@ -329,6 +333,10 @@ type LogEvent struct {
 	Encrypted          bool           `json:"encrypted"`
 	Channel            string         `json:"channel_name,omitempty"`
 	Details            map[string]any `json:"details,omitempty"`
+	// HopStart is the hop_start value from the parsed packet (max hops).
+	HopStart *uint32 `json:"hop_start,omitempty"`
+	// HopLimit is the hop_limit value from the parsed packet (remaining hops when received).
+	HopLimit *uint32 `json:"hop_limit,omitempty"`
 }
 
 // LogEventView is API-ready row enriched with titles and display name fallback.
@@ -344,6 +352,10 @@ type LogEventView struct {
 	Encrypted               bool           `json:"encrypted"`
 	ChannelName             *string        `json:"channel_name"`
 	Details                 map[string]any `json:"details,omitempty"`
+	// HopStart is the hop_start value from the parsed packet (max hops).
+	HopStart *uint32 `json:"hop_start,omitempty"`
+	// HopLimit is the hop_limit value from the parsed packet (remaining hops when received).
+	HopLimit *uint32 `json:"hop_limit,omitempty"`
 }
 
 // LogEventQuery controls log-list pagination and filtering.

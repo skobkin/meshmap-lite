@@ -1,0 +1,43 @@
+import { describe, expect, it } from 'vitest'
+
+import { classifyHops } from './signal'
+
+describe('classifyHops', () => {
+  it('returns unknown classification when hop values are missing', () => {
+    expect(classifyHops(undefined, undefined).qualityClass).toBe('')
+    expect(classifyHops(0, 0).qualityClass).toBe('')
+    expect(classifyHops(7, undefined).qualityClass).toBe('')
+  })
+
+  it('returns no badge for self-uploaded packets', () => {
+    const result = classifyHops(7, 7)
+    expect(result.traversed).toBeUndefined()
+    expect(result.qualityClass).toBe('')
+    expect(result.title).toContain('self-uploaded')
+    expect(result.exhausted).toBe(false)
+  })
+
+  it('classifies 1-2 hops as good', () => {
+    expect(classifyHops(7, 6).qualityClass).toBe('signal-good')
+    expect(classifyHops(7, 5).qualityClass).toBe('signal-good')
+    expect(classifyHops(7, 5).traversed).toBe(2)
+  })
+
+  it('classifies mid-range hops as warn', () => {
+    expect(classifyHops(7, 4).qualityClass).toBe('signal-warn')
+    expect(classifyHops(7, 4).traversed).toBe(3)
+  })
+
+  it('classifies the last hop of the budget as bad', () => {
+    expect(classifyHops(7, 1).qualityClass).toBe('signal-bad')
+  })
+
+  it('marks the hop_limit=0 case as exhausted and bad', () => {
+    const result = classifyHops(7, 0)
+    expect(result.exhausted).toBe(true)
+    expect(result.qualityClass).toContain('signal-bad')
+    expect(result.qualityClass).toContain('signal-exhausted')
+    expect(result.traversed).toBe(7)
+    expect(result.title).toContain('exhausted')
+  })
+})

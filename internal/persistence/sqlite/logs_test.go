@@ -202,3 +202,69 @@ func TestInsertLogEvent_PrunesInBatches(t *testing.T) {
 		t.Fatalf("expected prune down to max rows, got %d rows", len(items))
 	}
 }
+
+func TestLogEventHopMetadataRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, config.SQLConfig{URL: "file::memory:?cache=shared", AutoMigrate: true}, nil)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	now := time.Now().UTC()
+	hopStart := uint32(5)
+	hopLimit := uint32(2)
+	if _, err := s.InsertLogEvent(ctx, domain.LogEvent{
+		ObservedAt: now,
+		NodeID:     "!abcdef01",
+		EventKind:  domain.LogEventKindTelemetryValue,
+		Encrypted:  false,
+		Channel:    "LongFast",
+		HopStart:   &hopStart,
+		HopLimit:   &hopLimit,
+	}); err != nil {
+		t.Fatalf("insert log event: %v", err)
+	}
+
+	items, err := s.ListLogEvents(ctx, domain.LogEventQuery{Limit: 50})
+	if err != nil {
+		t.Fatalf("list log events: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 log event, got %d", len(items))
+	}
+	if items[0].HopStart == nil || *items[0].HopStart != 5 {
+		t.Fatalf("expected HopStart=5, got %#v", items[0].HopStart)
+	}
+	if items[0].HopLimit == nil || *items[0].HopLimit != 2 {
+		t.Fatalf("expected HopLimit=2, got %#v", items[0].HopLimit)
+	}
+
+	if _, err := s.InsertLogEvent(ctx, domain.LogEvent{
+		ObservedAt: now.Add(time.Second),
+		NodeID:     "!abcdef02",
+		EventKind:  domain.LogEventKindTelemetryValue,
+		Encrypted:  false,
+		Channel:    "LongFast",
+	}); err != nil {
+		t.Fatalf("insert log event without hop metadata: %v", err)
+	}
+
+	items, err = s.ListLogEvents(ctx, domain.LogEventQuery{Limit: 50})
+	if err != nil {
+		t.Fatalf("list log events: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("expected 2 log events, got %d", len(items))
+	}
+	for _, item := range items {
+		if item.NodeID == "!abcdef02" {
+			if item.HopStart != nil {
+				t.Fatalf("expected nil HopStart when omitted, got %#v", *item.HopStart)
+			}
+			if item.HopLimit != nil {
+				t.Fatalf("expected nil HopLimit when omitted, got %#v", *item.HopLimit)
+			}
+		}
+	}
+}

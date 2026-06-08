@@ -77,6 +77,8 @@ export interface ChatEvent {
   system_code?: string
   message_text?: string
   observed_at: string
+  hop_start?: number
+  hop_limit?: number
 }
 
 export interface NodeSummary {
@@ -241,4 +243,6 @@ export interface LogEvent {
   encrypted: boolean
   channel_name?: string | null
   details?: Record<string, unknown>
+  hop_start?: number
+  hop_limit?: number
 }

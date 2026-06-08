@@ -1229,3 +1229,105 @@ func findNode(nodes []domain.Node, nodeID string) domain.Node {
 
 	return domain.Node{}
 }
+
+func TestHandleChatCapturesHopMetadata(t *testing.T) {
+	store := &testStore{}
+	emitter := &capturingEmitter{}
+	now := time.Unix(1772296589, 0).UTC()
+	svc := &Service{
+		store:   store,
+		emitter: emitter,
+		log:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	if !svc.handleChat(context.Background(), meshtastic.ParsedEvent{
+		Kind:     meshtastic.ParsedChat,
+		NodeID:   "!a55e5e56",
+		Chat:     &meshtastic.ChatPayload{Text: "relayed"},
+		HopStart: 7,
+		HopLimit: 4,
+	}, "LongFast", "!gateway", now) {
+		t.Fatalf("expected chat to be processed")
+	}
+
+	if store.lastChat == nil {
+		t.Fatalf("expected chat to be persisted")
+	}
+	if store.lastChat.HopStart == nil || *store.lastChat.HopStart != 7 {
+		t.Fatalf("expected HopStart=7, got %#v", store.lastChat.HopStart)
+	}
+	if store.lastChat.HopLimit == nil || *store.lastChat.HopLimit != 4 {
+		t.Fatalf("expected HopLimit=4, got %#v", store.lastChat.HopLimit)
+	}
+}
+
+func TestHandleChatOmitsHopMetadataWhenZero(t *testing.T) {
+	store := &testStore{}
+	emitter := &capturingEmitter{}
+	now := time.Unix(1772296589, 0).UTC()
+	svc := &Service{
+		store:   store,
+		emitter: emitter,
+		log:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	if !svc.handleChat(context.Background(), meshtastic.ParsedEvent{
+		Kind:   meshtastic.ParsedChat,
+		NodeID: "!a55e5e56",
+		Chat:   &meshtastic.ChatPayload{Text: "no hops"},
+	}, "LongFast", "!gateway", now) {
+		t.Fatalf("expected chat to be processed")
+	}
+
+	if store.lastChat == nil {
+		t.Fatalf("expected chat to be persisted")
+	}
+	if store.lastChat.HopStart != nil {
+		t.Fatalf("expected nil HopStart, got %#v", *store.lastChat.HopStart)
+	}
+	if store.lastChat.HopLimit != nil {
+		t.Fatalf("expected nil HopLimit, got %#v", *store.lastChat.HopLimit)
+	}
+}
+
+func TestLogEventFromParsedCapturesHopMetadata(t *testing.T) {
+	now := time.Unix(1772296589, 0).UTC()
+	evt := meshtastic.ParsedEvent{
+		Kind:     meshtastic.ParsedTelemetry,
+		NodeID:   "!a55e5e56",
+		HopStart: 5,
+		HopLimit: 2,
+	}
+
+	e, ok := (&Service{log: slog.New(slog.NewTextHandler(io.Discard, nil))}).
+		logEventFromParsed(evt, "LongFast", "!gateway", now)
+	if !ok {
+		t.Fatalf("expected log event to be produced")
+	}
+	if e.HopStart == nil || *e.HopStart != 5 {
+		t.Fatalf("expected HopStart=5, got %#v", e.HopStart)
+	}
+	if e.HopLimit == nil || *e.HopLimit != 2 {
+		t.Fatalf("expected HopLimit=2, got %#v", e.HopLimit)
+	}
+}
+
+func TestLogEventFromParsedOmitsHopMetadataWhenZero(t *testing.T) {
+	now := time.Unix(1772296589, 0).UTC()
+	evt := meshtastic.ParsedEvent{
+		Kind:   meshtastic.ParsedTelemetry,
+		NodeID: "!a55e5e56",
+	}
+
+	e, ok := (&Service{log: slog.New(slog.NewTextHandler(io.Discard, nil))}).
+		logEventFromParsed(evt, "LongFast", "!gateway", now)
+	if !ok {
+		t.Fatalf("expected log event to be produced")
+	}
+	if e.HopStart != nil {
+		t.Fatalf("expected nil HopStart, got %#v", *e.HopStart)
+	}
+	if e.HopLimit != nil {
+		t.Fatalf("expected nil HopLimit, got %#v", *e.HopLimit)
+	}
+}

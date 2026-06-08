@@ -284,6 +284,8 @@ func (s *Service) persistLogEvent(ctx context.Context, logEvent domain.LogEvent)
 		EventKindTitle:          domain.LogEventKindTitle(logEvent.EventKind),
 		Encrypted:               logEvent.Encrypted,
 		Details:                 logEvent.Details,
+		HopStart:                logEvent.HopStart,
+		HopLimit:                logEvent.HopLimit,
 	}
 	if logEvent.Channel != "" {
 		ch := logEvent.Channel
@@ -404,6 +406,14 @@ func (s *Service) logEventFromParsed(evt meshtastic.ParsedEvent, channel, mqttUp
 		MQTTUploaderNodeID: mqttUploaderNodeID,
 		Encrypted:          evt.Encrypted,
 		Channel:            channel,
+	}
+	if evt.HopStart > 0 {
+		v := evt.HopStart
+		e.HopStart = &v
+	}
+	if evt.HopLimit > 0 {
+		v := evt.HopLimit
+		e.HopLimit = &v
 	}
 	switch evt.Kind {
 	case meshtastic.ParsedMapReport:
@@ -991,6 +1001,14 @@ func (s *Service) upsertNodeEvidence(ctx context.Context, evidence nodeEvidence,
 
 func (s *Service) handleChat(ctx context.Context, evt meshtastic.ParsedEvent, channel, mqttUploaderNodeID string, now time.Time) bool {
 	ce := domain.ChatEvent{EventType: domain.ChatEventMessage, ChannelName: channel, NodeID: evt.NodeID, MQTTUploaderNodeID: mqttUploaderNodeID, MessageText: evt.Chat.Text, MessageTime: now, ReportedAt: evt.Timestamp, ObservedAt: now, CreatedAt: now}
+	if evt.HopStart > 0 {
+		v := evt.HopStart
+		ce.HopStart = &v
+	}
+	if evt.HopLimit > 0 {
+		v := evt.HopLimit
+		ce.HopLimit = &v
+	}
 	if evt.PacketID > 0 {
 		v := evt.PacketID
 		ce.PacketID = &v

@@ -31,9 +31,9 @@ func (s *Store) InsertLogEvent(ctx context.Context, e domain.LogEvent) (int64, e
 	}
 
 	res, err := s.db.ExecContext(ctx, `
-INSERT INTO log_events(observed_at,node_id,event_kind,encrypted,channel_id,mqtt_uploader_node_id,details_json)
-VALUES(?,?,?,?,?,?,?)
-`, e.ObservedAt.UTC().Format(time.RFC3339Nano), nullIfEmpty(e.NodeID), int(e.EventKind), boolAsInt(e.Encrypted), channelID, nullIfEmpty(e.MQTTUploaderNodeID), detailsJSON)
+INSERT INTO log_events(observed_at,node_id,event_kind,encrypted,channel_id,mqtt_uploader_node_id,hop_start,hop_limit,details_json)
+VALUES(?,?,?,?,?,?,?,?,?)
+`, e.ObservedAt.UTC().Format(time.RFC3339Nano), nullIfEmpty(e.NodeID), int(e.EventKind), boolAsInt(e.Encrypted), channelID, nullIfEmpty(e.MQTTUploaderNodeID), ptrUint32(e.HopStart), ptrUint32(e.HopLimit), detailsJSON)
 	if err != nil {
 		return 0, err
 	}
@@ -128,7 +128,7 @@ func (s *Store) ListLogEvents(ctx context.Context, q domain.LogEventQuery) ([]do
 	)
 	b.WriteString(`
 SELECT e.id,e.observed_at,e.node_id,e.event_kind,e.encrypted,c.name,
-       n.long_name,n.short_name,e.mqtt_uploader_node_id,mu.long_name,mu.short_name,e.details_json
+       n.long_name,n.short_name,e.mqtt_uploader_node_id,mu.long_name,mu.short_name,e.details_json,e.hop_start,e.hop_limit
 FROM log_events e
 LEFT JOIN log_channels c ON c.id=e.channel_id
 LEFT JOIN nodes n ON n.node_id=e.node_id
