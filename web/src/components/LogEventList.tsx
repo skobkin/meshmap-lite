@@ -230,7 +230,14 @@ export function LogEventList({
                           return hops !== undefined ? (
                             <div>
                               <dt>Hops</dt>
-                              <dd title={hops.title}>↓{hops.traversed}</dd>
+                              <dd>
+                                <span
+                                  className={`log-hop-badge ${hops.qualityClass}`.trim()}
+                                  title={hops.title}
+                                >
+                                  ↓{hops.traversed}
+                                </span>
+                              </dd>
                             </div>
                           ) : null
                         })()}

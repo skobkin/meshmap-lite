@@ -1,0 +1,138 @@
+// @vitest-environment jsdom
+
+import { render, screen } from '@testing-library/preact'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { LogEventList } from './LogEventList'
+
+import type { LogEvent, MapNode, NodeDetails, NodeSummary } from '../api/types'
+
+interface NodeStoreState {
+  mapNodes: MapNode[]
+  summaries: NodeSummary[]
+  selectedId?: string
+  details?: NodeDetails
+}
+
+const { useNodeStore } = vi.hoisted(() => {
+  let state: NodeStoreState = {
+    mapNodes: [],
+    summaries: [],
+    selectedId: undefined,
+    details: undefined
+  }
+  const store = ((selector?: (value: NodeStoreState) => unknown) => (
+    selector ? selector(state) : state
+  )) as ((selector?: (value: NodeStoreState) => unknown) => unknown) & {
+    setState: (partial: Partial<NodeStoreState>) => void
+  }
+  store.setState = (partial) => {
+    state = { ...state, ...partial }
+  }
+
+  return {
+    useNodeStore: store
+  }
+})
+
+vi.mock('../stores/nodes', () => ({
+  useNodeStore
+}))
+
+function mockViewport(matches: boolean): void {
+  const listeners = new Set<(event: MediaQueryListEvent) => void>()
+
+  vi.stubGlobal('window', {
+    ...window,
+    matchMedia: vi.fn().mockImplementation(() => ({
+      matches,
+      media: '(max-width: 768px)',
+      onchange: null,
+      addEventListener: (_type: string, listener: (event: MediaQueryListEvent) => void) => {
+        listeners.add(listener)
+      },
+      removeEventListener: (_type: string, listener: (event: MediaQueryListEvent) => void) => {
+        listeners.delete(listener)
+      },
+      addListener: (listener: (event: MediaQueryListEvent) => void) => {
+        listeners.add(listener)
+      },
+      removeListener: (listener: (event: MediaQueryListEvent) => void) => {
+        listeners.delete(listener)
+      },
+      dispatchEvent: vi.fn()
+    }))
+  })
+}
+
+function makeEvent(id: number, hopStart: number, hopLimit: number): LogEvent {
+  return {
+    id,
+    observed_at: '2026-03-11T12:00:00Z',
+    node_id: '!abc',
+    node_display_name: 'Alpha',
+    event_kind_value: 1,
+    event_kind_title: 'Telemetry',
+    encrypted: false,
+    channel_name: 'mesh',
+    details: {},
+    hop_start: hopStart,
+    hop_limit: hopLimit
+  }
+}
+
+function renderList(items: LogEvent[]): ReturnType<typeof render> {
+  return render(
+    <LogEventList
+      items={items}
+      showNodeColumn={true}
+      onOpenNodeDetails={() => undefined}
+    />
+  )
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+})
+
+describe('LogEventList mobile hop badge', () => {
+  it('applies the log-hop-badge class and signal-quality class to mobile cards', () => {
+    mockViewport(true)
+
+    renderList([
+      makeEvent(1, 5, 4),   // 1 hop traversed -> signal-good
+      makeEvent(2, 5, 2),   // 3 hops traversed -> signal-warn
+      makeEvent(3, 5, 0)    // 5 hops traversed, budget exhausted -> signal-bad + signal-exhausted
+    ])
+
+    const good = screen.getByTitle('Hops traversed: 1')
+    expect(good.textContent).toBe('↓1')
+    expect(good.className).toContain('log-hop-badge')
+    expect(good.className).toContain('signal-good')
+
+    const warn = screen.getByTitle('Hops traversed: 3')
+    expect(warn.textContent).toBe('↓3')
+    expect(warn.className).toContain('log-hop-badge')
+    expect(warn.className).toContain('signal-warn')
+
+    const exhausted = screen.getByTitle('Hops traversed: 5 (hop budget exhausted)')
+    expect(exhausted.textContent).toBe('↓5')
+    expect(exhausted.className).toContain('log-hop-badge')
+    expect(exhausted.className).toContain('signal-bad')
+    expect(exhausted.className).toContain('signal-exhausted')
+  })
+
+  it('omits the badge entirely for events with no hop metadata', () => {
+    mockViewport(true)
+
+    renderList([makeEvent(1, 5, 4), makeEvent(2, 0, 0)])
+
+    // Event 1 has a badge.
+    expect(screen.getByTitle('Hops traversed: 1')).toBeTruthy()
+
+    // Event 2 has no hop metadata at all — only one badge should render
+    // (for event 1). The Hops row for event 2 should not exist.
+    const badges = screen.getAllByText(/↓\d/)
+    expect(badges).toHaveLength(1)
+  })
+})
