@@ -365,4 +365,56 @@ describe('MapPage chat timeline', () => {
     expect(exhaustedBadge.className).toContain('signal-bad')
     expect(exhaustedBadge.className).toContain('signal-exhausted')
   })
+
+  it('hides the hop badge in the chat panel for direct-to-uploader (↓0) packets', () => {
+    useNodeStore.setState({
+      mapNodes: [
+        {
+          node: {
+            node_id: '!alpha',
+            long_name: 'Alpha',
+            last_seen_any_event_at: '2026-03-11T17:58:00Z'
+          }
+        }
+      ]
+    })
+    useChatStore.setState({
+      messages: [
+        {
+          id: 1,
+          event_type: 'message',
+          node_id: '!alpha',
+          node_display_name: 'Alpha',
+          message_text: 'direct',
+          observed_at: '2026-03-11T17:58:00Z',
+          hop_start: 7,
+          hop_limit: 7
+        }
+      ]
+    })
+
+    render(
+      <MapPage
+        center={[0, 0]}
+        zoom={7}
+        clustering={true}
+        precisionCirclesMode="selected"
+        channels={['mesh']}
+        onFocusNodeHandled={() => undefined}
+        onHoverTopologyNode={() => undefined}
+        onLoadMoreChat={() => undefined}
+        onOpenNodeDetails={() => undefined}
+        onViewChange={() => undefined}
+        chatHasMore={false}
+        chatLoadingMore={false}
+        chatLoadMoreError=""
+      />
+    )
+
+    // The classifier returns traversed: 0 for hop_start == hop_limit, but
+    // the chat renderer explicitly hides the ↓0 case to keep the per-line
+    // visual weight down. The log view does show it (see LogEventList tests).
+    expect(screen.queryByText('↓0')).toBeNull()
+    expect(screen.queryByTitle('Hops traversed: 0 (direct transmission to uploader)')).toBeNull()
+  })
 })

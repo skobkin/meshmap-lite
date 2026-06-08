@@ -9,15 +9,17 @@ describe('classifyHops', () => {
     expect(classifyHops(7, undefined).qualityClass).toBe('')
   })
 
-  it('returns no badge when the uploader received the packet without any intermediate relay', () => {
+  it('returns a neutral ↓0 badge for direct transmission to the uploader (no relay)', () => {
     // hop_start == hop_limit means the packet reached the uploader with
     // zero rebroadcasts between originator and uploader — the most common
     // case being a direct LoRa transmission to a node that is itself an
-    // MQTT gateway.
+    // MQTT gateway. The classifier returns traversed: 0 (not undefined)
+    // so the log view can render a ↓0 badge; the chat view hides it
+    // (that decision lives in the renderer, not here).
     const result = classifyHops(7, 7)
-    expect(result.traversed).toBeUndefined()
+    expect(result.traversed).toBe(0)
     expect(result.qualityClass).toBe('')
-    expect(result.title).toContain('no relay between originator and uploader')
+    expect(result.title).toBe('Hops traversed: 0 (direct transmission to uploader)')
     expect(result.exhausted).toBe(false)
   })
 

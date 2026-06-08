@@ -135,4 +135,21 @@ describe('LogEventList mobile hop badge', () => {
     const badges = screen.getAllByText(/↓\d/)
     expect(badges).toHaveLength(1)
   })
+
+  it('renders a neutral ↓0 badge on mobile cards for direct-to-uploader packets', () => {
+    mockViewport(true)
+
+    // hop_start == hop_limit === 7: direct LoRa transmission to the
+    // uploader (no intermediate relay). The log view should still show
+    // a ↓0 badge, just without any signal-good / signal-warn / signal-bad
+    // modifier — the bare .log-hop-badge class carries the muted look.
+    renderList([makeEvent(1, 7, 7)])
+
+    const direct = screen.getByTitle('Hops traversed: 0 (direct transmission to uploader)')
+    expect(direct.textContent).toBe('↓0')
+    expect(direct.className).toContain('log-hop-badge')
+    expect(direct.className).not.toContain('signal-good')
+    expect(direct.className).not.toContain('signal-warn')
+    expect(direct.className).not.toContain('signal-bad')
+  })
 })
