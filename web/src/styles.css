@@ -676,8 +676,8 @@ body {
 }
 
 .signal-exhausted {
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  /* The .signal-bad color is applied alongside this class. Reserved as
+     a hook for future, non-text-style emphasis (icon, glow, etc.). */
 }
 
 [data-theme='dark'] .signal-good,
