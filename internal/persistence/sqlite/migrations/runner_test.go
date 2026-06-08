@@ -734,3 +734,59 @@ func indexExists(ctx context.Context, db *sql.DB, name string) (bool, error) {
 
 	return count > 0, nil
 }
+
+func TestApply_AddsHopTrackingColumns(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite", "file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	_, err = db.ExecContext(ctx, `
+PRAGMA user_version = 14;
+CREATE TABLE chat_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_type TEXT NOT NULL,
+  message_text TEXT,
+  message_time TEXT NOT NULL,
+  observed_at TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE TABLE log_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  observed_at TEXT NOT NULL,
+  event_kind INTEGER NOT NULL,
+  encrypted INTEGER NOT NULL
+);
+`)
+	if err != nil {
+		t.Fatalf("seed schema: %v", err)
+	}
+
+	if err := Apply(ctx, db, nil); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	for _, tc := range []struct {
+		table  string
+		column string
+	}{
+		{"chat_events", "hop_start"},
+		{"chat_events", "hop_limit"},
+		{"log_events", "hop_start"},
+		{"log_events", "hop_limit"},
+	} {
+		hasColumn, err := tableHasColumn(ctx, db, tc.table, tc.column)
+		if err != nil {
+			t.Fatalf("check column %s.%s: %v", tc.table, tc.column, err)
+		}
+		if !hasColumn {
+			t.Fatalf("expected column %s.%s", tc.table, tc.column)
+		}
+	}
+
+	if err := Apply(ctx, db, nil); err != nil {
+		t.Fatalf("re-apply migrations on already-current schema: %v", err)
+	}
+}

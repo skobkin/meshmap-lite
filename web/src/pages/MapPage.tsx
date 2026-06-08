@@ -6,6 +6,7 @@ import { ResolvedNodeData } from '../components/ResolvedNodeData'
 import { LeafletMapAdapter } from '../maps/leafletMap'
 import { useChatStore } from '../stores/chat'
 import { useNodeStore } from '../stores/nodes'
+import { classifyHops } from '../utils/signal'
 import { dayKey, dayLabel, hhmm } from '../utils/time'
 import { TOPOLOGY_COLOR, sortedNeighbors } from '../utils/topology'
 
@@ -103,6 +104,8 @@ function renderChatTimeline(messages: ChatEvent[], { onOpenNodeDetails, onSelect
     const showUploader = typeof m.mqtt_uploader_node_id === 'string' &&
       m.mqtt_uploader_node_id.length > 0 &&
       m.mqtt_uploader_node_id !== m.node_id
+    const hopsInfo = classifyHops(m.hop_start, m.hop_limit)
+    const showHops = hopsInfo.traversed !== undefined && hopsInfo.traversed > 0
 
     return (
       <Fragment key={m.id}>
@@ -136,6 +139,14 @@ function renderChatTimeline(messages: ChatEvent[], { onOpenNodeDetails, onSelect
               onOpenNodeDetails={onOpenNodeDetails}
             />
           )}{' '}
+          {showHops && (
+            <span
+              className={`chat-hop-badge ${hopsInfo.qualityClass}`.trim()}
+              title={hopsInfo.title}
+            >
+              ↓{hopsInfo.traversed}
+            </span>
+          )}
           {m.event_type === 'system' ? systemText(m.system_code) : (m.message_text ?? '')}
         </p>
       </Fragment>

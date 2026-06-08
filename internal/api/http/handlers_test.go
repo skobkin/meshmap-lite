@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -329,6 +330,102 @@ func TestInfoHandlerReturnsMarkdown(t *testing.T) {
 	}
 	if payload.Format != "markdown" || payload.Content != "# Hello" {
 		t.Fatalf("unexpected info payload: %+v", payload)
+	}
+}
+
+func TestChatMessagesHandlerExposesHopMetadata(t *testing.T) {
+	hopStart := uint32(7)
+	hopLimit := uint32(4)
+	store := &testkit.FakeStore{
+		ListChatEventsFn: func(_ context.Context, _ repo.ChatEventQuery) ([]domain.ChatEvent, error) {
+			return []domain.ChatEvent{{
+				ID:          1,
+				EventType:   domain.ChatEventMessage,
+				ObservedAt:  time.Unix(1772296589, 0).UTC(),
+				MessageText: "relayed",
+				HopStart:    &hopStart,
+				HopLimit:    &hopLimit,
+			}}, nil
+		},
+	}
+	srv := New(Config{Web: config.WebConfig{Chat: config.ChatConfig{DefaultChannel: "LongFast"}}}, store, nil, nil, nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/chat/messages", nil)
+	rec := httptest.NewRecorder()
+
+	srv.chatMessages(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+
+	body := rec.Body.Bytes()
+	if len(body) == 0 || body[0] != '[' {
+		idx := bytes.IndexByte(body, '[')
+		if idx < 0 {
+			t.Fatalf("expected array in response, got: %s", body)
+		}
+		body = body[idx:]
+	}
+	var arr []map[string]any
+	if err := json.Unmarshal(body, &arr); err != nil {
+		t.Fatalf("decode array response: %v", err)
+	}
+	if len(arr) != 1 {
+		t.Fatalf("expected 1 chat event, got %d", len(arr))
+	}
+	if got, ok := arr[0]["hop_start"].(float64); !ok || got != 7 {
+		t.Fatalf("expected hop_start=7, got %#v", arr[0]["hop_start"])
+	}
+	if got, ok := arr[0]["hop_limit"].(float64); !ok || got != 4 {
+		t.Fatalf("expected hop_limit=4, got %#v", arr[0]["hop_limit"])
+	}
+}
+
+func TestLogEventsHandlerExposesHopMetadata(t *testing.T) {
+	hopStart := uint32(5)
+	hopLimit := uint32(2)
+	store := &testkit.FakeStore{
+		ListLogEventsFn: func(_ context.Context, _ domain.LogEventQuery) ([]domain.LogEventView, error) {
+			return []domain.LogEventView{{
+				ID:             1,
+				ObservedAt:     time.Unix(1772296589, 0).UTC(),
+				EventKindValue: domain.LogEventKindTelemetryValue,
+				EventKindTitle: domain.LogEventKindTitle(domain.LogEventKindTelemetryValue),
+				Encrypted:      false,
+				HopStart:       &hopStart,
+				HopLimit:       &hopLimit,
+			}}, nil
+		},
+	}
+	srv := New(Config{Web: config.WebConfig{Log: config.LogConfig{PageSizeDefault: 100}}}, store, nil, nil, nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/log/events", nil)
+	rec := httptest.NewRecorder()
+
+	srv.logEvents(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	body := rec.Body.Bytes()
+	if body[0] != '[' {
+		idx := bytes.IndexByte(body, '[')
+		if idx < 0 {
+			t.Fatalf("expected array in response, got: %s", body)
+		}
+		body = body[idx:]
+	}
+	var arr []map[string]any
+	if err := json.Unmarshal(body, &arr); err != nil {
+		t.Fatalf("decode array response: %v", err)
+	}
+	if len(arr) != 1 {
+		t.Fatalf("expected 1 log event, got %d", len(arr))
+	}
+	if got, ok := arr[0]["hop_start"].(float64); !ok || got != 5 {
+		t.Fatalf("expected hop_start=5, got %#v", arr[0]["hop_start"])
+	}
+	if got, ok := arr[0]["hop_limit"].(float64); !ok || got != 2 {
+		t.Fatalf("expected hop_limit=2, got %#v", arr[0]["hop_limit"])
 	}
 }
 

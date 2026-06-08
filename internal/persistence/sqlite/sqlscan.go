@@ -192,7 +192,8 @@ func scanMapNodeWithTelemetry(rows *sql.Rows) (domain.Node, *domain.NodePosition
 func scanChat(rows *sql.Rows) (domain.ChatEvent, error) {
 	var e domain.ChatEvent
 	var eventType, channel, nodeID, longName, shortName, messageText, systemCode, msgTime, reported, observed, packetID, uploaderID, uploaderLong, uploaderShort, created sql.NullString
-	if err := rows.Scan(&e.ID, &eventType, &channel, &nodeID, &longName, &shortName, &messageText, &systemCode, &msgTime, &reported, &observed, &packetID, &uploaderID, &uploaderLong, &uploaderShort, &created); err != nil {
+	var hopStart, hopLimit sql.NullInt64
+	if err := rows.Scan(&e.ID, &eventType, &channel, &nodeID, &longName, &shortName, &messageText, &systemCode, &msgTime, &reported, &observed, &packetID, &uploaderID, &hopStart, &hopLimit, &uploaderLong, &uploaderShort, &created); err != nil {
 		return e, err
 	}
 	e.EventType = domain.ChatEventType(eventType.String)
@@ -214,6 +215,12 @@ func scanChat(rows *sql.Rows) (domain.ChatEvent, error) {
 			e.PacketID = &v
 		}
 	}
+	if hopStart.Valid {
+		e.HopStart = checkedUint32Ptr(hopStart.Int64)
+	}
+	if hopLimit.Valid {
+		e.HopLimit = checkedUint32Ptr(hopLimit.Int64)
+	}
 
 	return e, nil
 }
@@ -221,8 +228,9 @@ func scanChat(rows *sql.Rows) (domain.ChatEvent, error) {
 func scanLogEvent(rows *sql.Rows) (domain.LogEventView, error) {
 	var out domain.LogEventView
 	var observed, nodeID, channel, longName, shortName, uploaderID, uploaderLong, uploaderShort, detailsJSON sql.NullString
+	var hopStart, hopLimit sql.NullInt64
 	var kind, encrypted int
-	if err := rows.Scan(&out.ID, &observed, &nodeID, &kind, &encrypted, &channel, &longName, &shortName, &uploaderID, &uploaderLong, &uploaderShort, &detailsJSON); err != nil {
+	if err := rows.Scan(&out.ID, &observed, &nodeID, &kind, &encrypted, &channel, &longName, &shortName, &uploaderID, &uploaderLong, &uploaderShort, &detailsJSON, &hopStart, &hopLimit); err != nil {
 		return out, err
 	}
 	out.ObservedAt = mustTime(observed)
@@ -246,6 +254,12 @@ func scanLogEvent(rows *sql.Rows) (domain.LogEventView, error) {
 		if err := json.Unmarshal([]byte(detailsJSON.String), &details); err == nil && len(details) > 0 {
 			out.Details = details
 		}
+	}
+	if hopStart.Valid {
+		out.HopStart = checkedUint32Ptr(hopStart.Int64)
+	}
+	if hopLimit.Valid {
+		out.HopLimit = checkedUint32Ptr(hopLimit.Int64)
 	}
 
 	return out, nil
@@ -315,6 +329,16 @@ func checkedUint32FromInt64(v int64) (uint32, bool) {
 
 	//nolint:gosec // Safe: value is range-checked to fit into uint32 above.
 	return uint32(v), true
+}
+
+func checkedUint32Ptr(v int64) *uint32 {
+	if v < 0 || v > math.MaxUint32 {
+		return nil
+	}
+	//nolint:gosec // Safe: value is range-checked to fit into uint32 above.
+	x := uint32(v)
+
+	return &x
 }
 
 func mustTime(v sql.NullString) time.Time {

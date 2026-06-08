@@ -661,6 +661,77 @@ body {
   stroke-linejoin: round;
 }
 
+.chat-hop-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+  white-space: nowrap;
+  margin: 0 0.2rem;
+  vertical-align: middle;
+  background: color-mix(in srgb, var(--pico-muted-color) 14%, transparent);
+  color: var(--pico-color);
+}
+
+.log-hop-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--pico-muted-color) 14%, transparent);
+  color: var(--pico-color);
+}
+
+/*
+ * Universal signal-quality classes. Reusable for hop counts today and
+ * for RSSI / SNR / link quality tomorrow without renaming.
+ *
+ *  - .signal-good  green  (close to source / strong link)
+ *  - .signal-warn  yellow (mid range, still acceptable)
+ *  - .signal-bad   red    (weak link, near failure)
+ *  - .signal-exhausted    extra modifier for the hop-budget-exhausted case
+ */
+.signal-good {
+  background: color-mix(in srgb, #2fb344 22%, transparent);
+  color: #1f6b2c;
+}
+
+.signal-warn {
+  background: color-mix(in srgb, #f59f00 26%, transparent);
+  color: #8a5a00;
+}
+
+.signal-bad {
+  background: color-mix(in srgb, #fa5252 26%, transparent);
+  color: #a51d1d;
+}
+
+.signal-exhausted {
+  /* The .signal-bad color is applied alongside this class. Reserved as
+     a hook for future, non-text-style emphasis (icon, glow, etc.). */
+}
+
+[data-theme='dark'] .signal-good,
+[data-theme='dark'] .signal-warn,
+[data-theme='dark'] .signal-bad {
+  color: #fff;
+}
+
+@media (prefers-color-scheme: dark) {
+  .signal-good,
+  .signal-warn,
+  .signal-bad {
+    color: #fff;
+  }
+}
+
 .map-popup-title {
   margin-bottom: 0.2rem;
 }

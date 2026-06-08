@@ -303,4 +303,136 @@ describe('MapPage chat timeline', () => {
 
     expect(screen.getByText('MQTT direct')).toBeTruthy()
   })
+
+  it('renders hop badges with the correct signal-quality class', () => {
+    useNodeStore.setState({
+      mapNodes: [
+        {
+          node: {
+            node_id: '!alpha',
+            long_name: 'Alpha',
+            last_seen_any_event_at: '2026-03-11T17:58:00Z'
+          }
+        }
+      ]
+    })
+    useChatStore.setState({
+      messages: [
+        {
+          id: 1,
+          event_type: 'message',
+          node_id: '!alpha',
+          node_display_name: 'Alpha',
+          message_text: 'close',
+          observed_at: '2026-03-11T17:58:00Z',
+          hop_start: 5,
+          hop_limit: 4
+        },
+        {
+          id: 2,
+          event_type: 'message',
+          node_id: '!alpha',
+          node_display_name: 'Alpha',
+          message_text: 'mid',
+          observed_at: '2026-03-11T17:58:01Z',
+          hop_start: 5,
+          hop_limit: 2
+        },
+        {
+          id: 3,
+          event_type: 'message',
+          node_id: '!alpha',
+          node_display_name: 'Alpha',
+          message_text: 'exhausted',
+          observed_at: '2026-03-11T17:58:02Z',
+          hop_start: 5,
+          hop_limit: 0
+        }
+      ]
+    })
+
+    render(
+      <MapPage
+        center={[0, 0]}
+        zoom={7}
+        clustering={true}
+        precisionCirclesMode="selected"
+        channels={['mesh']}
+        onFocusNodeHandled={() => undefined}
+        onHoverTopologyNode={() => undefined}
+        onLoadMoreChat={() => undefined}
+        onOpenNodeDetails={() => undefined}
+        onViewChange={() => undefined}
+        chatHasMore={false}
+        chatLoadingMore={false}
+        chatLoadMoreError=""
+      />
+    )
+
+    const goodBadge = screen.getByTitle('Hops traversed: 1')
+    expect(goodBadge.textContent).toBe('↓1')
+    expect(goodBadge.className).toContain('chat-hop-badge')
+    expect(goodBadge.className).toContain('signal-good')
+
+    const warnBadge = screen.getByTitle('Hops traversed: 3')
+    expect(warnBadge.textContent).toBe('↓3')
+    expect(warnBadge.className).toContain('signal-warn')
+
+    const exhaustedBadge = screen.getByTitle('Hops traversed: 5 (hop budget exhausted)')
+    expect(exhaustedBadge.textContent).toBe('↓5')
+    expect(exhaustedBadge.className).toContain('signal-bad')
+    expect(exhaustedBadge.className).toContain('signal-exhausted')
+  })
+
+  it('hides the hop badge in the chat panel for direct-to-uploader (↓0) packets', () => {
+    useNodeStore.setState({
+      mapNodes: [
+        {
+          node: {
+            node_id: '!alpha',
+            long_name: 'Alpha',
+            last_seen_any_event_at: '2026-03-11T17:58:00Z'
+          }
+        }
+      ]
+    })
+    useChatStore.setState({
+      messages: [
+        {
+          id: 1,
+          event_type: 'message',
+          node_id: '!alpha',
+          node_display_name: 'Alpha',
+          message_text: 'direct',
+          observed_at: '2026-03-11T17:58:00Z',
+          hop_start: 7,
+          hop_limit: 7
+        }
+      ]
+    })
+
+    render(
+      <MapPage
+        center={[0, 0]}
+        zoom={7}
+        clustering={true}
+        precisionCirclesMode="selected"
+        channels={['mesh']}
+        onFocusNodeHandled={() => undefined}
+        onHoverTopologyNode={() => undefined}
+        onLoadMoreChat={() => undefined}
+        onOpenNodeDetails={() => undefined}
+        onViewChange={() => undefined}
+        chatHasMore={false}
+        chatLoadingMore={false}
+        chatLoadMoreError=""
+      />
+    )
+
+    // The classifier returns traversed: 0 for hop_start == hop_limit, but
+    // the chat renderer explicitly hides the ↓0 case to keep the per-line
+    // visual weight down. The log view does show it (see LogEventList tests).
+    expect(screen.queryByText('↓0')).toBeNull()
+    expect(screen.queryByTitle('Hops traversed: 0 (direct transmission to uploader)')).toBeNull()
+  })
 })

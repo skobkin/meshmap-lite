@@ -284,6 +284,8 @@ func (s *Service) persistLogEvent(ctx context.Context, logEvent domain.LogEvent)
 		EventKindTitle:          domain.LogEventKindTitle(logEvent.EventKind),
 		Encrypted:               logEvent.Encrypted,
 		Details:                 logEvent.Details,
+		HopStart:                logEvent.HopStart,
+		HopLimit:                logEvent.HopLimit,
 	}
 	if logEvent.Channel != "" {
 		ch := logEvent.Channel
@@ -404,6 +406,17 @@ func (s *Service) logEventFromParsed(evt meshtastic.ParsedEvent, channel, mqttUp
 		MQTTUploaderNodeID: mqttUploaderNodeID,
 		Encrypted:          evt.Encrypted,
 		Channel:            channel,
+	}
+	// HopStart is the "metadata is present" signal: when it's set, the packet
+	// carried hop accounting. HopLimit must be copied unconditionally in that
+	// case — 0 is a valid value meaning the packet used the last of its hop
+	// budget (signal-exhausted), and dropping it would hide the most
+	// informative hop state.
+	if evt.HopStart > 0 {
+		start := evt.HopStart
+		e.HopStart = &start
+		limit := evt.HopLimit
+		e.HopLimit = &limit
 	}
 	switch evt.Kind {
 	case meshtastic.ParsedMapReport:
@@ -991,6 +1004,15 @@ func (s *Service) upsertNodeEvidence(ctx context.Context, evidence nodeEvidence,
 
 func (s *Service) handleChat(ctx context.Context, evt meshtastic.ParsedEvent, channel, mqttUploaderNodeID string, now time.Time) bool {
 	ce := domain.ChatEvent{EventType: domain.ChatEventMessage, ChannelName: channel, NodeID: evt.NodeID, MQTTUploaderNodeID: mqttUploaderNodeID, MessageText: evt.Chat.Text, MessageTime: now, ReportedAt: evt.Timestamp, ObservedAt: now, CreatedAt: now}
+	// See logEventFromParsed for why HopLimit must be preserved verbatim
+	// when HopStart is non-zero (the hop-limit-exhausted case is the most
+	// informative hop state and must not be silently dropped).
+	if evt.HopStart > 0 {
+		start := evt.HopStart
+		ce.HopStart = &start
+		limit := evt.HopLimit
+		ce.HopLimit = &limit
+	}
 	if evt.PacketID > 0 {
 		v := evt.PacketID
 		ce.PacketID = &v
