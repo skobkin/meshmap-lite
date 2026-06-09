@@ -106,25 +106,25 @@ describe('LogEventList mobile hop badge', () => {
     mockViewport(true)
 
     renderList([
-      makeEvent(1, 5, 4),   // 1 hop traversed -> signal-good
-      makeEvent(2, 5, 2),   // 3 hops traversed -> signal-warn
-      makeEvent(3, 5, 0)    // 5 hops traversed, budget exhausted -> signal-bad + signal-exhausted
+      makeEvent(1, 5, 4),   // 1 hop traversed -> signal-strong
+      makeEvent(2, 5, 2),   // 3 hops traversed -> signal-good
+      makeEvent(3, 5, 0)    // 5 hops traversed, budget exhausted -> signal-poor + signal-exhausted
     ])
 
-    const good = screen.getByTitle('Hops traversed: 1')
-    expect(good.textContent).toBe('↓1')
+    const strong = screen.getByTitle('Hops traversed: 1')
+    expect(strong.textContent).toBe('↓1')
+    expect(strong.className).toContain('log-hop-badge')
+    expect(strong.className).toContain('signal-strong')
+
+    const good = screen.getByTitle('Hops traversed: 3')
+    expect(good.textContent).toBe('↓3')
     expect(good.className).toContain('log-hop-badge')
     expect(good.className).toContain('signal-good')
-
-    const warn = screen.getByTitle('Hops traversed: 3')
-    expect(warn.textContent).toBe('↓3')
-    expect(warn.className).toContain('log-hop-badge')
-    expect(warn.className).toContain('signal-warn')
 
     const exhausted = screen.getByTitle('Hops traversed: 5 (hop budget exhausted)')
     expect(exhausted.textContent).toBe('↓5')
     expect(exhausted.className).toContain('log-hop-badge')
-    expect(exhausted.className).toContain('signal-bad')
+    expect(exhausted.className).toContain('signal-poor')
     expect(exhausted.className).toContain('signal-exhausted')
   })
 
@@ -157,9 +157,10 @@ describe('LogEventList mobile hop badge', () => {
     const direct = screen.getByTitle('Hops traversed: 0 (direct transmission to uploader)')
     expect(direct.textContent).toBe('↓0')
     expect(direct.className).toContain('log-hop-badge')
+    expect(direct.className).not.toContain('signal-strong')
     expect(direct.className).not.toContain('signal-good')
-    expect(direct.className).not.toContain('signal-warn')
-    expect(direct.className).not.toContain('signal-bad')
+    expect(direct.className).not.toContain('signal-weak')
+    expect(direct.className).not.toContain('signal-poor')
   })
 
   it('omits the badge when originator and uploader are the same node (self-upload)', () => {

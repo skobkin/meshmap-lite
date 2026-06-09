@@ -2,14 +2,18 @@ import { relativeTime } from './time'
 
 import type { NodeDetails, NodeNeighbor } from '../api/types'
 
+// Tier names go worst -> best as: poor, weak, good, strong.
+// "Poor" stays the floor — a real but barely-working link, never absence.
+// "No SNR" / "Inferred" / "MQTT direct" are 5th-state buckets (no data),
+// not a degraded tier.
 export const TOPOLOGY_COLOR = {
   inferred: '#94a3b8',
   mqttDirect: '#38bdf8',
   noSNR: '#2563eb',
-  bad: '#991b1b',
-  poor: '#dc2626',
-  fair: '#eab308',
-  good: '#16a34a'
+  poor: '#991b1b',
+  weak: '#dc2626',
+  good: '#eab308',
+  strong: '#16a34a'
 } as const
 
 // TopologyColorInput is the minimal structural shape that drives the colour
@@ -34,16 +38,16 @@ export function topologyColor(input: TopologyColorInput): string {
     return TOPOLOGY_COLOR.noSNR
   }
   if (input.snr < -15) {
-    return TOPOLOGY_COLOR.bad
-  }
-  if (input.snr < -7) {
     return TOPOLOGY_COLOR.poor
   }
+  if (input.snr < -7) {
+    return TOPOLOGY_COLOR.weak
+  }
   if (input.snr < 10) {
-    return TOPOLOGY_COLOR.fair
+    return TOPOLOGY_COLOR.good
   }
 
-  return TOPOLOGY_COLOR.good
+  return TOPOLOGY_COLOR.strong
 }
 
 export function topologySignalLabel(neighbor: NodeNeighbor): string {

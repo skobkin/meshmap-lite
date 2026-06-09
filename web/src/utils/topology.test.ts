@@ -42,12 +42,13 @@ describe('topology helpers', () => {
     expect(neighbourColor(neighbor({ evidence_kind: 'mqtt_direct' }))).toBe('#38bdf8')
     expect(neighbourColor(neighbor({ evidence_kind: 'mqtt_direct', snr: 12 }))).toBe('#16a34a')
     expect(neighbourColor(neighbor())).toBe('#2563eb')
-    // bad band: snr < -15
+    // poor band: snr < -15
     expect(neighbourColor(neighbor({ snr: -21.2 }))).toBe('#991b1b')
-    // poor band: -15 <= snr < -7
+    // weak band: -15 <= snr < -7
     expect(neighbourColor(neighbor({ snr: -10 }))).toBe('#dc2626')
-    // fair band: -7 <= snr < 10
+    // good band: -7 <= snr < 10
     expect(neighbourColor(neighbor({ snr: 5 }))).toBe('#eab308')
+    // strong band: snr >= 10
     expect(neighbourColor(neighbor({ snr: 12 }))).toBe('#16a34a')
 
     expect(topologySignalLabel(neighbor({ evidence_kind: 'inferred' }))).toBe('Inferred')
@@ -97,12 +98,13 @@ describe('topology helpers', () => {
     expect(edgeColor({ ...edge, inferred: true })).toBe('#94a3b8')
     expect(edgeColor({ ...edge, source_kind: 'mqtt_direct' })).toBe('#38bdf8')
     expect(edgeColor(edge)).toBe('#2563eb')
-    // bad band: snr < -15
+    // poor band: snr < -15
     expect(edgeColor({ ...edge, snr: -17.5 })).toBe('#991b1b')
-    // poor band: -15 <= snr < -7
+    // weak band: -15 <= snr < -7
     expect(edgeColor({ ...edge, snr: -10 })).toBe('#dc2626')
-    // fair band: -7 <= snr < 10
+    // good band: -7 <= snr < 10
     expect(edgeColor({ ...edge, snr: 5 })).toBe('#eab308')
+    // strong band: snr >= 10
     expect(edgeColor({ ...edge, snr: 12 })).toBe('#16a34a')
   })
 })

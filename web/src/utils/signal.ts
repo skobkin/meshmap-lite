@@ -1,9 +1,9 @@
 // Shared helpers for rendering a number of "hops traversed" with a quality
-// classification that maps to the universal `.signal-good` / `.signal-warn` /
-// `.signal-bad` CSS classes (reusable for RSSI / SNR etc. later without
-// renaming).
+// classification that maps to the universal `.signal-strong` / `.signal-good` /
+// `.signal-weak` / `.signal-poor` CSS classes (reusable for RSSI / SNR etc.
+// later without renaming).
 
-export type SignalQuality = 'good' | 'warn' | 'bad' | 'exhausted' | 'none'
+export type SignalQuality = 'strong' | 'good' | 'weak' | 'poor' | 'exhausted' | 'none'
 
 export interface HopsClassification {
   /** Number of hops the packet actually traversed, or undefined when unknown. */
@@ -28,12 +28,13 @@ export interface HopsClassification {
  * show a `↓0` badge or hide it; today the chat panel hides it and the log
  * page shows it.
  *
- *  - 1-2 hops:                 good (well within the configured budget)
- *  - 3 hops up to (hop_start-2): warn (mid-distance, expected relay behaviour)
- *  - last 2 hops of the budget:  bad  (one more hop and the packet would die)
- *  - hop_limit=0 with hop_start>0: "exhausted" — the packet used the very last
- *    of its hop budget; always rendered with the "bad" colour but with a
- *    distinct CSS modifier so it can be styled differently in the future.
+ *  - 1-2 hops:                 strong (well within the configured budget)
+ *  - 3 hops up to (hop_start-2): good  (mid-distance, expected relay behaviour)
+ *  - last 2 hops of the budget:  weak  (one more hop and the packet would die)
+ *  - hop_limit=0 with hop_start>0: "poor" + "exhausted" — the packet used the
+ *    very last of its hop budget; always rendered with the "poor" colour but
+ *    with a distinct CSS modifier so it can be styled differently in the
+ *    future.
  *  - hop_start=0, hop_limit=0, or hop_start<=hop_limit: direct transmission
  *    to the uploader (no intermediate LoRa rebroadcast). `traversed` is 0
  *    with no quality-class modifier; whether the renderer shows a `↓0` badge
@@ -72,19 +73,19 @@ export function classifyHops(hopStart: number | undefined, hopLimit: number | un
   if (hopLimit === 0) {
     return {
       traversed,
-      qualityClass: 'signal-bad signal-exhausted',
+      qualityClass: 'signal-poor signal-exhausted',
       title: `Hops traversed: ${traversed} (hop budget exhausted)`,
       exhausted: true,
     }
   }
 
-  let quality: SignalQuality = 'warn'
+  let quality: SignalQuality = 'good'
   if (traversed <= 2) {
-    quality = 'good'
+    quality = 'strong'
   } else if (hopLimit <= 1) {
     // Within the last hop of the configured budget — the packet is one
     // relay away from being dropped on the next transmission.
-    quality = 'bad'
+    quality = 'weak'
   }
 
   return {

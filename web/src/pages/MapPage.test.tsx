@@ -370,18 +370,18 @@ describe('MapPage chat timeline', () => {
       />
     )
 
-    const goodBadge = screen.getByTitle('Hops traversed: 1')
-    expect(goodBadge.textContent).toBe('↓1')
-    expect(goodBadge.className).toContain('chat-hop-badge')
-    expect(goodBadge.className).toContain('signal-good')
+    const strongBadge = screen.getByTitle('Hops traversed: 1')
+    expect(strongBadge.textContent).toBe('↓1')
+    expect(strongBadge.className).toContain('chat-hop-badge')
+    expect(strongBadge.className).toContain('signal-strong')
 
-    const warnBadge = screen.getByTitle('Hops traversed: 3')
-    expect(warnBadge.textContent).toBe('↓3')
-    expect(warnBadge.className).toContain('signal-warn')
+    const goodBadge = screen.getByTitle('Hops traversed: 3')
+    expect(goodBadge.textContent).toBe('↓3')
+    expect(goodBadge.className).toContain('signal-good')
 
     const exhaustedBadge = screen.getByTitle('Hops traversed: 5 (hop budget exhausted)')
     expect(exhaustedBadge.textContent).toBe('↓5')
-    expect(exhaustedBadge.className).toContain('signal-bad')
+    expect(exhaustedBadge.className).toContain('signal-poor')
     expect(exhaustedBadge.className).toContain('signal-exhausted')
   })
 

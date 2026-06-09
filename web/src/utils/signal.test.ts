@@ -23,25 +23,25 @@ describe('classifyHops', () => {
     expect(result.exhausted).toBe(false)
   })
 
-  it('classifies 1-2 hops as good', () => {
-    expect(classifyHops(7, 6).qualityClass).toBe('signal-good')
-    expect(classifyHops(7, 5).qualityClass).toBe('signal-good')
+  it('classifies 1-2 hops as strong', () => {
+    expect(classifyHops(7, 6).qualityClass).toBe('signal-strong')
+    expect(classifyHops(7, 5).qualityClass).toBe('signal-strong')
     expect(classifyHops(7, 5).traversed).toBe(2)
   })
 
-  it('classifies mid-range hops as warn', () => {
-    expect(classifyHops(7, 4).qualityClass).toBe('signal-warn')
+  it('classifies mid-range hops as good', () => {
+    expect(classifyHops(7, 4).qualityClass).toBe('signal-good')
     expect(classifyHops(7, 4).traversed).toBe(3)
   })
 
-  it('classifies the last hop of the budget as bad', () => {
-    expect(classifyHops(7, 1).qualityClass).toBe('signal-bad')
+  it('classifies the last hop of the budget as weak', () => {
+    expect(classifyHops(7, 1).qualityClass).toBe('signal-weak')
   })
 
-  it('marks the hop_limit=0 case as exhausted and bad', () => {
+  it('marks the hop_limit=0 case as exhausted and poor', () => {
     const result = classifyHops(7, 0)
     expect(result.exhausted).toBe(true)
-    expect(result.qualityClass).toContain('signal-bad')
+    expect(result.qualityClass).toContain('signal-poor')
     expect(result.qualityClass).toContain('signal-exhausted')
     expect(result.traversed).toBe(7)
     expect(result.title).toContain('exhausted')
