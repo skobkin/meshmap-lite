@@ -575,6 +575,14 @@ body {
   gap: 0.4rem;
   margin: 0;
   cursor: pointer;
+  color: var(--pico-color);
+  font-size: 0.95rem;
+}
+
+.map-topology-toggle-icon {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
 }
 
 .map-topology-toggle-label input[type="checkbox"] {

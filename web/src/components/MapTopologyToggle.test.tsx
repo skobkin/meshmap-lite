@@ -21,7 +21,7 @@ describe('MapTopologyToggle', () => {
     )
 
     expect(screen.getByLabelText('Show all topology')).toBeTruthy()
-    expect(screen.getByText('🕸️')).toBeTruthy()
+    expect(screen.getByLabelText('Show all topology').closest('label')?.querySelector('.map-topology-toggle-icon')).toBeTruthy()
     expect(screen.queryByText(/Capped at/)).toBeNull()
 
     await user.click(screen.getByLabelText('Show all topology'))
@@ -39,7 +39,7 @@ describe('MapTopologyToggle', () => {
       />
     )
 
-    expect(screen.getByText('🕸️ (123+)')).toBeTruthy()
+    expect(screen.getByText(/\(123\+\)/)).toBeTruthy()
     expect(screen.getByText('Capped at 123+')).toBeTruthy()
   })
 

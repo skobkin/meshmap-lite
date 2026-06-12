@@ -9,9 +9,7 @@ interface Props {
 }
 
 export function MapTopologyToggle({ enabled, loading, count, truncated, onToggle }: Props): JSX.Element {
-  const label = enabled
-    ? (typeof count === 'number' ? `🕸️ (${count}${truncated ? '+' : ''})` : '🕸️')
-    : '🕸️'
+  const countText = enabled && typeof count === 'number' ? ` (${count}${truncated ? '+' : ''})` : ''
 
   const hint = loading
     ? 'Loading topology…'
@@ -27,7 +25,11 @@ export function MapTopologyToggle({ enabled, loading, count, truncated, onToggle
           onChange={(e) => onToggle((e.currentTarget).checked)}
           aria-label="Show all topology"
         />
-        <span aria-hidden={hint ? 'false' : 'true'}>{label}</span>
+        <svg className="map-topology-toggle-icon" aria-hidden="true" viewBox="0 0 16 16" focusable="false">
+          <circle cx="8" cy="8" r="1.2" fill="currentColor" />
+          <path d="M8 1.5v5.3M8 9.2v5.3M1.5 8h5.3M9.2 8h5.3M3.4 3.4l3.7 3.7M8.9 8.9l3.7 3.7M3.4 12.6l3.7-3.7M8.9 7.1l3.7-3.7" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="none" />
+        </svg>
+        {countText && <span aria-hidden={hint ? 'false' : 'true'}>{countText}</span>}
       </label>
       {hint && (
         <span className="map-topology-toggle-hint" role="status">{hint}</span>
