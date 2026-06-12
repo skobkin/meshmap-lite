@@ -158,7 +158,12 @@ export class LeafletMapAdapter {
       } else {
         const marker = L.marker(latlng, { icon: markerIcon }).bindPopup(html, {
           autoPan: false,
-          closeButton: false
+          closeButton: false,
+          // Class lets styles.css target the Leaflet popup container with
+          // theme-aware overrides (dark mode in particular — Leaflet renders
+          // outside the React tree, so data-theme on <html> doesn't reach it
+          // without an explicit class on the popup element).
+          className: 'map-popup'
         })
         marker.on('popupopen', () => {
           const popupEl = marker.getPopup()?.getElement()
