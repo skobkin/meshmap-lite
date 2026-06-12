@@ -585,6 +585,10 @@ body {
   flex: none;
 }
 
+.map-topology-toggle-count-hidden {
+  visibility: hidden;
+}
+
 .map-topology-toggle-label input[type="checkbox"] {
   margin: 0;
   appearance: none;

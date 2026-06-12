@@ -57,4 +57,19 @@ describe('MapTopologyToggle', () => {
     const checkbox = screen.getByLabelText<HTMLInputElement>('Show all topology')
     expect(checkbox.disabled).toBe(true)
   })
+
+  it('reserves space for the count text when disabled so the block does not resize', () => {
+    const { container } = render(
+      <MapTopologyToggle
+        enabled={false}
+        loading={false}
+        truncated={false}
+        onToggle={() => undefined}
+      />
+    )
+
+    const count = container.querySelector('.map-topology-toggle-count')
+    expect(count).toBeTruthy()
+    expect(count?.className).toContain('map-topology-toggle-count-hidden')
+  })
 })
