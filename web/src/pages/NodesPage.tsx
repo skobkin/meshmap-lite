@@ -3,6 +3,7 @@ import { Fragment } from 'preact'
 import { LogEventList } from '../components/LogEventList'
 import { ResolvedNodeData } from '../components/ResolvedNodeData'
 import { defaultMarkerDataUrl } from '../maps/markerIcons'
+import { formatBattery } from '../utils/battery'
 import { relativeTime } from '../utils/time'
 import { neighborTimeLabel, sortedNeighbors, topologyEvidenceLabel, topologySignalLabel } from '../utils/topology'
 
@@ -150,8 +151,16 @@ function detailSections(details: NodeDetails): DetailSection[] {
     {
       title: 'Telemetry',
       rows: compactRows([
-        row('Voltage', displayValue(details.telemetry?.power.voltage)),
-        row('Battery level', displayValue(details.telemetry?.power.battery_level)),
+        row('Power', (() => {
+          const { voltage, level, qualityClass, hasData } = formatBattery(details.telemetry?.power)
+          if (!hasData) {return null}
+
+          return (
+            <span className={qualityClass || undefined}>
+              🔋 {level ?? ''}{level && voltage ? ' · ' : ''}{voltage ?? ''}
+            </span>
+          )
+        })()),
         row('Temperature (C)', displayValue(details.telemetry?.environment.temperature_c)),
         row('Humidity', displayValue(details.telemetry?.environment.humidity)),
         row('Pressure (hPa)', displayValue(details.telemetry?.environment.pressure_hpa)),

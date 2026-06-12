@@ -177,8 +177,10 @@ describe('NodesPage', () => {
     expect(screen.getByText(hasTextPrefix('Telemetry MQTT via:')).textContent).toContain('Gateway')
     expect(screen.getByText('Online local nodes: 0')).toBeTruthy()
     expect(screen.getByText('Latitude: 0')).toBeTruthy()
-    expect(screen.getByText('Voltage: 0')).toBeTruthy()
-    expect(screen.getByText('Battery level: 0')).toBeTruthy()
+    const powerRow = screen.getByText(hasTextPrefix('Power:'))
+    expect(powerRow.textContent).toContain('0%')
+    expect(powerRow.textContent).toContain('0.00 V')
+    expect(powerRow.querySelector('.signal-poor')).toBeTruthy()
     expect(screen.getByText('Temperature (C): 0')).toBeTruthy()
   })
 

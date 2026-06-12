@@ -1,6 +1,7 @@
 import L from 'leaflet'
 
 import 'leaflet.markercluster'
+import { formatBattery } from '../utils/battery'
 import { parseDurationMs } from '../utils/duration'
 import { relativeTime } from '../utils/time'
 import { topologyColor } from '../utils/topology'
@@ -602,34 +603,16 @@ function compactSections(sections: (PopupSection | null)[]): PopupSection[] {
 }
 
 function formatBatteryInfo(power: { voltage?: number; battery_level?: number }): string {
-  // Check if we have any battery data at all
-  const hasVoltage = power.voltage !== undefined
-  const hasBatteryLevel = power.battery_level !== undefined
+  const { voltage, level, qualityClass, hasData } = formatBattery(power)
+  if (!hasData) {return ''}
 
-  if (!hasVoltage && !hasBatteryLevel) {
-    return ''
-  }
+  // Shared layout: percent first, then middot, then voltage. The signal-quality
+  // class colours the whole line so the popup and the details page give the
+  // same "low battery" visual cue (see #40).
+  const cls = ['map-popup-battery', qualityClass].filter(Boolean).join(' ')
+  const middle = level && voltage ? ' · ' : ''
 
-  const batteryVoltage = hasVoltage ? power.voltage!.toFixed(2) + 'V' : ''
-  // Handle 0% as a valid value - use explicit null/undefined checks instead of truthy check
-  const batteryLevel = hasBatteryLevel ? Math.round(power.battery_level!) + '%' : ''
-  const batteryIcon = '🔋'
-
-  const parts: string[] = []
-  if (batteryVoltage) {
-    parts.push(batteryVoltage)
-  }
-
-  // Only show icon if we have at least one value (voltage or battery level)
-  if (batteryVoltage || batteryLevel) {
-    parts.push(batteryIcon)
-  }
-
-  if (batteryLevel) {
-    parts.push(batteryLevel)
-  }
-
-  return parts.length > 0 ? `<span class="map-popup-battery">${parts.join(' ')}</span>` : ''
+  return `<span class="${cls}">🔋 ${level ?? ''}${middle}${voltage ?? ''}</span>`
 }
 
 function popupHtml(
