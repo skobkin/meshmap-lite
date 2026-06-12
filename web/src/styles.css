@@ -579,9 +579,35 @@ body {
 
 .map-topology-toggle-label input[type="checkbox"] {
   margin: 0;
-  accent-color: var(--pico-primary);
-  border: 1px solid var(--surface-border);
+  appearance: none;
+  -webkit-appearance: none;
+  width: 1rem;
+  height: 1rem;
+  border: 1.5px solid var(--pico-muted-color);
   border-radius: 3px;
+  background: var(--surface-bg);
+  cursor: pointer;
+  display: inline-grid;
+  place-content: center;
+}
+
+.map-topology-toggle-label input[type="checkbox"]:checked {
+  background: var(--pico-primary);
+  border-color: var(--pico-primary);
+}
+
+.map-topology-toggle-label input[type="checkbox"]:checked::after {
+  content: "";
+  width: 0.4rem;
+  height: 0.2rem;
+  border-left: 2px solid var(--pico-primary-inverse);
+  border-bottom: 2px solid var(--pico-primary-inverse);
+  transform: rotate(-45deg) translateY(-1px);
+}
+
+.map-topology-toggle-label input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--pico-primary);
+  outline-offset: 2px;
 }
 
 .map-topology-toggle-hint {
