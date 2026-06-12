@@ -475,7 +475,7 @@ body {
   padding: 0.65rem 0.8rem;
   border: 1px solid var(--surface-border);
   border-radius: 12px;
-  background: rgb(255 255 255 / 94%);
+  background: color-mix(in srgb, var(--surface-bg) 94%, white 6%);
   box-shadow: 0 0.75rem 1.5rem rgb(15 23 42 / 14%);
   backdrop-filter: blur(6px);
   font-size: 0.8rem;
@@ -563,7 +563,7 @@ body {
   padding: 0.3rem 0.45rem;
   border: 1px solid var(--surface-border);
   border-radius: 10px;
-  background: rgb(255 255 255 / 70%);
+  background: color-mix(in srgb, var(--surface-bg) 70%, white 6%);
   box-shadow: 0 0.5rem 1rem rgb(15 23 42 / 14%);
   backdrop-filter: blur(6px);
   font-size: 0.85rem;
