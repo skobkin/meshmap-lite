@@ -53,19 +53,22 @@ export function formatBatteryLevel(l: number | undefined | null): string | null 
  * colours "how good is this number" (hop count, link quality, etc.).
  *
  * Tiers:
- *  - 75..100: strong
+ *  - 75..100: strong (clamped: anything ≥ 75, including >100% readings,
+ *             is treated as "fully charged or better")
  *  - 50..74:  good
  *  - 25..49:  weak
  *  - 0..24:   poor
  *
- * Returns `''` for `null` / `undefined` / `NaN` / values outside `0..100`. The
- * caller is expected to have already null-checked the underlying field; this
- * guard is defensive so the helper is safe to call unconditionally from the
- * composite `formatBattery()`.
+ * Returns `''` for `null` / `undefined` / `NaN` / negative values. Meshtastic
+ * nodes occasionally report >100% (overcharged LiPo, sensor error); those
+ * readings are valid data and are coloured as `signal-strong` rather than
+ * rendered without a tier. The caller is expected to have already null-
+ * checked the underlying field; the remaining guard is defensive so the
+ * helper is safe to call unconditionally from the composite `formatBattery()`.
  */
 export function batteryQualityClass(level: number | null | undefined): BatteryQualityClass {
   if (typeof level !== 'number' || !Number.isFinite(level)) {return ''}
-  if (level < 0 || level > 100) {return ''}
+  if (level < 0) {return ''}
   if (level >= 75) {return 'signal-strong'}
   if (level >= 50) {return 'signal-good'}
   if (level >= 25) {return 'signal-weak'}

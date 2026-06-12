@@ -606,13 +606,16 @@ function formatBatteryInfo(power: { voltage?: number; battery_level?: number }):
   const { voltage, level, qualityClass, hasData } = formatBattery(power)
   if (!hasData) {return ''}
 
-  // Shared layout: percent first, then middot, then voltage. The signal-quality
-  // class colours the whole line so the popup and the details page give the
-  // same "low battery" visual cue (see #40).
-  const cls = ['map-popup-battery', qualityClass].filter(Boolean).join(' ')
+  // Layout: icon, then a small pill wrapping the percentage (coloured by
+  // qualityClass), then middot, then voltage. The pill keeps the colored
+  // area small and matches the .chat-hop-badge / .log-hop-badge pill style
+  // used elsewhere. The .map-popup-battery class on the outer span keeps
+  // the line itself muted (icon and voltage stay in --pico-muted-color).
+  const pillClass = ['battery-pill', qualityClass].filter(Boolean).join(' ')
+  const pill = level ? `<span class="${pillClass}">${level}</span>` : ''
   const middle = level && voltage ? ' · ' : ''
 
-  return `<span class="${cls}">🔋 ${level ?? ''}${middle}${voltage ?? ''}</span>`
+  return `<span class="map-popup-battery">🔋 ${pill}${middle}${voltage ?? ''}</span>`
 }
 
 function popupHtml(

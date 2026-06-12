@@ -156,9 +156,9 @@ function detailSections(details: NodeDetails): DetailSection[] {
           if (!hasData) {return null}
 
           return (
-            <span className={qualityClass || undefined}>
-              🔋 {level ?? ''}{level && voltage ? ' · ' : ''}{voltage ?? ''}
-            </span>
+            <>
+              🔋 {level && <span className={['battery-pill', qualityClass].filter(Boolean).join(' ') || undefined}>{level}</span>}{level && voltage ? ' · ' : ''}{voltage ?? ''}
+            </>
           )
         })()),
         row('Temperature (C)', displayValue(details.telemetry?.environment.temperature_c)),

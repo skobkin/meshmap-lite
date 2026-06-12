@@ -59,12 +59,21 @@ describe('batteryQualityClass', () => {
     expect(batteryQualityClass(0)).toBe('signal-poor')
   })
 
-  it('returns an empty string for missing or out-of-range values', () => {
+  it('clamps values above 100% to the strong tier', () => {
+    // Meshtastic occasionally reports >100% (overcharged LiPo, sensor error);
+    // those readings are valid data and should still be coloured, not rendered
+    // without a tier. "More than full" is at least as good as full.
+    expect(batteryQualityClass(101)).toBe('signal-strong')
+    expect(batteryQualityClass(120)).toBe('signal-strong')
+    expect(batteryQualityClass(999)).toBe('signal-strong')
+  })
+
+  it('returns an empty string for missing or negative values', () => {
     expect(batteryQualityClass(undefined)).toBe('')
     expect(batteryQualityClass(null)).toBe('')
     expect(batteryQualityClass(Number.NaN)).toBe('')
     expect(batteryQualityClass(-1)).toBe('')
-    expect(batteryQualityClass(101)).toBe('')
+    expect(batteryQualityClass(-0.5)).toBe('')
   })
 })
 

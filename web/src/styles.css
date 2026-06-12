@@ -911,6 +911,20 @@ body {
   flex: 0 0 auto;
 }
 
+/* Compact inline pill that wraps the battery percentage on the popup and
+ * the node details page. Sits next to the .signal-strong/good/weak/poor
+ * rules above (lines 833-851), which provide the tinted background and
+ * text color in both light and dark mode. The pill itself adds only
+ * shape (padding, radius, weight) so the colored area stays small. */
+.battery-pill {
+  display: inline-block;
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
 .chat-day-separator {
   display: flex;
   align-items: center;

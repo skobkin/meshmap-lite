@@ -180,7 +180,13 @@ describe('NodesPage', () => {
     const powerRow = screen.getByText(hasTextPrefix('Power:'))
     expect(powerRow.textContent).toContain('0%')
     expect(powerRow.textContent).toContain('0.00 V')
-    expect(powerRow.querySelector('.signal-poor')).toBeTruthy()
+    // The percentage lives inside a small coloured pill; the voltage stays
+    // outside it so the coloured area doesn't span the whole line.
+    const pill = powerRow.querySelector('.battery-pill')
+    expect(pill).toBeTruthy()
+    expect(pill?.className).toContain('signal-poor')
+    expect(pill?.textContent).toBe('0%')
+    expect(pill?.textContent).not.toContain('0.00 V')
     expect(screen.getByText('Temperature (C): 0')).toBeTruthy()
   })
 
