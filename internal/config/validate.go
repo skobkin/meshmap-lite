@@ -55,7 +55,7 @@ func validateUpdateCheck(cfg UpdateCheckConfig) error {
 		seen[name] = struct{}{}
 
 		switch strings.TrimSpace(src.Type) {
-		case "forgejo":
+		case "forgejo", "github":
 		default:
 			return fmt.Errorf("update_check.sources[%d].type %q is not supported", i, src.Type)
 		}

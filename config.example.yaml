@@ -86,3 +86,22 @@ web:
 
 logging:
   level: info
+
+update_check:
+  enabled: true
+  interval: 12h
+  timeout: 15s
+  sources:
+    - name: meshmap-lite
+      label: Map
+      type: forgejo
+      base_url: https://git.skobk.in
+      repository: skobkin/meshmap-lite
+      current_version_source: buildinfo
+      limit: 15
+    # GitHub release sources are also supported for public repositories.
+    # - name: meshtastic-firmware
+    #   label: Meshtastic FW
+    #   type: github
+    #   repository: meshtastic/firmware
+    #   limit: 15

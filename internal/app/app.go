@@ -27,6 +27,7 @@ import (
 	"meshmap-lite/internal/siteinfo"
 	"meshmap-lite/internal/updatecheck"
 	"meshmap-lite/internal/updatecheck/sources/forgejo"
+	"meshmap-lite/internal/updatecheck/sources/github"
 )
 
 const missingFrontendBuildHint = "frontend assets are not built; run `cd web && npm run build`"
@@ -243,6 +244,13 @@ func registerUpdateCheckSource(mgr *updatecheck.Manager, cfg config.UpdateCheckS
 	switch strings.TrimSpace(cfg.Type) {
 	case "forgejo":
 		src, err = forgejo.New(forgejo.Options{
+			Name:       cfg.Name,
+			BaseURL:    cfg.BaseURL,
+			Repository: cfg.Repository,
+			Limit:      cfg.Limit,
+		})
+	case "github":
+		src, err = github.New(github.Options{
 			Name:       cfg.Name,
 			BaseURL:    cfg.BaseURL,
 			Repository: cfg.Repository,

@@ -232,7 +232,7 @@ web:
 	}
 }
 
-func TestValidateUpdateCheckRejectsUnimplementedGitHubSource(t *testing.T) {
+func TestValidateUpdateCheckAcceptsGitHubSource(t *testing.T) {
 	err := validateUpdateCheck(UpdateCheckConfig{
 		Enabled: true,
 		Sources: []UpdateCheckSourceConfig{
@@ -243,8 +243,24 @@ func TestValidateUpdateCheckRejectsUnimplementedGitHubSource(t *testing.T) {
 			},
 		},
 	})
+	if err != nil {
+		t.Fatalf("expected github update source to pass validation: %v", err)
+	}
+}
+
+func TestValidateUpdateCheckRejectsUnknownSourceType(t *testing.T) {
+	err := validateUpdateCheck(UpdateCheckConfig{
+		Enabled: true,
+		Sources: []UpdateCheckSourceConfig{
+			{
+				Name:       "unknown",
+				Type:       "gitlab",
+				Repository: "owner/repo",
+			},
+		},
+	})
 	if err == nil {
-		t.Fatal("expected github update source to fail validation")
+		t.Fatal("expected unknown update source type to fail validation")
 	}
 }
 

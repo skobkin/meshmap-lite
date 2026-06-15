@@ -120,6 +120,16 @@ Reference:
 | `web.stats.activity.daily.bucket`   | `MML_WEB__STATS__ACTIVITY__DAILY__BUCKET` | `5m`                                                  | Stats tab daily (24h) activity bucket size; values under `1m` are raised to `1m`.      |
 | `web.stats.activity.weekly.bucket`  | `MML_WEB__STATS__ACTIVITY__WEEKLY__BUCKET` | `1h`                                                  | Stats tab weekly (168h) activity bucket size; values under `7m` are raised to `7m`.     |
 | `logging.level`                     | `MML_LOGGING__LEVEL`                      | `"info"`                                              | Log level.                                                                            |
+| `update_check.enabled`              |                                           | `true`                                                | Enable release checks shown in the UI.                                                |
+| `update_check.interval`             |                                           | `12h`                                                 | Refresh interval for configured release sources.                                      |
+| `update_check.timeout`              |                                           | `15s`                                                 | Per-source release request timeout.                                                   |
+| `update_check.sources[].name`       |                                           | `"meshmap-lite"`                                      | Stable update source identifier.                                                      |
+| `update_check.sources[].label`      |                                           | `"Map"`                                               | User-facing label for the update source.                                              |
+| `update_check.sources[].type`       |                                           | `"forgejo"`                                           | Release source type. Supported values: `forgejo`, `github`.                           |
+| `update_check.sources[].base_url`   |                                           | `"https://git.skobk.in"`                              | API base URL. Required for `forgejo`; optional for `github`, where it defaults to `https://api.github.com`. For GitHub Enterprise use a compatible REST base such as `https://github.example.com/api/v3`. |
+| `update_check.sources[].repository` |                                           | `"skobkin/meshmap-lite"`                              | Repository in `owner/repo` form.                                                      |
+| `update_check.sources[].current_version_source` |                                  | `"buildinfo"`                                         | Current-version source. Use `buildinfo` for the running binary version or `none`.      |
+| `update_check.sources[].limit`      |                                           | `15`                                                  | Number of releases fetched per source. GitHub values are sent as `per_page` and clamped to `1..100`. |
 
 Notes:
 - Channel names are preserved as configured.
