@@ -24,6 +24,7 @@
 - Keep dependencies lightweight; avoid introducing frameworks where the standard library or small libraries are enough.
 - Use graceful degradation: partial or missing data should render as missing (or hidden), not crash the app.
 - Do not assume writable project source directories at runtime.
+- If asked to do a full work on an issue, do fetch and work in a separate branch based on latest `origin/master`.
 
 ## Backend Conventions
 
