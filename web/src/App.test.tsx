@@ -329,6 +329,15 @@ function setupModuleMocks(): void {
   startWSMock = vi.fn().mockReturnValue(vi.fn())
 
   vi.doMock('./api/client', () => ({
+    APIError: class APIError extends Error {
+      public readonly status: number
+
+      public constructor(status: number) {
+        super(`request failed: ${status}`)
+        this.name = 'APIError'
+        this.status = status
+      }
+    },
     api: apiMock
   }))
   vi.doMock('./api/ws', () => ({
@@ -419,6 +428,7 @@ function setupModuleMocks(): void {
       items,
       selected,
       details,
+      detailsError,
       filter,
       loading,
       onFilter,
@@ -427,6 +437,7 @@ function setupModuleMocks(): void {
       items: NodeSummary[]
       selected?: string
       details?: NodeDetails
+      detailsError?: string
       filter: string
       loading?: boolean
       onFilter: (filter: string) => void
@@ -438,6 +449,7 @@ function setupModuleMocks(): void {
         <p>Selected node: {selected ?? ''}</p>
         <p>Node filter: {filter}</p>
         <p>Details node: {details?.node.node_id ?? ''}</p>
+        <p>Details error: {detailsError ?? ''}</p>
         <p>Loading details: {loading ? 'yes' : 'no'}</p>
         <button type="button" onClick={() => onSelect('!bravo')}>Select node bravo</button>
         <button type="button" onClick={() => onFilter('relay')}>Filter relay</button>
@@ -864,6 +876,24 @@ describe('App', () => {
         nodeID: '!cached'
       }, expect.anything())
     })
+  })
+
+  it('shows a local not-discovered message for node detail 404s', async () => {
+    window.history.replaceState(null, '', '/#/nodes?node=%21missing')
+    setupModuleMocks()
+    apiMock.node.mockRejectedValue(Object.assign(new Error('request failed: 404'), {
+      name: 'APIError',
+      status: 404
+    }))
+
+    await renderApp()
+    await screen.findByTestId('nodes-page')
+
+    await waitFor(() => {
+      expect(apiMock.node).toHaveBeenCalledWith('!missing', expect.anything())
+      expect(screen.getByText('Details error: Information for node "!missing" has not been discovered yet.')).toBeTruthy()
+    })
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('reloads log data when filters change and replaces the visible list', async () => {

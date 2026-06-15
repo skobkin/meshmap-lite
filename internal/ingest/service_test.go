@@ -19,6 +19,7 @@ import (
 
 type testStore struct {
 	testkit.FakeStore
+	ops           []string
 	lastNode      *domain.Node
 	nodesSeen     []domain.Node
 	lastPosition  *domain.NodePosition
@@ -32,6 +33,7 @@ type testStore struct {
 
 func (s *testStore) UpsertNode(_ context.Context, node domain.Node) (bool, error) {
 	n := node
+	s.ops = append(s.ops, "node:"+n.NodeID)
 	s.lastNode = &n
 	s.nodesSeen = append(s.nodesSeen, n)
 
@@ -40,6 +42,7 @@ func (s *testStore) UpsertNode(_ context.Context, node domain.Node) (bool, error
 
 func (s *testStore) UpsertPosition(_ context.Context, pos domain.NodePosition) error {
 	p := pos
+	s.ops = append(s.ops, "position:"+p.NodeID)
 	s.lastPosition = &p
 	s.positionsSeen = append(s.positionsSeen, p)
 
@@ -48,12 +51,14 @@ func (s *testStore) UpsertPosition(_ context.Context, pos domain.NodePosition) e
 
 func (s *testStore) MergeTelemetry(_ context.Context, snap domain.NodeTelemetrySnapshot) (domain.NodeTelemetrySnapshot, error) {
 	telemetry := snap
+	s.ops = append(s.ops, "telemetry:"+telemetry.NodeID)
 	s.lastTelemetry = &telemetry
 
 	return snap, nil
 }
 
 func (s *testStore) UpsertTopologyEdges(_ context.Context, edges []domain.TopologyEdge) error {
+	s.ops = append(s.ops, "topology")
 	s.topologySeen = append(s.topologySeen, edges...)
 
 	return nil
@@ -61,6 +66,7 @@ func (s *testStore) UpsertTopologyEdges(_ context.Context, edges []domain.Topolo
 
 func (s *testStore) InsertChatEvent(_ context.Context, event domain.ChatEvent) (int64, error) {
 	chat := event
+	s.ops = append(s.ops, "chat:"+chat.NodeID)
 	s.lastChat = &chat
 
 	return 0, nil
@@ -68,6 +74,7 @@ func (s *testStore) InsertChatEvent(_ context.Context, event domain.ChatEvent) (
 
 func (s *testStore) InsertLogEvent(_ context.Context, e domain.LogEvent) (int64, error) {
 	ev := e
+	s.ops = append(s.ops, "log:"+ev.NodeID)
 	s.lastLogEvent = &ev
 	s.logEventsSeen = append(s.logEventsSeen, ev)
 
@@ -843,7 +850,7 @@ func TestUpsertNodeEvidenceSetDiscoversIndirectNodesFromNeighborInfo(t *testing.
 		Channel:    "LongFast",
 		GatewayID:  "!11223344",
 		IsFromMQTT: true,
-	}, "LongFast", "!11223344", now)
+	}, "LongFast", "!11223344", now, nodeDiscoveryAuthoritative, nil)
 	if !ok {
 		t.Fatalf("expected neighbor evidence upserts to succeed")
 	}
@@ -910,7 +917,7 @@ func TestUpsertNodeEvidenceSetDiscoversIndirectNodesFromTracerouteAndRouting(t *
 		Channel:    "LongFast",
 		GatewayID:  "!11223344",
 		IsFromMQTT: true,
-	}, "LongFast", "!11223344", now) {
+	}, "LongFast", "!11223344", now, nodeDiscoveryAuthoritative, nil) {
 		t.Fatalf("expected traceroute evidence upserts to succeed")
 	}
 	if !svc.upsertNodeEvidenceSet(context.Background(), meshtastic.ParsedEvent{
@@ -928,7 +935,7 @@ func TestUpsertNodeEvidenceSetDiscoversIndirectNodesFromTracerouteAndRouting(t *
 		Channel:    "LongFast",
 		GatewayID:  "!11223344",
 		IsFromMQTT: true,
-	}, "LongFast", "!11223344", now) {
+	}, "LongFast", "!11223344", now, nodeDiscoveryAuthoritative, nil) {
 		t.Fatalf("expected routing evidence upserts to succeed")
 	}
 
@@ -1190,9 +1197,16 @@ func TestHandleMessagePersistsTopologyEdgesForSecondaryChannel(t *testing.T) {
 	if store.topologySeen[0].ChannelName != "LongSlow" {
 		t.Fatalf("unexpected topology channel: %#v", store.topologySeen[0])
 	}
-	if len(store.nodesSeen) != 0 {
-		t.Fatalf("secondary channel should still skip primary-gated node upserts, got %#v", store.nodesSeen)
+	for _, nodeID := range []string{"!49b5976c", "!11223344", "!11111111"} {
+		if !sawNode(store.nodesSeen, nodeID) {
+			t.Fatalf("expected minimal node evidence for %s before topology/log exposure, got %#v", nodeID, store.nodesSeen)
+		}
 	}
+	if len(store.positionsSeen) != 0 || store.lastTelemetry != nil {
+		t.Fatalf("secondary channel should still skip primary-gated rich state, positions=%#v telemetry=%#v", store.positionsSeen, store.lastTelemetry)
+	}
+	assertOpBefore(t, store.ops, "node:!49b5976c", "log:!49b5976c")
+	assertOpBefore(t, store.ops, "node:!11111111", "topology")
 }
 
 func TestHandleMessagePersistsMQTTDirectTopologyForSecondaryChannel(t *testing.T) {
@@ -1244,8 +1258,92 @@ func TestHandleMessagePersistsMQTTDirectTopologyForSecondaryChannel(t *testing.T
 	if store.topologySeen[0].SourceKind != domain.TopologySourceMQTTDirect || store.topologySeen[0].ChannelName != "LongSlow" {
 		t.Fatalf("unexpected topology edge: %#v", store.topologySeen[0])
 	}
-	if len(store.nodesSeen) != 0 {
-		t.Fatalf("secondary channel should still skip primary-gated node upserts, got %#v", store.nodesSeen)
+	for _, nodeID := range []string{"!49b5976c", "!11223344"} {
+		if !sawNode(store.nodesSeen, nodeID) {
+			t.Fatalf("expected minimal node evidence for %s before topology/log exposure, got %#v", nodeID, store.nodesSeen)
+		}
+	}
+	if len(store.positionsSeen) != 0 || store.lastTelemetry != nil {
+		t.Fatalf("secondary channel should still skip primary-gated rich state, positions=%#v telemetry=%#v", store.positionsSeen, store.lastTelemetry)
+	}
+	assertOpBefore(t, store.ops, "node:!49b5976c", "log:!49b5976c")
+	assertOpBefore(t, store.ops, "node:!11223344", "topology")
+}
+
+func TestHandleMessageDiscoversSecondaryPositionNodeWithoutMergingPosition(t *testing.T) {
+	store := &testStore{}
+	now := time.Unix(1772296589, 0).UTC()
+	svc := &Service{
+		cfg: Config{
+			RootTopic:  "msh/RU/ARKH",
+			MapReports: MapReportsConfig{TopicSuffix: "2/map"},
+			Channels: map[string]ChannelConfig{
+				"LongFast": {Primary: true},
+				"LongSlow": {Primary: false},
+			},
+		},
+		store:   store,
+		dedup:   dedup.New(dedup.Options{Size: 32, TTL: time.Minute}),
+		emitter: testEmitter{},
+		log:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+		now: func() time.Time {
+			return now
+		},
+	}
+
+	positionPayload, err := proto.Marshal(&generated.Position{
+		LatitudeI:  proto.Int32(645000000),
+		LongitudeI: proto.Int32(406000000),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	envelopePayload, err := proto.Marshal(&generated.ServiceEnvelope{
+		ChannelId: "LongSlow",
+		GatewayId: "gw",
+		Packet: &generated.MeshPacket{
+			From: 0x49b5976c,
+			Id:   44,
+			PayloadVariant: &generated.MeshPacket_Decoded{
+				Decoded: &generated.Data{
+					Portnum: generated.PortNum_POSITION_APP,
+					Payload: positionPayload,
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	svc.HandleMessage(context.Background(), "msh/RU/ARKH/e/LongSlow/!11223344", envelopePayload)
+
+	if !sawNode(store.nodesSeen, "!49b5976c") || !sawNode(store.nodesSeen, "!11223344") {
+		t.Fatalf("expected sender and uploader minimal node evidence, got %#v", store.nodesSeen)
+	}
+	if len(store.positionsSeen) != 0 {
+		t.Fatalf("secondary channel position should not update rich state, got %#v", store.positionsSeen)
+	}
+	if store.lastLogEvent == nil || store.lastLogEvent.EventKind != domain.LogEventKindPositionValue {
+		t.Fatalf("expected secondary position log event, got %#v", store.lastLogEvent)
+	}
+	assertOpBefore(t, store.ops, "node:!49b5976c", "log:!49b5976c")
+}
+
+func assertOpBefore(t *testing.T, ops []string, before, after string) {
+	t.Helper()
+	beforeIndex := -1
+	afterIndex := -1
+	for i, op := range ops {
+		if op == before && beforeIndex == -1 {
+			beforeIndex = i
+		}
+		if op == after && afterIndex == -1 {
+			afterIndex = i
+		}
+	}
+	if beforeIndex == -1 || afterIndex == -1 || beforeIndex >= afterIndex {
+		t.Fatalf("expected %q before %q in ops %#v", before, after, ops)
 	}
 }
 

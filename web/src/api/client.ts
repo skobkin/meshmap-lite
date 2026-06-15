@@ -4,10 +4,20 @@ interface RequestOptions {
   signal?: AbortSignal
 }
 
+export class APIError extends Error {
+  public readonly status: number
+
+  public constructor(status: number) {
+    super(`request failed: ${status}`)
+    this.name = 'APIError'
+    this.status = status
+  }
+}
+
 async function request<T>(path: string, options?: RequestOptions): Promise<T> {
   const r = await fetch(path, { signal: options?.signal })
   if (!r.ok) {
-    throw new Error(`request failed: ${r.status}`)
+    throw new APIError(r.status)
   }
 
   return await r.json() as T

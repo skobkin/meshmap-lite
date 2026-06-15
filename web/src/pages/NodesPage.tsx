@@ -16,6 +16,7 @@ interface Props {
   details?: NodeDetails
   filter?: string
   loading?: boolean
+  detailsError?: string
   loadError?: string
   recentEvents?: LogEvent[]
   recentEventsLoading?: boolean
@@ -200,6 +201,7 @@ export function NodesPage({
   details,
   filter = '',
   loading,
+  detailsError,
   loadError,
   recentEvents = [],
   recentEventsLoading,
@@ -334,6 +336,8 @@ export function NodesPage({
               )}
             </section>
           </>
+        ) : detailsError ? (
+          <p className="node-list-empty">{detailsError}</p>
         ) : <p>{loading ? 'Loading node details...' : 'Select node'}</p>}
       </article>
     </section>

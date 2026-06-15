@@ -839,3 +839,110 @@ CREATE TABLE chat_events (
 		t.Fatalf("re-apply migrations on already-current schema: %v", err)
 	}
 }
+
+func TestApply_BackfillsLogVisibleNodes(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite", "file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	_, err = db.ExecContext(ctx, `
+PRAGMA user_version = 16;
+CREATE TABLE nodes (
+  node_id TEXT PRIMARY KEY,
+  node_num INTEGER,
+  long_name TEXT,
+  short_name TEXT,
+  role TEXT,
+  board_model TEXT,
+  firmware_version TEXT,
+  lora_region TEXT,
+  lora_frequency_desc TEXT,
+  modem_preset TEXT,
+  has_default_channel INTEGER,
+  has_opted_report_location INTEGER,
+  neighbor_nodes_count INTEGER,
+  mqtt_gateway_capable INTEGER,
+  first_seen_at TEXT NOT NULL,
+  last_seen_any_event_at TEXT NOT NULL,
+  last_seen_mqtt_gateway_at TEXT,
+  last_mqtt_uploader_node_id TEXT,
+  last_mqtt_uploader_at TEXT,
+  last_seen_position_at TEXT,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE chat_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_type TEXT NOT NULL,
+  channel_name TEXT,
+  node_id TEXT,
+  message_text TEXT,
+  system_code TEXT,
+  message_time TEXT NOT NULL,
+  reported_at TEXT,
+  observed_at TEXT NOT NULL,
+  packet_id INTEGER,
+  mqtt_uploader_node_id TEXT,
+  hop_start INTEGER,
+  hop_limit INTEGER,
+  reaction_emoji TEXT,
+  reply_to_packet_id INTEGER,
+  created_at TEXT NOT NULL
+);
+CREATE TABLE log_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  observed_at TEXT NOT NULL,
+  node_id TEXT,
+  event_kind INTEGER NOT NULL,
+  encrypted INTEGER NOT NULL,
+  channel_id INTEGER,
+  mqtt_uploader_node_id TEXT,
+  hop_start INTEGER,
+  hop_limit INTEGER,
+  details_json TEXT
+);
+INSERT INTO nodes(node_id,long_name,first_seen_at,last_seen_any_event_at,updated_at)
+VALUES ('!existing', 'Existing node', '2026-06-01T00:00:00Z', '2026-06-01T00:00:00Z', '2026-06-01T00:00:00Z');
+INSERT INTO chat_events(event_type,channel_name,node_id,message_text,message_time,observed_at,mqtt_uploader_node_id,created_at)
+VALUES ('message','LongSlow','!chat001','hello','2026-06-16T10:00:00Z','2026-06-16T10:00:00Z','!chatgw1','2026-06-16T10:00:00Z');
+INSERT INTO log_events(observed_at,node_id,event_kind,encrypted,mqtt_uploader_node_id,details_json)
+VALUES
+  ('2026-06-16T10:01:00Z','!log0001',7,0,'!loggw01','{"neighbor_node_id":"!nbrmain","neighbors":[{"node_id":"!nbr0001","snr":12.5}]}'),
+  ('2026-06-16T10:02:00Z','!existing',6,0,NULL,'{"from":"!from001","to":"!to00001","route":["!route01"],"route_back":["!routeb1"],"forward_path":["!fwd0001"],"return_path":["!ret0001"]}'),
+  ('2026-06-16T10:03:00Z',NULL,11,1,NULL,'{"sender_node_id":"!pki0001","destination_node_id":"!pki0002","gateway_id":"!pkigw01"}');
+`)
+	if err != nil {
+		t.Fatalf("seed schema: %v", err)
+	}
+
+	if err := Apply(ctx, db, nil); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	for _, nodeID := range []string{
+		"!chat001", "!chatgw1", "!log0001", "!loggw01", "!nbrmain", "!nbr0001",
+		"!from001", "!to00001", "!route01", "!routeb1", "!fwd0001", "!ret0001",
+		"!pki0001", "!pki0002", "!pkigw01",
+	} {
+		var count int
+		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM nodes WHERE node_id = ?`, nodeID).Scan(&count); err != nil {
+			t.Fatalf("count node %s: %v", nodeID, err)
+		}
+		if count != 1 {
+			t.Fatalf("expected backfilled node %s, got count %d", nodeID, count)
+		}
+	}
+
+	var longName, lastSeen string
+	if err := db.QueryRowContext(ctx, `SELECT long_name,last_seen_any_event_at FROM nodes WHERE node_id='!existing'`).Scan(&longName, &lastSeen); err != nil {
+		t.Fatalf("read existing node: %v", err)
+	}
+	if longName != "Existing node" {
+		t.Fatalf("expected existing identity fields to be preserved, got %q", longName)
+	}
+	if lastSeen != "2026-06-16T10:02:00Z" {
+		t.Fatalf("expected existing timestamp to be advanced, got %q", lastSeen)
+	}
+}

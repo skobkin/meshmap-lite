@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks'
 
-import { api } from './api/client'
+import { APIError, api } from './api/client'
 import { startWS } from './api/ws'
 import { AppModal } from './components/AppModal'
 import { Header } from './components/Header'
@@ -48,6 +48,11 @@ function isSavedMapView(value: unknown): value is SavedMapView {
 
 function isAbortError(err: unknown): boolean {
   return err instanceof DOMException && err.name === 'AbortError'
+}
+
+function isAPIErrorStatus(err: unknown, status: number): boolean {
+  return err instanceof APIError && err.status === status ||
+    typeof err === 'object' && err !== null && 'status' in err && (err as { status?: unknown }).status === status
 }
 
 function canonicalChannelName(channels: string[], value: string | undefined): string {
@@ -111,6 +116,7 @@ export function App(): JSX.Element {
   const [nodeLogItems, setNodeLogItems] = useState<LogEvent[]>([])
   const [nodeLogLoading, setNodeLogLoading] = useState(false)
   const [nodeLogError, setNodeLogError] = useState('')
+  const [nodeDetailsError, setNodeDetailsError] = useState('')
   const [channels, setChannels] = useState<string[]>([])
   const [nodesFilter, setNodesFilter] = useState(() => initialURLState.current.page === 'nodes' ? initialURLState.current.nodes?.q ?? '' : '')
   const [selectedLogEventID, setSelectedLogEventID] = useState<number | undefined>(() => initialURLState.current.page === 'log' ? initialURLState.current.log?.eventID : undefined)
@@ -284,6 +290,7 @@ export function App(): JSX.Element {
         const relevant = meta ? pruneNodeDetailsByRelevance(item, meta) ?? item : item
         cacheNodeDetails(relevant)
         if (selectedId === nodeID) {
+          setNodeDetailsError('')
           setDetails(relevant)
         }
       })
@@ -427,24 +434,32 @@ export function App(): JSX.Element {
   useEffect(() => {
     if (!selectedId) {
       setDetails(undefined)
+      setNodeDetailsError('')
 
       return
     }
 
     const cached = detailsCache[selectedId]
     if (cached) {
+      setNodeDetailsError('')
       setDetails(meta ? pruneNodeDetailsByRelevance(cached.details, meta) : cached.details)
       if (isNodeDetailsCacheFresh(cached, topologyCacheTTL)) {
         return
       }
     } else {
       setDetails(undefined)
+      setNodeDetailsError('')
     }
 
     const controller = new AbortController()
     void refreshNodeDetails(selectedId, controller.signal)
       .catch((err) => {
         if (isAbortError(err)) {return}
+        if (isAPIErrorStatus(err, 404)) {
+          setNodeDetailsError(`Information for node "${selectedId}" has not been discovered yet.`)
+
+          return
+        }
         setBootstrapErrors((prev) => [...prev, `Failed to load details for node "${selectedId}".`])
       })
 
@@ -975,6 +990,7 @@ export function App(): JSX.Element {
           details={details}
           filter={nodesFilter}
           loading={Boolean(selectedId && details?.node.node_id !== selectedId)}
+          detailsError={nodeDetailsError}
           loadError={nodesLoadError}
           recentEvents={nodeLogItems}
           recentEventsLoading={nodeLogLoading}

@@ -41,6 +41,13 @@ type nodeEvidence struct {
 	Reason             string
 }
 
+type nodeDiscoveryMode int
+
+const (
+	nodeDiscoveryMinimal nodeDiscoveryMode = iota
+	nodeDiscoveryAuthoritative
+)
+
 // Config contains the subset of app config required by the ingest service.
 type Config struct {
 	RootTopic  string
@@ -156,6 +163,12 @@ func (s *Service) HandleMessage(ctx context.Context, topic string, payload []byt
 	if logAllowed {
 		tracerouteDecision = s.tracerouteLogDecision(evt, channel, now)
 	}
+	minimalCreated := make(map[string]struct{})
+	if logAllowed {
+		if evt.NodeID != "" && !s.upsertNodeEvidenceSet(ctx, evt, topicInfo, channel, mqttUploaderNodeID, now, nodeDiscoveryMinimal, minimalCreated) {
+			return
+		}
+	}
 	if logEvent, ok := s.logEventFromParsed(evt, channel, mqttUploaderNodeID, now); ok && logAllowed && !tracerouteDecision.suppressPacketLog {
 		s.persistLogEvent(ctx, logEvent)
 	}
@@ -177,7 +190,7 @@ func (s *Service) HandleMessage(ctx context.Context, topic string, payload []byt
 	if evt.NodeID == "" {
 		return
 	}
-	if !s.upsertNodeEvidenceSet(ctx, evt, topicInfo, channel, mqttUploaderNodeID, now) {
+	if !s.upsertNodeEvidenceSet(ctx, evt, topicInfo, channel, mqttUploaderNodeID, now, nodeDiscoveryAuthoritative, minimalCreated) {
 		return
 	}
 
@@ -628,11 +641,21 @@ func (s *Service) allowEvent(channel string, kind meshtastic.ParsedKind) bool {
 	return ch.Primary
 }
 
-func (s *Service) upsertNodeEvidenceSet(ctx context.Context, evt meshtastic.ParsedEvent, topicInfo meshtastic.TopicInfo, channel, mqttUploaderNodeID string, now time.Time) bool {
+func (s *Service) upsertNodeEvidenceSet(ctx context.Context, evt meshtastic.ParsedEvent, topicInfo meshtastic.TopicInfo, channel, mqttUploaderNodeID string, now time.Time, mode nodeDiscoveryMode, minimalCreated map[string]struct{}) bool {
 	evidences := collectNodeEvidence(evt, topicInfo, mqttUploaderNodeID, now)
 	for _, evidence := range evidences {
-		if !s.upsertNodeEvidence(ctx, evidence, channel, now) {
+		treatAsCreated := false
+		if mode == nodeDiscoveryMinimal {
+			evidence.EmitSystemEvent = false
+		} else if evidence.EmitSystemEvent && minimalCreated != nil {
+			_, treatAsCreated = minimalCreated[evidence.NodeID]
+		}
+		created, ok := s.upsertNodeEvidence(ctx, evidence, channel, now, treatAsCreated)
+		if !ok {
 			return false
+		}
+		if mode == nodeDiscoveryMinimal && created && minimalCreated != nil {
+			minimalCreated[evidence.NodeID] = struct{}{}
 		}
 	}
 
@@ -948,7 +971,7 @@ func routingReturnPath(in *meshtastic.RoutingPayload) []string {
 	return path
 }
 
-func (s *Service) upsertNodeEvidence(ctx context.Context, evidence nodeEvidence, channel string, now time.Time) bool {
+func (s *Service) upsertNodeEvidence(ctx context.Context, evidence nodeEvidence, channel string, now time.Time, treatAsCreated bool) (bool, bool) {
 	node := domain.Node{
 		NodeID:             evidence.NodeID,
 		FirstSeenAt:        now,
@@ -970,26 +993,26 @@ func (s *Service) upsertNodeEvidence(ctx context.Context, evidence nodeEvidence,
 	if err != nil {
 		s.log.Error("upsert node failed", "node_id", evidence.NodeID, "reason", evidence.Reason, "err", err)
 
-		return false
+		return false, false
 	}
 	if evidence.MQTTUploaderNodeID != "" {
 		node.LastMQTTUploaderDisplayName = s.resolveNodeDisplayName(ctx, evidence.MQTTUploaderNodeID)
 		s.emitter.Emit(domain.RealtimeEvent{Type: "node.upsert", TS: now, Payload: node})
 	}
-	if !created {
-		return true
+	if !created && !treatAsCreated {
+		return false, true
 	}
 
 	if evidence.EmitSystemEvent {
 		s.log.Info("new node discovered", "node_id", evidence.NodeID, "channel", channel)
 		s.emitSystemNodeDiscovered(ctx, evidence.NodeID, channel, now)
 
-		return true
+		return created, true
 	}
 
 	s.log.Debug("discovered node from indirect evidence", "node_id", evidence.NodeID, "channel", channel, "reason", evidence.Reason)
 
-	return true
+	return created, true
 }
 
 func (s *Service) handleChat(ctx context.Context, evt meshtastic.ParsedEvent, channel, mqttUploaderNodeID string, now time.Time) bool {
