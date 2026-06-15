@@ -158,6 +158,7 @@ body {
 }
 
 .header-icon-button {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2115,9 +2116,9 @@ body {
 
 /* Unread count badge on the header info button */
 .header-badge {
-  position: relative;
-  top: -0.55rem;
-  left: -0.25rem;
+  position: absolute;
+  top: -0.25rem;
+  right: -0.25rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
