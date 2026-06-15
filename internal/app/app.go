@@ -27,7 +27,6 @@ import (
 	"meshmap-lite/internal/siteinfo"
 	"meshmap-lite/internal/updatecheck"
 	"meshmap-lite/internal/updatecheck/sources/forgejo"
-	githubsource "meshmap-lite/internal/updatecheck/sources/github"
 )
 
 const missingFrontendBuildHint = "frontend assets are not built; run `cd web && npm run build`"
@@ -248,12 +247,6 @@ func registerUpdateCheckSource(mgr *updatecheck.Manager, cfg config.UpdateCheckS
 			BaseURL:    cfg.BaseURL,
 			Repository: cfg.Repository,
 			Limit:      cfg.Limit,
-		})
-	case "github":
-		src, err = githubsource.New(githubsource.Options{
-			Name:       cfg.Name,
-			Repository: cfg.Repository,
-			BaseURL:    cfg.BaseURL,
 		})
 	default:
 		return errors.New("unsupported source type: " + cfg.Type)

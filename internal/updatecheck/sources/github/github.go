@@ -1,9 +1,7 @@
 // Package github implements updatecheck.Source for github.com.
 //
-// It is a stub for the MVP: the package compiles and is registered with
-// the Manager, but FetchReleases returns an error so the cache stays
-// empty. The Meshtastic firmware checker (follow-up work) will fill in
-// the JSON DTO and request handling.
+// It is a stub for future GitHub support. Application configuration rejects
+// github sources until FetchReleases is implemented.
 package github
 
 import (
@@ -16,7 +14,7 @@ import (
 
 const defaultPageURLBase = "https://github.com"
 
-// Source is a github.com release source. MVP stub.
+// Source is a future github.com release source.
 type Source struct {
 	name    string
 	pageURL string
@@ -52,10 +50,7 @@ func (s *Source) Name() string { return s.name }
 // ReleasesPageURL returns the user-facing releases page on github.com.
 func (s *Source) ReleasesPageURL() string { return s.pageURL }
 
-// FetchReleases is not implemented in the MVP. It always returns an
-// error so a registered github source surfaces as a failed fetch in the
-// Manager, which means its cache entry stays empty and the
-// "failure-doesn't-poison-cache" contract is exercised.
+// FetchReleases is not implemented.
 func (s *Source) FetchReleases(_ context.Context) ([]updatecheck.ReleaseInfo, error) {
 	return nil, errors.New("github source not implemented")
 }

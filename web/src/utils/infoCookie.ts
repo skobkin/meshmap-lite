@@ -8,7 +8,7 @@ export interface CookieJar {
   write: (value: string) => void
 }
 
-function makeCookie(name: string): CookieJar {
+export function makeCookie(name: string): CookieJar {
   return {
     read: (cookie: string = document.cookie): string => {
       const prefix = `${name}=`
@@ -28,4 +28,19 @@ function makeCookie(name: string): CookieJar {
 }
 
 export const infoDismissedCookie = makeCookie('meshmap-lite.info.dismissed_source_hash')
-export const updatesDismissedCookie = makeCookie('meshmap-lite.updates.dismissed_published_at')
+
+export function updatesDismissedCookie(source: string): CookieJar {
+  return makeCookie(`meshmap-lite.updates.${encodeURIComponent(source)}.dismissed_published_at`)
+}
+
+export function readUpdatesDismissedAt(sources: string[], cookie: string = document.cookie): Record<string, string> {
+  const dismissedAt: Record<string, string> = {}
+  for (const source of sources) {
+    const value = updatesDismissedCookie(source).read(cookie)
+    if (value) {
+      dismissedAt[source] = value
+    }
+  }
+
+  return dismissedAt
+}

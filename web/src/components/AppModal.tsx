@@ -18,7 +18,7 @@ interface Props {
   infoLoading: boolean
   infoShowUpdatedNotice: boolean
   tabs: AppModalTab[]
-  updatesDismissedAt: string
+  updatesDismissedAt: Record<string, string>
   onClose: () => void
   onDismiss: () => void
   onDismissUpdates: (source: string, publishedAt: string) => void
@@ -96,7 +96,7 @@ export function AppModal({
         }}
       >
         <UpdatesPanel
-          dismissedPublishedAt={updatesDismissedAt}
+          dismissedPublishedAt={updatesDismissedAt[source.name] ?? ''}
           source={source}
           onDismiss={(publishedAt) => onDismissUpdates(source.name, publishedAt)}
         />

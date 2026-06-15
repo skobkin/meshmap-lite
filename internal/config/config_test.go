@@ -232,6 +232,22 @@ web:
 	}
 }
 
+func TestValidateUpdateCheckRejectsUnimplementedGitHubSource(t *testing.T) {
+	err := validateUpdateCheck(UpdateCheckConfig{
+		Enabled: true,
+		Sources: []UpdateCheckSourceConfig{
+			{
+				Name:       "meshtastic-firmware",
+				Type:       "github",
+				Repository: "meshtastic/firmware",
+			},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected github update source to fail validation")
+	}
+}
+
 func TestLoadNormalizesInvalidTracerouteTrackerBounds(t *testing.T) {
 	d := t.TempDir()
 	path := filepath.Join(d, "cfg.yaml")

@@ -100,7 +100,7 @@ describe('AppModal', () => {
         infoLoading={false}
         infoShowUpdatedNotice={false}
         tabs={[{ id: 'info', label: 'Information', isInformation: true }]}
-        updatesDismissedAt=""
+        updatesDismissedAt={{}}
         onClose={() => undefined}
         onDismiss={() => undefined}
         onDismissUpdates={() => undefined}
@@ -124,7 +124,7 @@ describe('AppModal', () => {
           { id: 'info', label: 'Information', isInformation: true },
           { id: 'source:meshmap-lite', label: 'MeshMap Lite', source: buildSource() }
         ]}
-        updatesDismissedAt=""
+        updatesDismissedAt={{}}
         onClose={() => undefined}
         onDismiss={() => undefined}
         onDismissUpdates={() => undefined}
@@ -151,7 +151,7 @@ describe('AppModal', () => {
           { id: 'info', label: 'Information', isInformation: true },
           { id: 'source:meshmap-lite', label: 'MeshMap Lite', source: buildSource() }
         ]}
-        updatesDismissedAt=""
+        updatesDismissedAt={{}}
         onClose={() => undefined}
         onDismiss={() => undefined}
         onDismissUpdates={() => undefined}
@@ -176,7 +176,7 @@ describe('AppModal', () => {
           { id: 'info', label: 'Information', isInformation: true },
           { id: 'source:meshmap-lite', label: 'MeshMap Lite', source: buildSource() }
         ]}
-        updatesDismissedAt=""
+        updatesDismissedAt={{}}
         onClose={() => undefined}
         onDismiss={() => undefined}
         onDismissUpdates={() => undefined}
@@ -215,7 +215,7 @@ describe('AppModal', () => {
           { id: 'info', label: 'Information', isInformation: true },
           { id: 'source:meshmap-lite', label: 'MeshMap Lite', source: buildSource() }
         ]}
-        updatesDismissedAt=""
+        updatesDismissedAt={{}}
         onClose={() => undefined}
         onDismiss={() => undefined}
         onDismissUpdates={() => undefined}
@@ -253,7 +253,7 @@ describe('AppModal', () => {
           { id: 'info', label: 'Information', isInformation: true },
           { id: 'source:meshmap-lite', label: 'MeshMap Lite', source: buildSource() }
         ]}
-        updatesDismissedAt="2026-06-14T00:00:00Z"
+        updatesDismissedAt={{ 'meshmap-lite': '2026-06-14T00:00:00Z' }}
         onClose={() => undefined}
         onDismiss={() => undefined}
         onDismissUpdates={onDismissUpdates}
@@ -280,7 +280,7 @@ describe('AppModal', () => {
         infoLoading={false}
         infoShowUpdatedNotice={false}
         tabs={[{ id: 'info', label: 'Information', isInformation: true }]}
-        updatesDismissedAt=""
+        updatesDismissedAt={{}}
         onClose={onClose}
         onDismiss={() => undefined}
         onDismissUpdates={() => undefined}
@@ -303,7 +303,7 @@ describe('AppModal', () => {
         infoLoading={false}
         infoShowUpdatedNotice={false}
         tabs={[{ id: 'info', label: 'Information', isInformation: true }]}
-        updatesDismissedAt=""
+        updatesDismissedAt={{}}
         onClose={() => undefined}
         onDismiss={onDismiss}
         onDismissUpdates={() => undefined}

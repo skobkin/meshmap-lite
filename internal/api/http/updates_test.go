@@ -294,6 +294,37 @@ func TestUpdatesHandlerReturnsMarkdown(t *testing.T) {
 	}
 }
 
+func TestUpdatesHandlerRejectsInvalidFormat(t *testing.T) {
+	now := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	mgr := newUpdatesTestManager([]updatecheck.ReleaseInfo{
+		{Version: "0.7.0", PublishedAt: now},
+	})
+	mgr.SeedSnapshot("meshmap-lite", updatecheck.UpdateSnapshot{
+		Source:     "meshmap-lite",
+		Latest:     updatecheck.ReleaseInfo{Version: "0.7.0", PublishedAt: now},
+		Releases:   []updatecheck.ReleaseInfo{{Version: "0.7.0", PublishedAt: now}},
+		SourceHash: "feedface",
+		CheckedAt:  now,
+	})
+	srv := New(Config{Updates: mgr}, &testkit.FakeStore{}, newUpdatesTestLogger(), nil, nil, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/updates?source=meshmap-lite&format=json", nil)
+	rec := httptest.NewRecorder()
+
+	srv.updates(rec, req)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	var payload errorPayload
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload.Error != "invalid_format" {
+		t.Fatalf("unexpected error payload: %+v", payload)
+	}
+}
+
 func TestUpdatesHandlerDefaultsSourceToFirstRegistered(t *testing.T) {
 	now := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
 	mgr := newUpdatesTestManager([]updatecheck.ReleaseInfo{

@@ -15,7 +15,7 @@ import { useNodeStore } from './stores/nodes'
 import { useTopologyAllStore } from './stores/topologyAll'
 import { useWSStore } from './stores/ws'
 import { parseDurationMs } from './utils/duration'
-import { infoDismissedCookie, updatesDismissedCookie } from './utils/infoCookie'
+import { infoDismissedCookie, readUpdatesDismissedAt, updatesDismissedCookie } from './utils/infoCookie'
 import { isNodeDetailsCacheFresh, persistNodeDetailsCache, readNodeDetailsCache, upsertNodeDetailsCache } from './utils/nodeDetailsCache'
 import { pruneMapNodesByRelevance, pruneNodeDetailsByRelevance, pruneNodeDetailsCacheByRelevance, pruneNodeSummariesByRelevance } from './utils/relevance'
 import { isTopologyAllFresh } from './utils/topologyAllCache'
@@ -104,7 +104,7 @@ export function App(): JSX.Element {
   const [appModalOpen, setAppModalOpen] = useState(false)
   const [appModalActiveTab, setAppModalActiveTab] = useState<string>(informationTabID)
   const [infoDismissedHash, setInfoDismissedHash] = useState(() => infoDismissedCookie.read())
-  const [updatesDismissedAt, setUpdatesDismissedAt] = useState<string>(() => updatesDismissedCookie.read())
+  const [updatesDismissedAt, setUpdatesDismissedAt] = useState<Record<string, string>>({})
   const [infoContent, setInfoContent] = useState<InfoResponse>()
   const [infoLoading, setInfoLoading] = useState(false)
   const [infoError, setInfoError] = useState('')
@@ -854,9 +854,9 @@ export function App(): JSX.Element {
     setAppModalActiveTab(id)
   }, [])
 
-  const dismissUpdatesForSource = useCallback((_source: string, publishedAt: string): void => {
-    setUpdatesDismissedAt(publishedAt)
-    updatesDismissedCookie.write(publishedAt)
+  const dismissUpdatesForSource = useCallback((source: string, publishedAt: string): void => {
+    setUpdatesDismissedAt((current) => ({ ...current, [source]: publishedAt }))
+    updatesDismissedCookie(source).write(publishedAt)
   }, [])
 
   const center = useMemo<[number, number]>(() => mapView.center, [mapView.center])
@@ -872,6 +872,11 @@ export function App(): JSX.Element {
     : ''
 
   const updateSources = meta?.update_check_sources ?? []
+  useEffect(() => {
+    const sourceNames = meta?.update_check_sources?.map((source) => source.name) ?? []
+    setUpdatesDismissedAt(readUpdatesDismissedAt(sourceNames))
+  }, [meta?.update_check_sources])
+
   const showAppModal = appModalOpen && (Boolean(meta?.info_available) || updateSources.length > 0)
   const modalTabs: AppModalTab[] = []
   if (meta?.info_available) {
@@ -881,8 +886,9 @@ export function App(): JSX.Element {
     modalTabs.push({ id: source.name, label: source.label, source })
   }
   const updatesUnread = updateSources.reduce((sum, source) => {
-    if (!updatesDismissedAt) {return sum + source.releases.length}
-    const dismissed = new Date(updatesDismissedAt).getTime()
+    const dismissedAt = updatesDismissedAt[source.name]
+    if (!dismissedAt) {return sum + source.releases.length}
+    const dismissed = new Date(dismissedAt).getTime()
     if (Number.isNaN(dismissed)) {return sum}
     let count = 0
     for (const release of source.releases) {

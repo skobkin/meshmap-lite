@@ -144,6 +144,11 @@ func (s *Server) updates(w http.ResponseWriter, r *http.Request) {
 	if format == "" {
 		format = "html"
 	}
+	if format != "html" && format != "markdown" {
+		writeError(w, http.StatusBadRequest, "invalid_format")
+
+		return
+	}
 
 	releases := make([]updateReleaseEntry, 0, len(snap.Releases))
 	for _, rel := range snap.Releases {

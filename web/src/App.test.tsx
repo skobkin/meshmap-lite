@@ -498,7 +498,7 @@ describe('App', () => {
     vi.clearAllMocks()
     localStorage.clear()
     document.cookie = 'meshmap-lite.info.dismissed_source_hash=; Max-Age=0; Path=/'
-    document.cookie = 'meshmap-lite.updates.dismissed_published_at=; Max-Age=0; Path=/'
+    document.cookie = 'meshmap-lite.updates.meshmap-lite.dismissed_published_at=; Max-Age=0; Path=/'
     window.location.hash = ''
     window.history.replaceState(null, '', '/')
     setupModuleMocks()
@@ -651,6 +651,34 @@ describe('App', () => {
     await waitFor(() => {
       expect(apiMock.info).toHaveBeenCalledWith('html', expect.any(Object))
     })
+  })
+
+  it('keeps unread counts independent across update sources', async () => {
+    document.cookie = 'meshmap-lite.updates.meshmap-lite.dismissed_published_at=2026-06-15T12%3A00%3A00Z; Path=/; SameSite=Lax'
+    apiMock.meta.mockResolvedValue(meta({
+      update_check_available: true,
+      update_check_sources: [
+        {
+          name: 'meshmap-lite',
+          label: 'Map',
+          releases: [
+            { version: 'v2.0.0', published_at: '2026-06-15T12:00:00Z' }
+          ]
+        },
+        {
+          name: 'firmware',
+          label: 'Firmware',
+          releases: [
+            { version: 'v3.0.0', published_at: '2026-06-14T12:00:00Z' }
+          ]
+        }
+      ]
+    }))
+
+    await renderApp()
+    await screen.findByTestId('map-page')
+
+    expect(await screen.findByRole('link', { name: 'Site information (1 update)' })).toBeTruthy()
   })
 
   it('opens site information from the shareable info fragment even after dismissal', async () => {
