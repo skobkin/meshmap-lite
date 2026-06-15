@@ -403,9 +403,14 @@ func (m *Manager) SubscribeAll() (<-chan NamedSnapshot, func()) {
 // publish fans a snapshot out to subscribers. Sends are non-blocking:
 // a full channel is dropped and the subscriber is pruned, mirroring the
 // websocket hub's "drop failing subs" behavior.
+//
+// The write lock is required because we mutate m.subs (reassigning the
+// per-source slice) and m.all (reassigning the all-subscribers slice);
+// a read lock would let two concurrent publishers race on the map and
+// trigger Go's runtime concurrent-map-write detector.
 func (m *Manager) publish(name string, snap UpdateSnapshot) {
-	m.subMu.RLock()
-	defer m.subMu.RUnlock()
+	m.subMu.Lock()
+	defer m.subMu.Unlock()
 
 	drop := func(ch chan UpdateSnapshot) bool {
 		select {

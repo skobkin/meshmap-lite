@@ -3,8 +3,10 @@ package updatecheck
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -12,11 +14,22 @@ import (
 
 // stubSource is a test double. It records the call count and returns
 // either a canned payload or an error depending on the configured hook.
+// hook is guarded by a mutex so tests can swap the function while a
+// Manager goroutine is in flight (see TestFailedFetchDoesNotPoisonCache).
 type stubSource struct {
 	name    string
 	pageURL string
-	hook    func(ctx context.Context) ([]ReleaseInfo, error)
-	calls   atomic.Int64
+
+	mu    sync.RWMutex
+	hook  func(ctx context.Context) ([]ReleaseInfo, error)
+	calls atomic.Int64
+}
+
+// SetHook atomically replaces the function used by FetchReleases.
+func (s *stubSource) SetHook(hook func(ctx context.Context) ([]ReleaseInfo, error)) {
+	s.mu.Lock()
+	s.hook = hook
+	s.mu.Unlock()
 }
 
 func (s *stubSource) Name() string            { return s.name }
@@ -24,7 +37,11 @@ func (s *stubSource) ReleasesPageURL() string { return s.pageURL }
 func (s *stubSource) FetchReleases(ctx context.Context) ([]ReleaseInfo, error) {
 	s.calls.Add(1)
 
-	return s.hook(ctx)
+	s.mu.RLock()
+	hook := s.hook
+	s.mu.RUnlock()
+
+	return hook(ctx)
 }
 
 func newTestManager(t *testing.T, interval time.Duration) *Manager {
@@ -168,6 +185,45 @@ func TestStartRecoversAfterFailedCheck(t *testing.T) {
 	t.Fatalf("expected manager to recover and cache a snapshot")
 }
 
+// TestPublishIsConcurrencySafe hammers publish from many goroutines
+// across many sources at once. It catches a regression to a read lock
+// in publish (which mutates m.subs and m.all): the Go runtime detects
+// the resulting concurrent map write as a fatal error, failing the
+// test. Run without -race; the runtime detector is what we want.
+func TestPublishIsConcurrencySafe(t *testing.T) {
+	m := newTestManager(t, time.Hour)
+
+	const sources = 6
+	const perSource = 64
+
+	for i := range sources {
+		name := fmt.Sprintf("s%d", i)
+		src := &stubSource{name: name, pageURL: "https://example.com/" + name}
+		if err := m.Register(SourceSpec{Name: name, Source: src, Label: name}); err != nil {
+			t.Fatalf("register %s: %v", name, err)
+		}
+	}
+
+	var wg sync.WaitGroup
+	for i := range sources {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+
+			name := fmt.Sprintf("s%d", i)
+			snap := UpdateSnapshot{
+				Source:         name,
+				Latest:         ReleaseInfo{Version: "1.0.0"},
+				CurrentVersion: "1.0.0",
+			}
+			for range perSource {
+				m.publish(name, snap)
+			}
+		}(i)
+	}
+	wg.Wait()
+}
+
 func TestFailedFetchDoesNotPoisonCache(t *testing.T) {
 	m := newTestManager(t, 25*time.Millisecond)
 	hook := func(context.Context) ([]ReleaseInfo, error) {
@@ -192,9 +248,9 @@ func TestFailedFetchDoesNotPoisonCache(t *testing.T) {
 
 	// Swap the hook to one that always fails. The next tick should fail
 	// but leave the previous snapshot in place.
-	src.hook = func(context.Context) ([]ReleaseInfo, error) {
+	src.SetHook(func(context.Context) ([]ReleaseInfo, error) {
 		return nil, errors.New("upstream down")
-	}
+	})
 
 	// Wait long enough for at least one failing tick.
 	if !waitFor(func() bool {
