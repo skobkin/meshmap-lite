@@ -190,6 +190,8 @@ export interface Meta {
   disconnected_threshold: string
   info_available: boolean
   info_source_hash?: string
+  update_check_available?: boolean
+  update_check_sources?: SourceSummary[]
   relevance: {
     telemetry_max_age: string
     topology_evidence_max_age: string
@@ -213,6 +215,36 @@ export interface InfoResponse {
   format: InfoFormat
   source_hash: string
   content: string
+}
+
+export interface SourceSummaryRelease {
+  version: string
+  published_at: string
+}
+
+export interface SourceSummary {
+  name: string
+  label: string
+  releases_page_url?: string
+  source_hash?: string
+  current_version?: string
+  latest_version?: string
+  update_available?: boolean
+  releases: SourceSummaryRelease[]
+}
+
+export interface UpdateRelease {
+  version: string
+  published_at: string
+  html_url: string
+  body: string
+}
+
+export interface UpdatesResponse {
+  format: 'html' | 'markdown'
+  source: string
+  source_hash: string
+  releases: UpdateRelease[]
 }
 
 export interface ActivityBucket {

@@ -40,6 +40,9 @@ const (
 	defaultStatsDailyBucket                = 5 * time.Minute
 	defaultStatsWeeklyBucket               = time.Hour
 	defaultChatHistoryWindow               = 7 * 24 * time.Hour
+	defaultUpdateCheckInterval             = 12 * time.Hour
+	defaultUpdateCheckTimeout              = 15 * time.Second
+	defaultUpdateCheckLimit                = 15
 )
 
 func defaultConfig() Config {
@@ -113,5 +116,23 @@ func defaultConfig() Config {
 			},
 		},
 		Logging: LoggingConfig{Level: defaultLoggingLevel},
+		UpdateCheck: UpdateCheckConfig{
+			Enabled:  true,
+			Interval: defaultUpdateCheckInterval,
+			Timeout:  defaultUpdateCheckTimeout,
+		},
 	}
+}
+
+// DefaultUpdateCheckSource is the canonical meshmap-lite release source
+// used when no explicit source is declared. The wiring layer registers
+// it at startup if the user has not provided their own entry.
+var DefaultUpdateCheckSource = UpdateCheckSourceConfig{
+	Name:                 "meshmap-lite",
+	Label:                "Map",
+	Type:                 "forgejo",
+	BaseURL:              "https://git.skobk.in",
+	Repository:           "skobkin/meshmap-lite",
+	CurrentVersionSource: "buildinfo",
+	Limit:                defaultUpdateCheckLimit,
 }

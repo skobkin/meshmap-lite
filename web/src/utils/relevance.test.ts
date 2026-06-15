@@ -17,6 +17,7 @@ function meta(): Meta {
     log_page_size_default: 100,
     disconnected_threshold: '60m',
     info_available: false,
+    update_check_available: false,
     relevance: {
       telemetry_max_age: '24h',
       topology_evidence_max_age: '72h',

@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks'
 
 import { api } from './api/client'
 import { startWS } from './api/ws'
+import { AppModal } from './components/AppModal'
 import { Header } from './components/Header'
-import { InfoModal } from './components/InfoModal'
 import { LogPage } from './pages/LogPage'
 import { MapPage } from './pages/MapPage'
 import { NodesPage } from './pages/NodesPage'
@@ -15,15 +15,18 @@ import { useNodeStore } from './stores/nodes'
 import { useTopologyAllStore } from './stores/topologyAll'
 import { useWSStore } from './stores/ws'
 import { parseDurationMs } from './utils/duration'
-import { readInfoDismissedSourceHash, writeInfoDismissedSourceHash } from './utils/infoCookie'
+import { infoDismissedCookie, updatesDismissedCookie } from './utils/infoCookie'
 import { isNodeDetailsCacheFresh, persistNodeDetailsCache, readNodeDetailsCache, upsertNodeDetailsCache } from './utils/nodeDetailsCache'
 import { pruneMapNodesByRelevance, pruneNodeDetailsByRelevance, pruneNodeDetailsCacheByRelevance, pruneNodeSummariesByRelevance } from './utils/relevance'
 import { isTopologyAllFresh } from './utils/topologyAllCache'
 import { parseFragmentState, serializeFragmentState } from './utils/urlState'
 
 import type { InfoResponse, LogEvent, NodeDetails } from './api/types'
+import type { AppModalTab } from './components/AppModal'
 import type { FragmentState, MapViewState } from './utils/urlState'
 import type { JSX } from 'preact'
+
+const informationTabID = 'information'
 
 export type Page = FragmentState['page']
 
@@ -97,8 +100,11 @@ export function App(): JSX.Element {
   const [chatLoadMoreError, setChatLoadMoreError] = useState('')
   const [chatHasMore, setChatHasMore] = useState(false)
   const [infoRouteRequested, setInfoRouteRequested] = useState(() => Boolean(initialURLState.current.infoRequested))
-  const [infoModalOpen, setInfoModalOpen] = useState(false)
-  const [infoDismissedHash, setInfoDismissedHash] = useState(() => readInfoDismissedSourceHash())
+  const [updatesRouteRequestedSource, setUpdatesRouteRequestedSource] = useState(() => initialURLState.current.updatesRequestedSource ?? '')
+  const [appModalOpen, setAppModalOpen] = useState(false)
+  const [appModalActiveTab, setAppModalActiveTab] = useState<string>(informationTabID)
+  const [infoDismissedHash, setInfoDismissedHash] = useState(() => infoDismissedCookie.read())
+  const [updatesDismissedAt, setUpdatesDismissedAt] = useState<string>(() => updatesDismissedCookie.read())
   const [infoContent, setInfoContent] = useState<InfoResponse>()
   const [infoLoading, setInfoLoading] = useState(false)
   const [infoError, setInfoError] = useState('')
@@ -202,6 +208,7 @@ export function App(): JSX.Element {
 
   const applyFragmentState = useCallback((state: FragmentState): void => {
     setInfoRouteRequested(Boolean(state.infoRequested))
+    setUpdatesRouteRequestedSource(state.updatesRequestedSource ?? '')
     setPage(state.page)
     if (state.page !== 'log') {
       setSelectedLogEventID(undefined)
@@ -578,17 +585,26 @@ export function App(): JSX.Element {
   useEffect(() => {
     if (!meta?.info_available || !meta.info_source_hash) {return}
     if (infoDismissedHash === meta.info_source_hash) {return}
-    setInfoModalOpen(true)
+    setAppModalOpen(true)
+    setAppModalActiveTab(informationTabID)
   }, [infoDismissedHash, meta])
 
   useEffect(() => {
     if (!infoRouteRequested) {return}
     if (!meta?.info_available || !meta.info_source_hash) {return}
-    setInfoModalOpen(true)
+    setAppModalOpen(true)
+    setAppModalActiveTab(informationTabID)
   }, [infoRouteRequested, meta])
 
   useEffect(() => {
-    if (!infoModalOpen) {return}
+    if (!updatesRouteRequestedSource) {return}
+    setAppModalOpen(true)
+    setAppModalActiveTab(updatesRouteRequestedSource)
+  }, [updatesRouteRequestedSource])
+
+  useEffect(() => {
+    if (!appModalOpen) {return}
+    if (appModalActiveTab !== informationTabID) {return}
     if (!meta?.info_available || !meta.info_source_hash) {return}
     if (infoContent?.source_hash === meta.info_source_hash && infoContent.format === 'html') {return}
 
@@ -611,7 +627,7 @@ export function App(): JSX.Element {
       })
 
     return () => controller.abort()
-  }, [infoContent?.format, infoContent?.source_hash, infoModalOpen, meta])
+  }, [appModalActiveTab, appModalOpen, infoContent?.format, infoContent?.source_hash, meta])
 
   const onMapViewChange = useCallback((center: [number, number], zoom: number): void => {
     const next = { center, zoom }
@@ -817,17 +833,31 @@ export function App(): JSX.Element {
 
   const openInfoModal = useCallback(() => {
     if (!meta?.info_available) {return}
-    setInfoModalOpen(true)
+    setAppModalOpen(true)
+    setAppModalActiveTab(informationTabID)
   }, [meta?.info_available])
 
   const dismissInfoModal = useCallback(() => {
     const hash = meta?.info_source_hash
     if (hash) {
-      writeInfoDismissedSourceHash(hash)
+      infoDismissedCookie.write(hash)
       setInfoDismissedHash(hash)
     }
-    setInfoModalOpen(false)
+    setAppModalOpen(false)
   }, [meta?.info_source_hash])
+
+  const closeAppModal = useCallback((): void => {
+    setAppModalOpen(false)
+  }, [])
+
+  const selectAppModalTab = useCallback((id: string): void => {
+    setAppModalActiveTab(id)
+  }, [])
+
+  const dismissUpdatesForSource = useCallback((_source: string, publishedAt: string): void => {
+    setUpdatesDismissedAt(publishedAt)
+    updatesDismissedCookie.write(publishedAt)
+  }, [])
 
   const center = useMemo<[number, number]>(() => mapView.center, [mapView.center])
   const zoom = mapView.zoom
@@ -840,6 +870,29 @@ export function App(): JSX.Element {
   const visibleInfoContent = infoContent && infoContent.source_hash === meta?.info_source_hash
     ? infoContent.content
     : ''
+
+  const updateSources = meta?.update_check_sources ?? []
+  const showAppModal = appModalOpen && (Boolean(meta?.info_available) || updateSources.length > 0)
+  const modalTabs: AppModalTab[] = []
+  if (meta?.info_available) {
+    modalTabs.push({ id: informationTabID, label: 'Information', isInformation: true })
+  }
+  for (const source of updateSources) {
+    modalTabs.push({ id: source.name, label: source.label, source })
+  }
+  const updatesUnread = updateSources.reduce((sum, source) => {
+    if (!updatesDismissedAt) {return sum + source.releases.length}
+    const dismissed = new Date(updatesDismissedAt).getTime()
+    if (Number.isNaN(dismissed)) {return sum}
+    let count = 0
+    for (const release of source.releases) {
+      const published = new Date(release.published_at).getTime()
+      if (Number.isNaN(published)) {continue}
+      if (published > dismissed) {count++}
+    }
+
+    return sum + count
+  }, 0)
 
   const mainClass = page === 'map'
     ? `app-shell map-page${bannerText ? ' has-banner' : ''}`
@@ -854,20 +907,26 @@ export function App(): JSX.Element {
         infoAvailable={Boolean(meta?.info_available)}
         mqttStatus={mqttStatus}
         page={page}
+        unreadCount={updatesUnread}
         version={meta?.version ?? defaultAppVersion}
         ws={ws}
         wsStats={wsStats}
         onOpenInfo={openInfoModal}
         onPage={navigateToPage}
       />
-      {infoModalOpen && (
-        <InfoModal
-          content={visibleInfoContent}
-          error={infoError}
-          loading={infoLoading}
-          showUpdatedNotice={Boolean(infoDismissedHash && meta?.info_source_hash && infoDismissedHash !== meta.info_source_hash)}
-          onClose={() => setInfoModalOpen(false)}
+      {showAppModal && (
+        <AppModal
+          activeTabID={appModalActiveTab}
+          infoContent={visibleInfoContent}
+          infoError={infoError}
+          infoLoading={infoLoading}
+          infoShowUpdatedNotice={Boolean(infoDismissedHash && meta?.info_source_hash && infoDismissedHash !== meta.info_source_hash)}
+          tabs={modalTabs}
+          updatesDismissedAt={updatesDismissedAt}
+          onClose={closeAppModal}
           onDismiss={dismissInfoModal}
+          onDismissUpdates={dismissUpdatesForSource}
+          onSelectTab={selectAppModalTab}
         />
       )}
       {bannerText && <p className="banner warning" role="alert">{bannerText}</p>}

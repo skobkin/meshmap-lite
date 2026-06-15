@@ -10,6 +10,7 @@ require (
 	github.com/knadh/koanf/v2 v2.3.4
 	github.com/yuin/goldmark v1.8.2
 	github.com/zmtcreative/gm-alert-callouts v0.8.0
+	golang.org/x/mod v0.36.0
 	google.golang.org/protobuf v1.36.11
 	modernc.org/sqlite v1.50.0
 )

@@ -1,18 +1,36 @@
 import { useEffect, useId } from 'preact/hooks'
 
-import type { JSX } from 'preact'
+import type { ComponentChildren, JSX } from 'preact'
 
 interface Props {
+  ariaCloseLabel: string
+  children?: ComponentChildren
   content: string
   error?: string
   loading?: boolean
   showUpdatedNotice?: boolean
+  tabs?: ComponentChildren
+  title: string
   onClose: () => void
   onDismiss: () => void
+  dismissLabel?: string
 }
 
-export function InfoModal({ content, error, loading = false, showUpdatedNotice = false, onClose, onDismiss }: Props): JSX.Element {
+export function HtmlModal({
+  ariaCloseLabel,
+  children,
+  content,
+  error,
+  loading = false,
+  showUpdatedNotice = false,
+  tabs,
+  title,
+  onClose,
+  onDismiss,
+  dismissLabel = 'Got it'
+}: Props): JSX.Element {
   const titleId = useId()
+  const tabsId = useId()
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
@@ -43,9 +61,9 @@ export function InfoModal({ content, error, loading = false, showUpdatedNotice =
         role="dialog"
       >
         <header className="info-modal-header">
-          <h2 id={titleId}>Site information</h2>
+          <h2 id={titleId}>{title}</h2>
           <button
-            aria-label="Close site information"
+            aria-label={ariaCloseLabel}
             className="secondary info-modal-close"
             type="button"
             onClick={onClose}
@@ -53,6 +71,11 @@ export function InfoModal({ content, error, loading = false, showUpdatedNotice =
             x
           </button>
         </header>
+        {tabs && (
+          <div id={tabsId} className="app-modal-tabs" role="tablist" aria-label={`${title} sections`}>
+            {tabs}
+          </div>
+        )}
         <div className="info-modal-body">
           {showUpdatedNotice && (
             <p className="info-modal-notice" role="status">
@@ -67,9 +90,10 @@ export function InfoModal({ content, error, loading = false, showUpdatedNotice =
               dangerouslySetInnerHTML={{ __html: content }}
             />
           )}
+          {children}
         </div>
         <footer className="info-modal-footer">
-          <button type="button" onClick={onDismiss}>Got it</button>
+          <button type="button" onClick={onDismiss}>{dismissLabel}</button>
         </footer>
       </section>
     </div>

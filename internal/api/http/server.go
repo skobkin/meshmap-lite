@@ -11,6 +11,7 @@ import (
 	"meshmap-lite/internal/mqttclient"
 	"meshmap-lite/internal/repo"
 	"meshmap-lite/internal/siteinfo"
+	"meshmap-lite/internal/updatecheck"
 )
 
 // Server serves HTTP API routes and shared operational endpoints.
@@ -26,6 +27,7 @@ type Server struct {
 	topologyMu    sync.Mutex
 	topologyCache topologyEdgesCache
 	now           func() time.Time
+	updateMgr     *updatecheck.Manager
 }
 
 // Config contains the subset of app config required by the HTTP API.
@@ -35,6 +37,9 @@ type Config struct {
 	Web      config.WebConfig
 	Channels map[string]config.ChannelConfig
 	Info     *siteinfo.Info
+	// Updates is the multi-source release-checker manager. nil disables
+	// the /api/v1/updates endpoint and the meta extension.
+	Updates *updatecheck.Manager
 }
 
 // New creates an HTTP API server with configured dependencies.
@@ -48,6 +53,7 @@ func New(cfg Config, store repo.ReadStore, log *slog.Logger, ready func() bool, 
 		mqttStatus:    mqttStatus,
 		activityCache: make(map[string]activityPeriodCache),
 		now:           time.Now,
+		updateMgr:     cfg.Updates,
 	}
 }
 

@@ -15,25 +15,61 @@ type errorPayload struct {
 }
 
 type metaPayload struct {
-	AppName               string               `json:"app_name"`
-	Version               string               `json:"version"`
-	WebsocketPath         string               `json:"websocket_path"`
-	ChatEnabled           bool                 `json:"chat_enabled"`
-	DefaultChatChannel    string               `json:"default_chat_channel"`
-	ShowRecentMessages    int                  `json:"show_recent_messages"`
-	LogLiveUpdates        bool                 `json:"log_live_updates"`
-	LogPageSizeDefault    int                  `json:"log_page_size_default"`
-	DisconnectedThreshold string               `json:"disconnected_threshold"`
-	InfoAvailable         bool                 `json:"info_available"`
-	InfoSourceHash        string               `json:"info_source_hash,omitempty"`
-	Map                   metaMapPayload       `json:"map"`
-	Relevance             metaRelevancePayload `json:"relevance"`
+	AppName               string                 `json:"app_name"`
+	Version               string                 `json:"version"`
+	WebsocketPath         string                 `json:"websocket_path"`
+	ChatEnabled           bool                   `json:"chat_enabled"`
+	DefaultChatChannel    string                 `json:"default_chat_channel"`
+	ShowRecentMessages    int                    `json:"show_recent_messages"`
+	LogLiveUpdates        bool                   `json:"log_live_updates"`
+	LogPageSizeDefault    int                    `json:"log_page_size_default"`
+	DisconnectedThreshold string                 `json:"disconnected_threshold"`
+	InfoAvailable         bool                   `json:"info_available"`
+	InfoSourceHash        string                 `json:"info_source_hash,omitempty"`
+	UpdateCheckAvailable  bool                   `json:"update_check_available"`
+	UpdateCheckSources    []*updateSourceSummary `json:"update_check_sources,omitempty"`
+	Map                   metaMapPayload         `json:"map"`
+	Relevance             metaRelevancePayload   `json:"relevance"`
 }
 
 type infoPayload struct {
 	Format     string `json:"format"`
 	SourceHash string `json:"source_hash"`
 	Content    string `json:"content"`
+}
+
+type updatesPayload struct {
+	Format     string               `json:"format"`
+	Source     string               `json:"source"`
+	SourceHash string               `json:"source_hash"`
+	Releases   []updateReleaseEntry `json:"releases"`
+}
+
+// updateSourceSummary is the per-source summary embedded in the meta
+// response. It carries only release metadata (no markdown bodies) so
+// the page-load payload stays light; full bodies are fetched on demand
+// from /api/v1/updates.
+type updateSourceSummary struct {
+	Name            string                       `json:"name"`
+	Label           string                       `json:"label"`
+	SourceHash      string                       `json:"source_hash,omitempty"`
+	CurrentVersion  string                       `json:"current_version,omitempty"`
+	LatestVersion   string                       `json:"latest_version,omitempty"`
+	UpdateAvailable bool                         `json:"update_available"`
+	ReleasesPageURL string                       `json:"releases_page_url,omitempty"`
+	Releases        []updateReleaseMetadataEntry `json:"releases"`
+}
+
+type updateReleaseMetadataEntry struct {
+	Version     string    `json:"version"`
+	PublishedAt time.Time `json:"published_at"`
+}
+
+type updateReleaseEntry struct {
+	Version     string    `json:"version"`
+	PublishedAt time.Time `json:"published_at"`
+	HTMLURL     string    `json:"html_url,omitempty"`
+	Body        string    `json:"body"`
 }
 
 type metaMapPayload struct {

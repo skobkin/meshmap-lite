@@ -110,4 +110,37 @@ describe('api client', () => {
 
     await expect(api.meta()).rejects.toThrow('request failed: 503')
   })
+
+  it('requests updates for a source with the default html format', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ format: 'html', source: 'meshmap-lite', source_hash: 'abc', releases: [] })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await api.updates('meshmap-lite')
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/updates?source=meshmap-lite&format=html', { signal: undefined })
+  })
+
+  it('requests updates for a source in markdown format', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ format: 'markdown', source: 'meshmap-lite', source_hash: 'abc', releases: [] })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await api.updates('meshmap-lite', 'markdown')
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/updates?source=meshmap-lite&format=markdown', { signal: undefined })
+  })
+
+  it('propagates 404 for unknown updates source', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404
+    }))
+
+    await expect(api.updates('not-configured')).rejects.toThrow('request failed: 404')
+  })
 })

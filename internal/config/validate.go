@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
 func validate(cfg Config) error {
@@ -32,6 +33,35 @@ func validate(cfg Config) error {
 	}
 	if primary > 1 {
 		return errors.New("at most one channels.*.primary=true is allowed")
+	}
+
+	return validateUpdateCheck(cfg.UpdateCheck)
+}
+
+// validateUpdateCheck enforces the multi-source update-check invariants.
+func validateUpdateCheck(cfg UpdateCheckConfig) error {
+	if !cfg.Enabled {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(cfg.Sources))
+	for i, src := range cfg.Sources {
+		name := strings.TrimSpace(src.Name)
+		if name == "" {
+			return fmt.Errorf("update_check.sources[%d].name is required", i)
+		}
+		if _, dup := seen[name]; dup {
+			return fmt.Errorf("update_check.sources[%d]: duplicate source name %q", i, name)
+		}
+		seen[name] = struct{}{}
+
+		switch strings.TrimSpace(src.Type) {
+		case "forgejo", "github":
+		default:
+			return fmt.Errorf("update_check.sources[%d].type %q is not supported", i, src.Type)
+		}
+		if strings.TrimSpace(src.Repository) == "" {
+			return fmt.Errorf("update_check.sources[%d].repository is required", i)
+		}
 	}
 
 	return nil

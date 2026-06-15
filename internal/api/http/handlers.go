@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"meshmap-lite/internal/repo"
+	"meshmap-lite/internal/siteinfo"
 )
 
 func (s *Server) healthz(w http.ResponseWriter, _ *http.Request) {
@@ -41,6 +42,8 @@ func (s *Server) meta(w http.ResponseWriter, _ *http.Request) {
 		DisconnectedThreshold: s.cfg.Web.Map.DisconnectedThreshold.String(),
 		InfoAvailable:         infoAvailable,
 		InfoSourceHash:        infoSourceHash,
+		UpdateCheckAvailable:  s.updateMgr != nil,
+		UpdateCheckSources:    s.updateSourceSummaries(),
 		Map: metaMapPayload{
 			Clustering:           s.cfg.Web.Map.Clustering,
 			TopologyCacheTTL:     s.cfg.Web.Map.TopologyCacheTTL.String(),
@@ -56,6 +59,116 @@ func (s *Server) meta(w http.ResponseWriter, _ *http.Request) {
 			TopologyEvidenceMaxAge: s.cfg.Web.Relevance.TopologyEvidenceMaxAge.String(),
 			MapPositionMaxAge:      s.cfg.Web.Relevance.MapPositionMaxAge.String(),
 		},
+	})
+}
+
+// updateSourceSummaries builds the per-source metadata list embedded
+// in /api/v1/meta. Sources without a cached snapshot are still listed
+// (with empty releases and SourceHash) so the SPA can render their tab
+// labels up-front; the "ready" check is the SourceHash being non-empty.
+func (s *Server) updateSourceSummaries() []*updateSourceSummary {
+	if s.updateMgr == nil {
+		return nil
+	}
+
+	labels := s.updateMgr.Labels()
+	names := s.updateMgr.Names()
+	summaries := make([]*updateSourceSummary, 0, len(names))
+	for _, name := range names {
+		summary := &updateSourceSummary{
+			Name:     name,
+			Label:    labels[name],
+			Releases: []updateReleaseMetadataEntry{},
+		}
+
+		// ReleasesPageURL stays empty when the platform adapter didn't
+		// supply one; the SPA falls back to a generic label.
+		if src := s.updateMgr.SnapshotSource(name); src != nil {
+			summary.ReleasesPageURL = src.ReleasesPageURL()
+		}
+
+		snap, ok := s.updateMgr.Snapshot(name)
+		if ok {
+			summary.SourceHash = snap.SourceHash
+			summary.CurrentVersion = snap.CurrentVersion
+			if snap.Latest.Version != "" {
+				summary.LatestVersion = snap.Latest.Version
+			}
+			summary.UpdateAvailable = snap.UpdateAvailable
+			summary.Releases = make([]updateReleaseMetadataEntry, 0, len(snap.Releases))
+			for _, r := range snap.Releases {
+				summary.Releases = append(summary.Releases, updateReleaseMetadataEntry{
+					Version:     r.Version,
+					PublishedAt: r.PublishedAt,
+				})
+			}
+		}
+
+		summaries = append(summaries, summary)
+	}
+
+	return summaries
+}
+
+func (s *Server) updates(w http.ResponseWriter, r *http.Request) {
+	if s.updateMgr == nil {
+		writeError(w, http.StatusNotFound, "update_check_not_configured")
+
+		return
+	}
+
+	sourceName := r.URL.Query().Get("source")
+	if sourceName == "" {
+		names := s.updateMgr.Names()
+		if len(names) == 0 {
+			writeError(w, http.StatusNotFound, "update_check_not_configured")
+
+			return
+		}
+		sourceName = names[0]
+	}
+	if !s.updateMgr.HasSource(sourceName) {
+		writeError(w, http.StatusNotFound, "update_check_source_not_found")
+
+		return
+	}
+
+	snap, ok := s.updateMgr.Snapshot(sourceName)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "update_check_not_ready")
+
+		return
+	}
+
+	format := r.URL.Query().Get("format")
+	if format == "" {
+		format = "html"
+	}
+
+	releases := make([]updateReleaseEntry, 0, len(snap.Releases))
+	for _, rel := range snap.Releases {
+		body := rel.Body
+		if format == "html" {
+			rendered, err := siteinfo.RenderMarkdown([]byte(rel.Body))
+			if err != nil {
+				s.log.Warn("render release body failed", "source", sourceName, "version", rel.Version, "err", err)
+				rendered = rel.Body
+			}
+			body = rendered
+		}
+		releases = append(releases, updateReleaseEntry{
+			Version:     rel.Version,
+			PublishedAt: rel.PublishedAt,
+			HTMLURL:     rel.HTMLURL,
+			Body:        body,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, updatesPayload{
+		Format:     format,
+		Source:     sourceName,
+		SourceHash: snap.SourceHash,
+		Releases:   releases,
 	})
 }
 

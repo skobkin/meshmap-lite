@@ -38,6 +38,13 @@ describe('urlState', () => {
     })
   })
 
+  it('parses the shareable per-source updates route without changing the active page type', () => {
+    expect(parseFragmentState('#/updates/meshmap-lite')).toEqual({
+      page: 'map',
+      updatesRequestedSource: 'meshmap-lite'
+    })
+  })
+
   it('parses nodes state', () => {
     expect(parseFragmentState('#/nodes?node=%21abc&q=relay%20one')).toEqual({
       page: 'nodes',
@@ -81,5 +88,13 @@ describe('urlState', () => {
         eventID: 42
       }
     })).toBe('#/log?event_kind=7&event_kind=4&channel=mesh+room&node_id=%21abc&event_id=42')
+  })
+
+  it('serializes the shareable information popup route', () => {
+    expect(serializeFragmentState({ page: 'map', infoRequested: true })).toBe('#/info')
+  })
+
+  it('serializes the shareable per-source updates route', () => {
+    expect(serializeFragmentState({ page: 'map', updatesRequestedSource: 'meshmap-lite' })).toBe('#/updates/meshmap-lite')
   })
 })

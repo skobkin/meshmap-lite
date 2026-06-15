@@ -8,6 +8,7 @@ interface Props {
   appName: string
   mqttStatus: MQTTConnectionStatus | null
   page: Page
+  unreadCount: number
   version: string
   ws: WSState
   wsStats: WSStats | null
@@ -16,8 +17,12 @@ interface Props {
   onOpenInfo?: () => void
 }
 
-export function Header({ appName, mqttStatus, page, version, ws, wsStats, infoAvailable = false, onPage, onOpenInfo }: Props): JSX.Element {
+export function Header({ appName, mqttStatus, page, unreadCount, version, ws, wsStats, infoAvailable = false, onPage, onOpenInfo }: Props): JSX.Element {
   const brandTitle = `${appName} ${version}`
+  const hasInfoOrUpdates = infoAvailable || unreadCount > 0
+  const ariaLabel = unreadCount > 0
+    ? `Site information (${unreadCount} update${unreadCount === 1 ? '' : 's'})`
+    : 'Site information'
 
   return (
     <header className="topbar container-fluid">
@@ -69,15 +74,18 @@ export function Header({ appName, mqttStatus, page, version, ws, wsStats, infoAv
         </ul>
       </nav>
       <div className="header-icons">
-        {infoAvailable && (
+        {hasInfoOrUpdates && (
           <a
-            aria-label="Site information"
+            aria-label={ariaLabel}
             className="header-icon-button"
             href="#/info"
             title="Site information"
             onClick={onOpenInfo}
           >
             <span aria-hidden="true">i</span>
+            {unreadCount > 0 && (
+              <span className="header-badge" aria-hidden="true">{unreadCount}</span>
+            )}
           </a>
         )}
         <ConnectionStatus mqttStatus={mqttStatus} ws={ws} wsStats={wsStats} />

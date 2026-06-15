@@ -24,15 +24,16 @@ interface RequestOptions {
 }
 
 function createStoreHook<T extends object>(
-  creator: (set: (partial: Partial<T>) => void, get: () => T) => T
+  creator: (set: (partial: Partial<T> | ((state: T) => Partial<T>)) => void, get: () => T) => T
 ): StoreHook<T> {
   const listeners = new Set<() => void>()
 
   let state: T
 
   const get = (): T => state
-  const set = (partial: Partial<T>): void => {
-    state = { ...state, ...partial }
+  const set = (partial: Partial<T> | ((state: T) => Partial<T>)): void => {
+    const next = typeof partial === 'function' ? partial(state) : partial
+    state = { ...state, ...next }
     listeners.forEach((listener) => listener())
   }
   const buildInitial = (): T => creator(set, get)
@@ -189,12 +190,23 @@ interface TopologyAllStoreState {
   reset: () => void
 }
 
+interface UpdatesStoreState {
+  bySource: Record<string, unknown>
+  loading: Record<string, boolean>
+  errors: Record<string, string>
+  setResponse: (source: string, response: unknown) => void
+  setLoading: (source: string, value: boolean) => void
+  setError: (source: string, message: string) => void
+  reset: () => void
+}
+
 let chatStore: StoreHook<ChatStoreState>
 let logStore: StoreHook<LogStoreState>
 let metaStore: StoreHook<MetaStoreState>
 let nodeStore: StoreHook<NodeStoreState>
 let wsStore: StoreHook<WSStoreState>
 let topologyAllStore: StoreHook<TopologyAllStoreState>
+let updatesStore: StoreHook<UpdatesStoreState>
 let apiMock: {
   meta: ReturnType<typeof vi.fn>
   channels: ReturnType<typeof vi.fn>
@@ -205,6 +217,7 @@ let apiMock: {
   logEvents: ReturnType<typeof vi.fn>
   statsActivity: ReturnType<typeof vi.fn>
   info: ReturnType<typeof vi.fn>
+  updates: ReturnType<typeof vi.fn>
 }
 let startWSMock: ReturnType<typeof vi.fn>
 
@@ -282,6 +295,16 @@ function setupModuleMocks(): void {
     reset: () => undefined
   }))
 
+  updatesStore = createStoreHook<UpdatesStoreState>((set) => ({
+    bySource: {},
+    loading: {},
+    errors: {},
+    setResponse: (source, response) => set((state) => ({ bySource: { ...state.bySource, [source]: response } })),
+    setLoading: (source, value) => set((state) => ({ loading: { ...state.loading, [source]: value } })),
+    setError: (source, message) => set((state) => ({ errors: { ...state.errors, [source]: message } })),
+    reset: () => set({ bySource: {}, loading: {}, errors: {} })
+  }))
+
   apiMock = {
     meta: vi.fn().mockResolvedValue(meta()),
     channels: vi.fn().mockResolvedValue([channel('mesh'), channel('ops')]),
@@ -295,7 +318,13 @@ function setupModuleMocks(): void {
       format: 'html',
       source_hash: 'hash-1',
       content: '<h1>Site info</h1>'
-    } satisfies InfoResponse)
+    } satisfies InfoResponse),
+    updates: vi.fn().mockResolvedValue({
+      format: 'html',
+      source: 'meshmap-lite',
+      source_hash: 'updates-hash-1',
+      releases: []
+    })
   }
   startWSMock = vi.fn().mockReturnValue(vi.fn())
 
@@ -322,6 +351,9 @@ function setupModuleMocks(): void {
   }))
   vi.doMock('./stores/topologyAll', () => ({
     useTopologyAllStore: topologyAllStore
+  }))
+  vi.doMock('./stores/updates', () => ({
+    useUpdatesStore: updatesStore
   }))
   vi.doMock('./pages/MapPage', () => ({
     MapPage: ({
@@ -466,6 +498,7 @@ describe('App', () => {
     vi.clearAllMocks()
     localStorage.clear()
     document.cookie = 'meshmap-lite.info.dismissed_source_hash=; Max-Age=0; Path=/'
+    document.cookie = 'meshmap-lite.updates.dismissed_published_at=; Max-Age=0; Path=/'
     window.location.hash = ''
     window.history.replaceState(null, '', '/')
     setupModuleMocks()

@@ -124,6 +124,63 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 error: info_not_configured
+  /api/v1/updates:
+    get:
+      tags: [Updates]
+      summary: Fetch cached release notes for an update-check source
+      operationId: getUpdates
+      parameters:
+        - name: source
+          in: query
+          required: false
+          description: |
+            Source name (as configured under `update_check.sources[].name`).
+            Defaults to the only/first registered source.
+          schema:
+            type: string
+        - name: format
+          in: query
+          required: false
+          description: Body encoding. `html` (default) is pre-rendered by goldmark; `markdown` is the raw body.
+          schema:
+            type: string
+            enum: [html, markdown]
+      responses:
+        '200':
+          description: Cached release list for the requested source, newest-first.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Updates'
+        '400':
+          description: Unknown format.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: invalid_format
+        '404':
+          description: Update check is disabled or the named source is not registered.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                disabled:
+                  value:
+                    error: update_check_not_configured
+                unknown_source:
+                  value:
+                    error: update_check_source_not_found
+        '503':
+          description: The named source has not completed its first check yet.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: update_check_not_ready
   /api/v1/channels:
     get:
       tags: [Channels]
@@ -480,6 +537,7 @@ components:
         - log_page_size_default
         - disconnected_threshold
         - info_available
+        - update_check_available
         - map
         - relevance
       properties:
@@ -509,6 +567,16 @@ components:
         info_source_hash:
           type: string
           description: SHA-256 of the Markdown source. Present when `info_available` is true.
+        update_check_available:
+          type: boolean
+          description: Whether the multi-source update checker is enabled.
+        update_check_sources:
+          type: array
+          description: |
+            Per-source release summary (metadata only — no bodies). One entry per
+            configured source. Absent when `update_check_available` is false.
+          items:
+            $ref: '#/components/schemas/UpdateSourceSummary'
         map:
           $ref: '#/components/schemas/MetaMap'
         relevance:
@@ -525,6 +593,69 @@ components:
           description: SHA-256 of the Markdown source.
         content:
           type: string
+    Updates:
+      type: object
+      required: [format, source, source_hash, releases]
+      properties:
+        format:
+          type: string
+          enum: [html, markdown]
+        source:
+          type: string
+          description: Echo of the resolved source name.
+        source_hash:
+          type: string
+          description: SHA-256 of the latest release. Matches `meta.update_check_sources[].source_hash`.
+        releases:
+          type: array
+          items:
+            $ref: '#/components/schemas/UpdateRelease'
+    UpdateSourceSummary:
+      type: object
+      required: [name, label, update_available, releases]
+      properties:
+        name:
+          type: string
+        label:
+          type: string
+        source_hash:
+          type: string
+          description: Empty when the source has not completed its first check.
+        current_version:
+          type: string
+        latest_version:
+          type: string
+        update_available:
+          type: boolean
+        releases_page_url:
+          type: string
+        releases:
+          type: array
+          items:
+            $ref: '#/components/schemas/UpdateReleaseMetadata'
+    UpdateReleaseMetadata:
+      type: object
+      required: [version, published_at]
+      properties:
+        version:
+          type: string
+        published_at:
+          type: string
+          format: date-time
+    UpdateRelease:
+      type: object
+      required: [version, published_at, body]
+      properties:
+        version:
+          type: string
+        published_at:
+          type: string
+          format: date-time
+        html_url:
+          type: string
+        body:
+          type: string
+          description: HTML when `format=html` (default), Markdown when `format=markdown`.
     MetaMap:
       type: object
       required:

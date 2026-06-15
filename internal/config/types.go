@@ -11,12 +11,13 @@ const (
 
 // Config is the root application configuration loaded from YAML and environment.
 type Config struct {
-	MQTT     MQTTConfig               `koanf:"mqtt" json:"mqtt"`
-	Ingest   IngestConfig             `koanf:"ingest" json:"ingest"`
-	Storage  StorageConfig            `koanf:"storage" json:"storage"`
-	Channels map[string]ChannelConfig `koanf:"channels" json:"channels"`
-	Web      WebConfig                `koanf:"web" json:"web"`
-	Logging  LoggingConfig            `koanf:"logging" json:"logging"`
+	MQTT        MQTTConfig               `koanf:"mqtt" json:"mqtt"`
+	Ingest      IngestConfig             `koanf:"ingest" json:"ingest"`
+	Storage     StorageConfig            `koanf:"storage" json:"storage"`
+	Channels    map[string]ChannelConfig `koanf:"channels" json:"channels"`
+	Web         WebConfig                `koanf:"web" json:"web"`
+	Logging     LoggingConfig            `koanf:"logging" json:"logging"`
+	UpdateCheck UpdateCheckConfig        `koanf:"update_check" json:"update_check"`
 }
 
 // MQTTConfig contains MQTT broker and connection settings.
@@ -178,4 +179,25 @@ type DefaultViewConfig struct {
 // LoggingConfig controls process log verbosity.
 type LoggingConfig struct {
 	Level string `koanf:"level"`
+}
+
+// UpdateCheckConfig configures the multi-source release-checker.
+type UpdateCheckConfig struct {
+	Enabled  bool                      `koanf:"enabled"`
+	Interval time.Duration             `koanf:"interval"`
+	Timeout  time.Duration             `koanf:"timeout"`
+	Sources  []UpdateCheckSourceConfig `koanf:"sources"`
+}
+
+// UpdateCheckSourceConfig declares a single release-check source. The
+// Manager constructs the upstream API URL from Type, BaseURL, and
+// Repository at runtime — users only supply high-level fields.
+type UpdateCheckSourceConfig struct {
+	Name                 string `koanf:"name"`
+	Label                string `koanf:"label"`
+	Type                 string `koanf:"type"`
+	BaseURL              string `koanf:"base_url"`
+	Repository           string `koanf:"repository"`
+	CurrentVersionSource string `koanf:"current_version_source"`
+	Limit                int    `koanf:"limit"`
 }

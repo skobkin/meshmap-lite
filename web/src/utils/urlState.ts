@@ -8,6 +8,7 @@ export interface MapViewState {
 export interface FragmentState {
   page: FragmentPage
   infoRequested?: boolean
+  updatesRequestedSource?: string
   map?: {
     view?: MapViewState
     node?: string
@@ -52,26 +53,48 @@ function nonEmpty(value: string | null): string | undefined {
   return value && value.length > 0 ? value : undefined
 }
 
-function parsePage(raw: string): { page: FragmentPage; params: URLSearchParams; routed: boolean; infoRequested: boolean } {
+function parsePage(raw: string): {
+  page: FragmentPage
+  params: URLSearchParams
+  routed: boolean
+  infoRequested: boolean
+  updatesRequestedSource: string
+} {
   const trimmed = raw.startsWith('#') ? raw.slice(1) : raw
   if (!trimmed.startsWith('/')) {
-    return { page: 'map', params: new URLSearchParams(), routed: false, infoRequested: false }
+    return { page: 'map', params: new URLSearchParams(), routed: false, infoRequested: false, updatesRequestedSource: '' }
   }
   const queryStart = trimmed.indexOf('?')
   const path = queryStart >= 0 ? trimmed.slice(1, queryStart) : trimmed.slice(1)
   const query = queryStart >= 0 ? trimmed.slice(queryStart + 1) : ''
   if (path === 'info') {
-    return { page: 'map', params: new URLSearchParams(query), routed: true, infoRequested: true }
+    return { page: 'map', params: new URLSearchParams(query), routed: true, infoRequested: true, updatesRequestedSource: '' }
+  }
+  if (path.startsWith('updates/')) {
+    const source = path.slice('updates/'.length).trim()
+
+    return {
+      page: 'map',
+      params: new URLSearchParams(query),
+      routed: true,
+      infoRequested: false,
+      updatesRequestedSource: source
+    }
   }
   const page = pages.has(path as FragmentPage) ? path as FragmentPage : 'map'
 
-  return { page, params: new URLSearchParams(query), routed: true, infoRequested: false }
+  return { page, params: new URLSearchParams(query), routed: true, infoRequested: false, updatesRequestedSource: '' }
 }
 
 export function parseFragmentState(hash: string): FragmentState {
-  const { page, params, routed, infoRequested } = parsePage(hash)
-  const state: FragmentState = { page, infoRequested: infoRequested || undefined }
+  const { page, params, routed, infoRequested, updatesRequestedSource } = parsePage(hash)
+  const state: FragmentState = {
+    page,
+    infoRequested: infoRequested || undefined,
+    updatesRequestedSource: updatesRequestedSource || undefined
+  }
   if (infoRequested) {return state}
+  if (updatesRequestedSource) {return state}
   if (!routed) {return state}
 
   if (page === 'map') {
@@ -116,6 +139,13 @@ function setMapView(params: URLSearchParams, view?: MapViewState): void {
 }
 
 export function serializeFragmentState(state: FragmentState): string {
+  if (state.infoRequested) {
+    return '#/info'
+  }
+  if (state.updatesRequestedSource) {
+    return `#/updates/${encodeURIComponent(state.updatesRequestedSource)}`
+  }
+
   const params = new URLSearchParams()
 
   switch (state.page) {

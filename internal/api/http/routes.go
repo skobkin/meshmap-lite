@@ -13,6 +13,7 @@ func (s *Server) Routes(wsHandler, docsHandler http.Handler) http.Handler {
 	}
 	mux.Handle("/api/v1/meta", http.HandlerFunc(s.meta))
 	mux.Handle("/api/v1/info", http.HandlerFunc(s.info))
+	mux.Handle("/api/v1/updates", http.HandlerFunc(s.updates))
 	mux.Handle("/api/v1/channels", http.HandlerFunc(s.channels))
 	mux.Handle("/api/v1/map/nodes", http.HandlerFunc(s.mapNodes))
 	mux.Handle("/api/v1/chat/messages", http.HandlerFunc(s.chatMessages))
