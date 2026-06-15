@@ -326,6 +326,16 @@ body {
   border-bottom: 1px solid var(--surface-border);
 }
 
+.info-modal-header.has-tabs {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) 2rem;
+}
+
+.info-modal-header.has-tabs .info-modal-close {
+  grid-column: 3;
+  justify-self: end;
+}
+
 .info-modal-header h2 {
   margin: 0;
   font-size: 1.05rem;
@@ -2095,10 +2105,10 @@ body {
 .app-modal-tabs {
   display: flex;
   flex-wrap: wrap;
+  grid-column: 2;
+  justify-content: center;
+  justify-self: center;
   gap: 0.4rem;
-  padding: 0.5rem 1rem;
-  border-bottom: 1px solid var(--surface-border);
-  background: color-mix(in srgb, var(--surface-bg) 92%, transparent);
 }
 
 .app-modal-tab {
@@ -2117,18 +2127,20 @@ body {
 /* Unread count badge on the header info button */
 .header-badge {
   position: absolute;
-  top: -0.25rem;
-  right: -0.25rem;
+  top: -0.15rem;
+  right: -0.15rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 1rem;
-  height: 1rem;
-  padding: 0 0.3rem;
+  box-sizing: border-box;
+  min-width: 0.75rem;
+  height: 0.75rem;
+  padding: 0 0.15rem;
   border-radius: 999px;
   background: var(--pico-del-color);
-  color: var(--pico-background-color);
-  font-size: 0.65rem;
+  box-shadow: 0 0 0 2px var(--surface-bg);
+  color: #fff;
+  font-size: 0.5rem;
   font-weight: 700;
   line-height: 1;
 }

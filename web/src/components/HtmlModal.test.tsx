@@ -88,6 +88,9 @@ describe('HtmlModal', () => {
 
     const list = screen.getByRole('tablist', { name: 'Test modal sections' })
     expect(list).toBeTruthy()
+    expect(list.parentElement?.classList.contains('info-modal-header')).toBe(true)
+    expect(screen.queryByRole('heading', { name: 'Test modal' })).toBeNull()
+    expect(screen.getByRole('dialog', { name: 'Test modal' })).toBeTruthy()
     expect(screen.getByRole('tab', { name: 'One' })).toBeTruthy()
     expect(screen.getByRole('tab', { name: 'Two' })).toBeTruthy()
   })

@@ -30,7 +30,6 @@ export function HtmlModal({
   dismissLabel = 'Got it'
 }: Props): JSX.Element {
   const titleId = useId()
-  const tabsId = useId()
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent): void => {
@@ -55,13 +54,20 @@ export function HtmlModal({
       }}
     >
       <section
-        aria-labelledby={titleId}
+        aria-label={tabs ? title : undefined}
+        aria-labelledby={tabs ? undefined : titleId}
         aria-modal="true"
         className="info-modal"
         role="dialog"
       >
-        <header className="info-modal-header">
-          <h2 id={titleId}>{title}</h2>
+        <header className={tabs ? 'info-modal-header has-tabs' : 'info-modal-header'}>
+          {tabs
+            ? (
+                <div className="app-modal-tabs" role="tablist" aria-label={`${title} sections`}>
+                  {tabs}
+                </div>
+              )
+            : <h2 id={titleId}>{title}</h2>}
           <button
             aria-label={ariaCloseLabel}
             className="secondary info-modal-close"
@@ -71,11 +77,6 @@ export function HtmlModal({
             x
           </button>
         </header>
-        {tabs && (
-          <div id={tabsId} className="app-modal-tabs" role="tablist" aria-label={`${title} sections`}>
-            {tabs}
-          </div>
-        )}
         <div className="info-modal-body">
           {showUpdatedNotice && (
             <p className="info-modal-notice" role="status">

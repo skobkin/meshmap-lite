@@ -135,6 +135,8 @@ describe('AppModal', () => {
     const tablist = screen.getByRole('tablist', { name: 'Site information sections' })
 
     expect(tablist).toBeTruthy()
+    expect(tablist.parentElement?.classList.contains('info-modal-header')).toBe(true)
+    expect(screen.queryByRole('heading', { name: 'Site information' })).toBeNull()
     expect(screen.getByRole('tab', { name: 'Information' })).toBeTruthy()
     expect(screen.getByRole('tab', { name: 'MeshMap Lite' })).toBeTruthy()
   })
