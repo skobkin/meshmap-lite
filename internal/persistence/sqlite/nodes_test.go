@@ -706,6 +706,44 @@ func TestUpsertNode_MinimalEvidenceDoesNotClearStructuredFields(t *testing.T) {
 	}
 }
 
+func TestListAndDetailsSupportIDOnlyNodes(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, config.SQLConfig{URL: "file::memory:?cache=shared", AutoMigrate: true}, nil)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	observedAt := time.Date(2026, 6, 15, 22, 49, 50, 930288844, time.UTC)
+	if _, err := s.db.ExecContext(ctx, `
+INSERT INTO nodes(node_id,first_seen_at,last_seen_any_event_at,updated_at)
+VALUES(?,?,?,?)`, "!b3674d6a", observedAt.Format(time.RFC3339Nano), observedAt.Format(time.RFC3339Nano), observedAt.Format(time.RFC3339Nano)); err != nil {
+		t.Fatalf("insert id-only node: %v", err)
+	}
+
+	summaries, err := s.ListNodes(ctx, repo.NodeListQuery{})
+	if err != nil {
+		t.Fatalf("list nodes: %v", err)
+	}
+	if len(summaries) != 1 {
+		t.Fatalf("expected one node summary, got %#v", summaries)
+	}
+	if summaries[0].NodeID != "!b3674d6a" || summaries[0].DisplayName != "!b3674d6a" {
+		t.Fatalf("expected ID-only summary fallback, got %#v", summaries[0])
+	}
+
+	details, err := s.GetNodeDetails(ctx, repo.NodeDetailsQuery{NodeID: "!b3674d6a"})
+	if err != nil {
+		t.Fatalf("get node details: %v", err)
+	}
+	if details.Node.NodeID != "!b3674d6a" || !details.Node.LastSeenAnyEventAt.Equal(observedAt) {
+		t.Fatalf("expected ID-only node details, got %#v", details.Node)
+	}
+	if details.Position != nil || details.Telemetry != nil || len(details.Neighbors) != 0 {
+		t.Fatalf("expected only node identity details, got %#v", details)
+	}
+}
+
 func ptrFloat64(v float64) *float64 {
 	return &v
 }

@@ -52,17 +52,26 @@ func scanMapNode(rows *sql.Rows) (domain.Node, *domain.NodePosition, error) {
 	var hasOptedReportLoc sql.NullInt64
 	var neighbor sql.NullInt64
 	var gw sql.NullInt64
+	var longName, shortName, role, boardModel, firmwareVersion, loraRegion, loraFrequencyDesc, modemPreset sql.NullString
 	var firstSeen, lastAny, lastMQTT, lastUploaderID, lastUploaderLong, lastUploaderShort, lastUploaderAt, lastPos, updated sql.NullString
 	var pLat, pLon, pAlt sql.NullFloat64
 	var pPrec sql.NullInt64
 	var pKind, pChannel, pUploaderID, pUploaderLong, pUploaderShort, pReported, pObserved, pUpdated sql.NullString
-	err := rows.Scan(&n.NodeID, &nodeNum, &n.LongName, &n.ShortName, &n.Role, &n.BoardModel, &n.FirmwareVersion, &n.LoRaRegion, &n.LoRaFrequencyDesc,
-		&n.ModemPreset, &hasDefaultCh, &hasOptedReportLoc, &neighbor, &gw, &firstSeen, &lastAny, &lastMQTT,
+	err := rows.Scan(&n.NodeID, &nodeNum, &longName, &shortName, &role, &boardModel, &firmwareVersion, &loraRegion, &loraFrequencyDesc,
+		&modemPreset, &hasDefaultCh, &hasOptedReportLoc, &neighbor, &gw, &firstSeen, &lastAny, &lastMQTT,
 		&lastUploaderID, &lastUploaderLong, &lastUploaderShort, &lastUploaderAt, &lastPos, &updated,
 		&pLat, &pLon, &pAlt, &pPrec, &pKind, &pChannel, &pUploaderID, &pUploaderLong, &pUploaderShort, &pReported, &pObserved, &pUpdated)
 	if err != nil {
 		return n, nil, err
 	}
+	n.LongName = longName.String
+	n.ShortName = shortName.String
+	n.Role = role.String
+	n.BoardModel = boardModel.String
+	n.FirmwareVersion = firmwareVersion.String
+	n.LoRaRegion = loraRegion.String
+	n.LoRaFrequencyDesc = loraFrequencyDesc.String
+	n.ModemPreset = modemPreset.String
 	if nodeNum.Valid {
 		if v, ok := checkedUint32FromInt64(nodeNum.Int64); ok {
 			n.NodeNum = &v
@@ -116,6 +125,7 @@ func scanMapNodeWithTelemetry(rows *sql.Rows) (domain.Node, *domain.NodePosition
 	var hasOptedReportLoc sql.NullInt64
 	var neighbor sql.NullInt64
 	var gw sql.NullInt64
+	var longName, shortName, role, boardModel, firmwareVersion, loraRegion, loraFrequencyDesc, modemPreset sql.NullString
 	var firstSeen, lastAny, lastMQTT, lastUploaderID, lastUploaderLong, lastUploaderShort, lastUploaderAt, lastPos, updated sql.NullString
 	var pLat, pLon, pAlt sql.NullFloat64
 	var pPrec sql.NullInt64
@@ -124,8 +134,8 @@ func scanMapNodeWithTelemetry(rows *sql.Rows) (domain.Node, *domain.NodePosition
 	var tPv, tPbl, tEtc, tEh, tEph, tAp25, tAp10, tAco2, tAiaq sql.NullFloat64
 	var tSource, tUploaderID, tUploaderLong, tUploaderShort, tReported, tObserved, tUpdated sql.NullString
 
-	err := rows.Scan(&n.NodeID, &nodeNum, &n.LongName, &n.ShortName, &n.Role, &n.BoardModel, &n.FirmwareVersion, &n.LoRaRegion, &n.LoRaFrequencyDesc,
-		&n.ModemPreset, &hasDefaultCh, &hasOptedReportLoc, &neighbor, &gw, &firstSeen, &lastAny, &lastMQTT,
+	err := rows.Scan(&n.NodeID, &nodeNum, &longName, &shortName, &role, &boardModel, &firmwareVersion, &loraRegion, &loraFrequencyDesc,
+		&modemPreset, &hasDefaultCh, &hasOptedReportLoc, &neighbor, &gw, &firstSeen, &lastAny, &lastMQTT,
 		&lastUploaderID, &lastUploaderLong, &lastUploaderShort, &lastUploaderAt, &lastPos, &updated,
 		&pLat, &pLon, &pAlt, &pPrec, &pKind, &pChannel, &pUploaderID, &pUploaderLong, &pUploaderShort, &pReported, &pObserved, &pUpdated,
 		&tNodeID, &tPv, &tPbl, &tEtc, &tEh, &tEph, &tAp25, &tAp10, &tAco2, &tAiaq, &tSource, &tUploaderID, &tUploaderLong, &tUploaderShort, &tReported, &tObserved, &tUpdated)
@@ -133,6 +143,14 @@ func scanMapNodeWithTelemetry(rows *sql.Rows) (domain.Node, *domain.NodePosition
 		return n, nil, nil, err
 	}
 
+	n.LongName = longName.String
+	n.ShortName = shortName.String
+	n.Role = role.String
+	n.BoardModel = boardModel.String
+	n.FirmwareVersion = firmwareVersion.String
+	n.LoRaRegion = loraRegion.String
+	n.LoRaFrequencyDesc = loraFrequencyDesc.String
+	n.ModemPreset = modemPreset.String
 	if nodeNum.Valid {
 		if nodeNum.Int64 >= 0 && nodeNum.Int64 <= math.MaxUint32 {
 			v := uint32(nodeNum.Int64)

@@ -207,7 +207,8 @@ ORDER BY n.last_seen_any_event_at DESC`, positionCutoff, positionCutoff)
 	defer func() { _ = rows.Close() }()
 	items := make([]repo.NodeSummary, 0)
 	for rows.Next() {
-		var id, longName, shortName, lastAny, role, board string
+		var id, lastAny string
+		var longName, shortName, role, board sql.NullString
 		var lastPos, lastMQTT, uploaderID, uploaderLong, uploaderShort, uploaderAt sql.NullString
 		var hasPos bool
 		if err := rows.Scan(&id, &longName, &shortName, &lastAny, &lastPos, &lastMQTT, &uploaderID, &uploaderLong, &uploaderShort, &uploaderAt, &hasPos, &role, &board); err != nil {
@@ -220,9 +221,9 @@ ORDER BY n.last_seen_any_event_at DESC`, positionCutoff, positionCutoff)
 		}
 		items = append(items, repo.NodeSummary{
 			NodeID:                      id,
-			DisplayName:                 displayName(longName, shortName, id),
-			LongName:                    longName,
-			ShortName:                   shortName,
+			DisplayName:                 displayName(longName.String, shortName.String, id),
+			LongName:                    longName.String,
+			ShortName:                   shortName.String,
 			LastSeenAnyEventAt:          la,
 			LastSeenPositionAt:          lastSeenPositionAt,
 			LastSeenMQTTAt:              parseNullableTime(lastMQTT),
@@ -230,8 +231,8 @@ ORDER BY n.last_seen_any_event_at DESC`, positionCutoff, positionCutoff)
 			LastMQTTUploaderDisplayName: displayName(uploaderLong.String, uploaderShort.String, uploaderID.String),
 			LastMQTTUploaderAt:          parseNullableTime(uploaderAt),
 			HasPosition:                 hasPos,
-			Role:                        role,
-			BoardModel:                  board,
+			Role:                        role.String,
+			BoardModel:                  board.String,
 		})
 	}
 
