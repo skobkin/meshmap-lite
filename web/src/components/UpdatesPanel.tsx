@@ -99,6 +99,7 @@ export function UpdatesPanel({ source, dismissedPublishedAt, onDismiss }: Props)
                     ) : (
                       release.version
                     )}
+                    {release.prerelease && <span className="updates-prerelease-pill">PRE-RELEASE</span>}
                     {newRelease && <span className="updates-new-pill" role="status">NEW</span>}
                   </h4>
                   <time dateTime={release.published_at}>{formatDate(release.published_at)}</time>

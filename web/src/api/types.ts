@@ -220,6 +220,7 @@ export interface InfoResponse {
 export interface SourceSummaryRelease {
   version: string
   published_at: string
+  prerelease: boolean
 }
 
 export interface SourceSummary {
@@ -238,6 +239,7 @@ export interface UpdateRelease {
   published_at: string
   html_url: string
   body: string
+  prerelease: boolean
 }
 
 export interface UpdatesResponse {

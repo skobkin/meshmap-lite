@@ -2228,24 +2228,38 @@ body {
   margin-bottom: 0;
 }
 
-.updates-new-pill {
+.updates-new-pill,
+.updates-prerelease-pill {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0.1rem 0.45rem;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--pico-primary) 18%, transparent);
-  color: var(--pico-primary);
   font-size: 0.65rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   line-height: 1.1;
 }
 
+.updates-new-pill {
+  background: color-mix(in srgb, var(--pico-primary) 18%, transparent);
+  color: var(--pico-primary);
+}
+
+.updates-prerelease-pill {
+  background: color-mix(in srgb, var(--pico-muted-color) 16%, transparent);
+  color: var(--pico-muted-color);
+}
+
 @media (prefers-color-scheme: dark) {
   .updates-new-pill {
     background: color-mix(in srgb, var(--pico-primary) 28%, transparent);
     color: color-mix(in srgb, var(--pico-primary) 80%, white 20%);
+  }
+
+  .updates-prerelease-pill {
+    background: color-mix(in srgb, var(--pico-muted-color) 22%, transparent);
+    color: color-mix(in srgb, var(--pico-muted-color) 82%, white 18%);
   }
 }
 

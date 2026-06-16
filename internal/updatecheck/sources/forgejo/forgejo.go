@@ -64,8 +64,14 @@ func New(opts Options) (*Source, error) {
 		client = &http.Client{Timeout: 15 * time.Second}
 	}
 
-	apiURL := fmt.Sprintf("%s/api/v1/repos/%s/releases?draft=false&pre-release=%t&limit=%d",
-		base, repo, opts.PreReleases, limit)
+	query := url.Values{}
+	query.Set("draft", "false")
+	if !opts.PreReleases {
+		query.Set("pre-release", "false")
+	}
+	query.Set("limit", strconv.Itoa(limit))
+
+	apiURL := fmt.Sprintf("%s/api/v1/repos/%s/releases?%s", base, repo, query.Encode())
 	pageURL := fmt.Sprintf("%s/%s/releases", base, repo)
 
 	return &Source{
@@ -95,6 +101,7 @@ type forgejoRelease struct {
 	Body        string    `json:"body"`
 	HTMLURL     string    `json:"html_url"`
 	PublishedAt time.Time `json:"published_at"`
+	Prerelease  bool      `json:"prerelease"`
 }
 
 // FetchReleases performs a single GET against the configured API endpoint
@@ -140,6 +147,7 @@ func (s *Source) FetchReleases(ctx context.Context) ([]updatecheck.ReleaseInfo, 
 			Body:        strings.TrimSpace(item.Body),
 			HTMLURL:     strings.TrimSpace(item.HTMLURL),
 			PublishedAt: item.PublishedAt,
+			Prerelease:  item.Prerelease,
 		})
 	}
 

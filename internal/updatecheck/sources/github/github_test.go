@@ -234,6 +234,43 @@ func TestFetchReleasesRespectsPreReleases(t *testing.T) {
 					t.Fatalf("expected release %d to be %q, got %q", i, version, releases[i].Version)
 				}
 			}
+			if tc.preReleases && !releases[1].Prerelease {
+				t.Fatalf("expected kept prerelease to preserve prerelease flag")
+			}
 		})
+	}
+}
+
+func TestFetchReleasesKeepsMeshtasticAlphaMetadata(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `[
+			{"tag_name":"v2.7.25.104df5f","body":"alpha","html_url":"https://example.com/r/alpha","published_at":"2026-06-10T00:18:32Z","draft":false,"prerelease":true},
+			{"tag_name":"v2.7.15.567b8ea","body":"stable","html_url":"https://example.com/r/stable","published_at":"2025-11-19T16:11:54Z","draft":false,"prerelease":false}
+		]`)
+	}))
+	defer server.Close()
+
+	s, err := New(Options{
+		Name:        "firmware",
+		BaseURL:     server.URL,
+		Repository:  "meshtastic/firmware",
+		Limit:       20,
+		PreReleases: true,
+		HTTPClient:  server.Client(),
+	})
+	if err != nil {
+		t.Fatalf("unexpected New error: %v", err)
+	}
+
+	releases, err := s.FetchReleases(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected FetchReleases error: %v", err)
+	}
+	if len(releases) != 2 {
+		t.Fatalf("expected 2 releases, got %d: %#v", len(releases), releases)
+	}
+	if releases[0].Version != "v2.7.25.104df5f" || !releases[0].Prerelease {
+		t.Fatalf("expected latest Meshtastic alpha to be preserved, got %#v", releases[0])
 	}
 }

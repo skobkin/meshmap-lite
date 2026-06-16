@@ -88,6 +88,7 @@ function buildRelease(overrides: Partial<UpdateRelease> = {}): UpdateRelease {
     published_at: '2026-06-15T10:00:00Z',
     html_url: 'https://example.test/release',
     body: '<p>Notes</p>',
+    prerelease: false,
     ...overrides
   }
 }
@@ -151,6 +152,28 @@ describe('UpdatesPanel', () => {
 
     expect(screen.getByText('NEW')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Mark as read' })).toBeTruthy()
+  })
+
+  it('labels prereleases separately from unread releases', () => {
+    const response: UpdatesResponse = {
+      format: 'html',
+      source: 'meshmap-lite',
+      source_hash: 'hash-1',
+      releases: [buildRelease({ version: 'v2.7.25.104df5f', prerelease: true })]
+    }
+    updatesStore.getState().setResponse('meshmap-lite', response)
+
+    render(
+      <UpdatesPanel
+        source={buildSource()}
+        dismissedPublishedAt=""
+        onDismiss={() => undefined}
+      />
+    )
+
+    expect(screen.getByText('v2.7.25.104df5f')).toBeTruthy()
+    expect(screen.getByText('PRE-RELEASE')).toBeTruthy()
+    expect(screen.queryByText('NEW')).toBeNull()
   })
 
   it('does not show the NEW pill or mark-as-read button when nothing is newer than the dismissed timestamp', () => {

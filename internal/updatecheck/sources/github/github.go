@@ -157,6 +157,7 @@ func (s *Source) FetchReleases(ctx context.Context) ([]updatecheck.ReleaseInfo, 
 			Body:        strings.TrimSpace(item.Body),
 			HTMLURL:     strings.TrimSpace(item.HTMLURL),
 			PublishedAt: item.PublishedAt,
+			Prerelease:  item.Prerelease,
 		})
 	}
 	sort.SliceStable(out, func(i, j int) bool {

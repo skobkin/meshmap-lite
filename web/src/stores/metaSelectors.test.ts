@@ -10,6 +10,7 @@ function buildRelease(overrides: Partial<SourceSummaryRelease> = {}): SourceSumm
   return {
     version: 'v1.0.0',
     published_at: '2026-06-10T00:00:00Z',
+    prerelease: false,
     ...overrides
   }
 }

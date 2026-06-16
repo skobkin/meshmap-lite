@@ -96,7 +96,7 @@ func TestMetaHandlerExposesUpdateCheckAvailable(t *testing.T) {
 				PublishedAt: now,
 			},
 			Releases: []updatecheck.ReleaseInfo{
-				{Version: "0.7.0", PublishedAt: now},
+				{Version: "0.7.0", PublishedAt: now, Prerelease: true},
 				{Version: "0.6.1", PublishedAt: now.Add(-24 * time.Hour)},
 			},
 			UpdateAvailable: true,
@@ -137,6 +137,9 @@ func TestMetaHandlerExposesUpdateCheckAvailable(t *testing.T) {
 		}
 		if len(sum.Releases) != 2 || sum.Releases[0].Version != "0.7.0" {
 			t.Fatalf("unexpected release metadata list: %#v", sum.Releases)
+		}
+		if !sum.Releases[0].Prerelease {
+			t.Fatalf("expected prerelease metadata to be exposed")
 		}
 	})
 }
@@ -211,13 +214,13 @@ func TestUpdatesHandlerReturns503WhenNotReady(t *testing.T) {
 func TestUpdatesHandlerReturnsHTMLByDefault(t *testing.T) {
 	now := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
 	mgr := newUpdatesTestManager([]updatecheck.ReleaseInfo{
-		{Version: "0.7.0", Body: "# Heading", HTMLURL: "https://example/v0.7.0", PublishedAt: now},
+		{Version: "0.7.0", Body: "# Heading", HTMLURL: "https://example/v0.7.0", PublishedAt: now, Prerelease: true},
 	})
 	mgr.SeedSnapshot("meshmap-lite", updatecheck.UpdateSnapshot{
 		Source: "meshmap-lite",
-		Latest: updatecheck.ReleaseInfo{Version: "0.7.0", PublishedAt: now},
+		Latest: updatecheck.ReleaseInfo{Version: "0.7.0", PublishedAt: now, Prerelease: true},
 		Releases: []updatecheck.ReleaseInfo{
-			{Version: "0.7.0", Body: "# Heading", HTMLURL: "https://example/v0.7.0", PublishedAt: now},
+			{Version: "0.7.0", Body: "# Heading", HTMLURL: "https://example/v0.7.0", PublishedAt: now, Prerelease: true},
 		},
 		SourceHash: "feedface",
 		CheckedAt:  now,
@@ -251,6 +254,9 @@ func TestUpdatesHandlerReturnsHTMLByDefault(t *testing.T) {
 	}
 	if rel.HTMLURL != "https://example/v0.7.0" {
 		t.Fatalf("unexpected html_url: %q", rel.HTMLURL)
+	}
+	if !rel.Prerelease {
+		t.Fatalf("expected prerelease flag to be exposed")
 	}
 	// goldmark renders # Heading as <h1 id="...">Heading</h1>\n.
 	if rel.Body == "" || rel.Body == "# Heading" {

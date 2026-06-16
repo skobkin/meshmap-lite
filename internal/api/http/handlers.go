@@ -100,6 +100,7 @@ func (s *Server) updateSourceSummaries() []*updateSourceSummary {
 				summary.Releases = append(summary.Releases, updateReleaseMetadataEntry{
 					Version:     r.Version,
 					PublishedAt: r.PublishedAt,
+					Prerelease:  r.Prerelease,
 				})
 			}
 		}
@@ -166,6 +167,7 @@ func (s *Server) updates(w http.ResponseWriter, r *http.Request) {
 			PublishedAt: rel.PublishedAt,
 			HTMLURL:     rel.HTMLURL,
 			Body:        body,
+			Prerelease:  rel.Prerelease,
 		})
 	}
 

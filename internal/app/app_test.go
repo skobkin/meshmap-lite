@@ -72,7 +72,7 @@ func TestRegisterUpdateCheckSourcePropagatesPreReleases(t *testing.T) {
 				Limit:       9,
 				PreReleases: true,
 			},
-			wantAPIURL: "https://git.example.org/api/v1/repos/skobkin/meshmap-lite/releases?draft=false&pre-release=true&limit=9",
+			wantAPIURL: "https://git.example.org/api/v1/repos/skobkin/meshmap-lite/releases?draft=false&limit=9",
 		},
 		{
 			name: "forgejo pre-releases off",
@@ -83,7 +83,7 @@ func TestRegisterUpdateCheckSourcePropagatesPreReleases(t *testing.T) {
 				Repository: "skobkin/meshmap-lite",
 				Limit:      9,
 			},
-			wantAPIURL: "https://git.example.org/api/v1/repos/skobkin/meshmap-lite/releases?draft=false&pre-release=false&limit=9",
+			wantAPIURL: "https://git.example.org/api/v1/repos/skobkin/meshmap-lite/releases?draft=false&limit=9&pre-release=false",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

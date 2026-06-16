@@ -63,6 +63,7 @@ type updateSourceSummary struct {
 type updateReleaseMetadataEntry struct {
 	Version     string    `json:"version"`
 	PublishedAt time.Time `json:"published_at"`
+	Prerelease  bool      `json:"prerelease"`
 }
 
 type updateReleaseEntry struct {
@@ -70,6 +71,7 @@ type updateReleaseEntry struct {
 	PublishedAt time.Time `json:"published_at"`
 	HTMLURL     string    `json:"html_url,omitempty"`
 	Body        string    `json:"body"`
+	Prerelease  bool      `json:"prerelease"`
 }
 
 type metaMapPayload struct {

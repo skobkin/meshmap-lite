@@ -635,16 +635,19 @@ components:
             $ref: '#/components/schemas/UpdateReleaseMetadata'
     UpdateReleaseMetadata:
       type: object
-      required: [version, published_at]
+      required: [version, published_at, prerelease]
       properties:
         version:
           type: string
         published_at:
           type: string
           format: date-time
+        prerelease:
+          type: boolean
+          description: True when the upstream platform marks the release as a prerelease.
     UpdateRelease:
       type: object
-      required: [version, published_at, body]
+      required: [version, published_at, body, prerelease]
       properties:
         version:
           type: string
@@ -656,6 +659,9 @@ components:
         body:
           type: string
           description: HTML when `format=html` (default), Markdown when `format=markdown`.
+        prerelease:
+          type: boolean
+          description: True when the upstream platform marks the release as a prerelease.
     MetaMap:
       type: object
       required:

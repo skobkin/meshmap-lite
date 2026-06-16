@@ -674,14 +674,14 @@ describe('App', () => {
           name: 'meshmap-lite',
           label: 'Map',
           releases: [
-            { version: 'v2.0.0', published_at: '2026-06-15T12:00:00Z' }
+            { version: 'v2.0.0', published_at: '2026-06-15T12:00:00Z', prerelease: false }
           ]
         },
         {
           name: 'firmware',
           label: 'Firmware',
           releases: [
-            { version: 'v3.0.0', published_at: '2026-06-14T12:00:00Z' }
+            { version: 'v3.0.0', published_at: '2026-06-14T12:00:00Z', prerelease: false }
           ]
         }
       ]

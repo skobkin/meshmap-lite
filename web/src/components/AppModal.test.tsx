@@ -75,8 +75,8 @@ function buildSource(overrides: Partial<SourceSummary> = {}): SourceSummary {
     name: 'meshmap-lite',
     label: 'MeshMap Lite',
     releases: [
-      { version: 'v2.0.0', published_at: '2026-06-15T12:00:00Z' },
-      { version: 'v1.9.0', published_at: '2026-06-14T12:00:00Z' }
+      { version: 'v2.0.0', published_at: '2026-06-15T12:00:00Z', prerelease: false },
+      { version: 'v1.9.0', published_at: '2026-06-14T12:00:00Z', prerelease: false }
     ],
     ...overrides
   }
@@ -200,6 +200,7 @@ describe('AppModal', () => {
         {
           version: 'v2.0.0',
           published_at: '2026-06-15T12:00:00Z',
+          prerelease: false,
           html_url: 'https://example.test/v2',
           body: '<p>v2 body</p>'
         }
@@ -237,6 +238,7 @@ describe('AppModal', () => {
         {
           version: 'v2.0.0',
           published_at: '2026-06-15T12:00:00Z',
+          prerelease: false,
           html_url: 'https://example.test/v2',
           body: '<p>v2 body</p>'
         }

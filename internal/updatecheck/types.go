@@ -16,6 +16,7 @@ type ReleaseInfo struct {
 	Body        string
 	HTMLURL     string
 	PublishedAt time.Time
+	Prerelease  bool
 }
 
 // UpdateSnapshot is what the cache stores for a single Source. It is the
