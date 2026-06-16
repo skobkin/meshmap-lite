@@ -54,6 +54,9 @@ channels:
 	if !cfg.Channels["LongFast"].Primary {
 		t.Fatalf("expected channel env override")
 	}
+	if cfg.Channels["LongFast"].PSK != "AQ==" {
+		t.Fatalf("expected existing channel psk to be preserved, got %q", cfg.Channels["LongFast"].PSK)
+	}
 	if got, want := cfg.Channels["LongFast"].Events, []string{"text_message", "telemetry"}; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
 		t.Fatalf("expected channel events env override, got %#v", got)
 	}
@@ -316,6 +319,50 @@ channels:
 		src.CurrentVersionSource != "none" ||
 		src.Limit != 25 {
 		t.Fatalf("unexpected update check source from env: %#v", src)
+	}
+}
+
+func TestLoadUpdateCheckSourcesFromEnvOnly(t *testing.T) {
+	t.Setenv("MML_MQTT__ROOT_TOPIC", "msh/env")
+	t.Setenv("MML_CHANNELS__LongFast__PSK", "AQ==")
+	t.Setenv("MML_UPDATE_CHECK__SOURCES__0__NAME", "meshmap-lite")
+	t.Setenv("MML_UPDATE_CHECK__SOURCES__0__LABEL", "Map")
+	t.Setenv("MML_UPDATE_CHECK__SOURCES__0__TYPE", "forgejo")
+	t.Setenv("MML_UPDATE_CHECK__SOURCES__0__BASE_URL", "https://git.example.invalid")
+	t.Setenv("MML_UPDATE_CHECK__SOURCES__0__REPOSITORY", "skobkin/meshmap-lite")
+	t.Setenv("MML_UPDATE_CHECK__SOURCES__0__CURRENT_VERSION_SOURCE", "buildinfo")
+	t.Setenv("MML_UPDATE_CHECK__SOURCES__1__NAME", "meshtastic-firmware")
+	t.Setenv("MML_UPDATE_CHECK__SOURCES__1__LABEL", "Meshtastic FW")
+	t.Setenv("MML_UPDATE_CHECK__SOURCES__1__TYPE", "github")
+	t.Setenv("MML_UPDATE_CHECK__SOURCES__1__REPOSITORY", "meshtastic/firmware")
+	t.Setenv("MML_UPDATE_CHECK__SOURCES__1__CURRENT_VERSION_SOURCE", "none")
+	t.Setenv("MML_UPDATE_CHECK__SOURCES__1__LIMIT", "50")
+
+	cfg, err := Load(filepath.Join(t.TempDir(), "missing.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.UpdateCheck.Sources) != 2 {
+		t.Fatalf("expected two update check sources, got %d", len(cfg.UpdateCheck.Sources))
+	}
+	if got := cfg.UpdateCheck.Sources[0]; got.Name != "meshmap-lite" || got.Type != "forgejo" || got.BaseURL != "https://git.example.invalid" {
+		t.Fatalf("unexpected first update check source: %#v", got)
+	}
+	if got := cfg.UpdateCheck.Sources[1]; got.Name != "meshtastic-firmware" || got.Type != "github" || got.Repository != "meshtastic/firmware" || got.Limit != 50 {
+		t.Fatalf("unexpected second update check source: %#v", got)
+	}
+}
+
+func TestLoadUpdateCheckSourceFromEnvRejectsSparseIndexes(t *testing.T) {
+	t.Setenv("MML_MQTT__ROOT_TOPIC", "msh/env")
+	t.Setenv("MML_CHANNELS__LongFast__PSK", "AQ==")
+	t.Setenv("MML_UPDATE_CHECK__SOURCES__1__NAME", "meshtastic-firmware")
+	t.Setenv("MML_UPDATE_CHECK__SOURCES__1__TYPE", "github")
+	t.Setenv("MML_UPDATE_CHECK__SOURCES__1__REPOSITORY", "meshtastic/firmware")
+
+	_, err := Load(filepath.Join(t.TempDir(), "missing.yaml"))
+	if err == nil || !strings.Contains(err.Error(), "update_check.sources[0].name is required") {
+		t.Fatalf("expected sparse update source indexes to fail validation, got %v", err)
 	}
 }
 
