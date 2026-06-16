@@ -16,6 +16,7 @@ import { useTopologyAllStore } from './stores/topologyAll'
 import { useWSStore } from './stores/ws'
 import { parseDurationMs } from './utils/duration'
 import { infoDismissedCookie, readUpdatesDismissedAt, updatesDismissedCookie } from './utils/infoCookie'
+import { defaultLogHopRange, isDefaultLogHopRange } from './utils/logHops'
 import { isNodeDetailsCacheFresh, persistNodeDetailsCache, readNodeDetailsCache, upsertNodeDetailsCache } from './utils/nodeDetailsCache'
 import { pruneMapNodesByRelevance, pruneNodeDetailsByRelevance, pruneNodeDetailsCacheByRelevance, pruneNodeSummariesByRelevance } from './utils/relevance'
 import { isTopologyAllFresh } from './utils/topologyAllCache'
@@ -204,13 +205,14 @@ export function App(): JSX.Element {
             eventKinds: logFilters.eventKinds,
             channel: logFilters.channel,
             nodeID: logFilters.nodeID,
+            hopRange: logFilters.hopRange,
             eventID: page === 'log' ? selectedLogEventID : undefined
           }
         }
       case 'stats':
         return { page: 'stats' }
     }
-  }, [channel, chatPanel, logFilters.channel, logFilters.eventKinds, logFilters.nodeID, mapView, nodesFilter, page, selectedId, selectedLogEventID])
+  }, [channel, chatPanel, logFilters.channel, logFilters.eventKinds, logFilters.hopRange, logFilters.nodeID, mapView, nodesFilter, page, selectedId, selectedLogEventID])
 
   const applyFragmentState = useCallback((state: FragmentState): void => {
     setInfoRouteRequested(Boolean(state.infoRequested))
@@ -236,7 +238,7 @@ export function App(): JSX.Element {
       return
     }
     if (state.page === 'log') {
-      setLogFilters(state.log ?? { eventKinds: [], channel: '', nodeID: '' })
+      setLogFilters(state.log ?? { eventKinds: [], channel: '', nodeID: '', hopRange: defaultLogHopRange })
       setSelectedLogEventID(state.log?.eventID)
       setMapFocusNodeId(undefined)
 
@@ -494,7 +496,8 @@ export function App(): JSX.Element {
       before: selectedEventBeforeID,
       eventKinds: logFilters.eventKinds,
       channel: logFilters.channel,
-      nodeID: logFilters.nodeID
+      nodeID: logFilters.nodeID,
+      hopRange: logFilters.hopRange
     })
     if (logLoadedOnce && lastLoadedLogKey.current === requestKey) {return}
 
@@ -507,7 +510,9 @@ export function App(): JSX.Element {
       before: selectedEventBeforeID,
       eventKinds: logFilters.eventKinds,
       channel: logFilters.channel,
-      nodeID: logFilters.nodeID
+      nodeID: logFilters.nodeID,
+      hopsMin: isDefaultLogHopRange(logFilters.hopRange) ? undefined : logFilters.hopRange.min,
+      hopsMax: isDefaultLogHopRange(logFilters.hopRange) ? undefined : logFilters.hopRange.max
     }, { signal: controller.signal })
       .then((items) => {
         if (activeLogRequest.current !== requestID) {return}
@@ -527,7 +532,7 @@ export function App(): JSX.Element {
       })
 
     return () => controller.abort()
-  }, [page, bootstrapDone, logLoadedOnce, logFilters.eventKinds, logFilters.channel, logFilters.nodeID, meta?.log_page_size_default, selectedLogEventID, setLogInitial, setLogLoadError])
+  }, [page, bootstrapDone, logLoadedOnce, logFilters.eventKinds, logFilters.channel, logFilters.nodeID, logFilters.hopRange, meta?.log_page_size_default, selectedLogEventID, setLogInitial, setLogLoadError])
 
   useEffect(() => {
     if (!selectedId) {
@@ -772,7 +777,8 @@ export function App(): JSX.Element {
       log: {
         eventKinds: filters.eventKinds,
         channel: filters.channel,
-        nodeID: filters.nodeID
+        nodeID: filters.nodeID,
+        hopRange: filters.hopRange
       }
     }, 'replace')
   }, [setLogFilters, updateURL])
@@ -785,10 +791,11 @@ export function App(): JSX.Element {
         eventKinds: logFilters.eventKinds,
         channel: logFilters.channel,
         nodeID: logFilters.nodeID,
+        hopRange: logFilters.hopRange,
         eventID
       }
     }, 'push')
-  }, [logFilters.channel, logFilters.eventKinds, logFilters.nodeID, updateURL])
+  }, [logFilters.channel, logFilters.eventKinds, logFilters.hopRange, logFilters.nodeID, updateURL])
 
   const closeLogEvent = useCallback((): void => {
     setSelectedLogEventID(undefined)
@@ -797,10 +804,11 @@ export function App(): JSX.Element {
       log: {
         eventKinds: logFilters.eventKinds,
         channel: logFilters.channel,
-        nodeID: logFilters.nodeID
+        nodeID: logFilters.nodeID,
+        hopRange: logFilters.hopRange
       }
     }, 'replace')
-  }, [logFilters.channel, logFilters.eventKinds, logFilters.nodeID, updateURL])
+  }, [logFilters.channel, logFilters.eventKinds, logFilters.hopRange, logFilters.nodeID, updateURL])
 
   const loadMoreLogs = useCallback(() => {
     if (logsLoading) {return}
@@ -812,7 +820,9 @@ export function App(): JSX.Element {
       before,
       eventKinds: logFilters.eventKinds,
       channel: logFilters.channel,
-      nodeID: logFilters.nodeID
+      nodeID: logFilters.nodeID,
+      hopsMin: isDefaultLogHopRange(logFilters.hopRange) ? undefined : logFilters.hopRange.min,
+      hopsMax: isDefaultLogHopRange(logFilters.hopRange) ? undefined : logFilters.hopRange.max
     })
       .then((items) => {
         appendOlderLogs(items)
@@ -823,7 +833,7 @@ export function App(): JSX.Element {
         setLogLoadError('Failed to load older log events.')
       })
       .finally(() => setLogsLoading(false))
-  }, [appendOlderLogs, logFilters.channel, logFilters.eventKinds, logFilters.nodeID, logItems, logsLoading, meta?.log_page_size_default, setLogLoadError])
+  }, [appendOlderLogs, logFilters.channel, logFilters.eventKinds, logFilters.hopRange, logFilters.nodeID, logItems, logsLoading, meta?.log_page_size_default, setLogLoadError])
 
   const loadMoreChat = useCallback(() => {
     if (chatLoadingMore) {return}
@@ -1010,6 +1020,7 @@ export function App(): JSX.Element {
           selectedKinds={logFilters.eventKinds}
           selectedChannel={logFilters.channel}
           selectedNodeID={logFilters.nodeID}
+          selectedHopRange={logFilters.hopRange}
           selectedEventID={selectedLogEventID}
           onChangeKinds={(eventKinds) => {
             changeLogFilters({ ...logFilters, eventKinds })
@@ -1019,6 +1030,9 @@ export function App(): JSX.Element {
           }}
           onChangeNodeID={(nodeID) => {
             changeLogFilters({ ...logFilters, nodeID })
+          }}
+          onChangeHopRange={(hopRange) => {
+            changeLogFilters({ ...logFilters, hopRange })
           }}
           onSelectEvent={selectLogEvent}
           onCloseEventDetails={closeLogEvent}

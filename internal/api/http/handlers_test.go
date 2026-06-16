@@ -159,6 +159,9 @@ func TestLogEventsHandlerForwardsNodeIDFilter(t *testing.T) {
 			if q.Limit != 25 || q.BeforeID != 44 || q.Channel != "LongFast" || q.NodeID != "!49b5976c" {
 				t.Fatalf("unexpected log query: %+v", q)
 			}
+			if q.HopsMin == nil || *q.HopsMin != 0 || q.HopsMax == nil || *q.HopsMax != 3 {
+				t.Fatalf("unexpected hop filters: %+v", q)
+			}
 			if len(q.EventKinds) != 1 || q.EventKinds[0] != domain.LogEventKindTelemetryValue {
 				t.Fatalf("unexpected event kinds: %+v", q.EventKinds)
 			}
@@ -174,7 +177,7 @@ func TestLogEventsHandlerForwardsNodeIDFilter(t *testing.T) {
 	}
 
 	srv := New(Config{Web: config.WebConfig{Log: config.LogConfig{PageSizeDefault: 100}}}, store, nil, nil, nil, nil)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/log/events?limit=25&before=44&channel=LongFast&node_id=!49b5976c&event_kind=4", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/log/events?limit=25&before=44&channel=LongFast&node_id=!49b5976c&event_kind=4&hops_min=0&hops_max=3", nil)
 	rec := httptest.NewRecorder()
 
 	srv.logEvents(rec, req)

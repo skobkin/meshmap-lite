@@ -14,6 +14,8 @@ func TestParseLogQueryDeduplicatesKinds(t *testing.T) {
 		"before":      []string{"44"},
 		"channel":     []string{"LongFast"},
 		"node_id":     []string{"!49b5976c"},
+		"hops_min":    []string{"0"},
+		"hops_max":    []string{"3"},
 		"event_kind":  []string{"1,2"},
 		"event_kinds": []string{"2,999,1"},
 	}
@@ -24,6 +26,24 @@ func TestParseLogQueryDeduplicatesKinds(t *testing.T) {
 	}
 	if len(got.EventKinds) != 2 || got.EventKinds[0] != domain.LogEventKindMapReportValue || got.EventKinds[1] != domain.LogEventKindNodeInfoValue {
 		t.Fatalf("unexpected event kinds: %+v", got.EventKinds)
+	}
+	if got.HopsMin == nil || *got.HopsMin != 0 {
+		t.Fatalf("unexpected hops min: %#v", got.HopsMin)
+	}
+	if got.HopsMax == nil || *got.HopsMax != 3 {
+		t.Fatalf("unexpected hops max: %#v", got.HopsMax)
+	}
+}
+
+func TestParseLogQueryIgnoresInvalidHopFilters(t *testing.T) {
+	values := url.Values{
+		"hops_min": []string{"-1"},
+		"hops_max": []string{"many"},
+	}
+
+	got := parseLogQuery(values, config.LogConfig{PageSizeDefault: 100})
+	if got.HopsMin != nil || got.HopsMax != nil {
+		t.Fatalf("expected invalid hop filters to be ignored, got %+v", got)
 	}
 }
 

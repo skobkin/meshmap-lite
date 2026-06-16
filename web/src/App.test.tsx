@@ -140,13 +140,13 @@ interface ChatStoreState {
 
 interface LogStoreState {
   items: LogEvent[]
-  filters: { eventKinds: number[]; channel: string; nodeID: string }
+  filters: { eventKinds: number[]; channel: string; nodeID: string; hopRange: { min: number; max: number } }
   loadedOnce: boolean
   loadError: string
   setInitial: (items: LogEvent[]) => void
   appendOlder: (items: LogEvent[]) => void
   prependLive: (item: LogEvent) => void
-  setFilters: (filters: { eventKinds: number[]; channel: string; nodeID: string }) => void
+  setFilters: (filters: { eventKinds: number[]; channel: string; nodeID: string; hopRange: { min: number; max: number } }) => void
   setLoadError: (msg: string) => void
 }
 
@@ -242,7 +242,7 @@ function setupModuleMocks(): void {
 
   logStore = createStoreHook<LogStoreState>((set, get) => ({
     items: [],
-    filters: { eventKinds: [], channel: '', nodeID: '' },
+    filters: { eventKinds: [], channel: '', nodeID: '', hopRange: { min: 0, max: 7 } },
     loadedOnce: false,
     loadError: '',
     setInitial: (items) => set({ items, loadedOnce: true, loadError: '' }),
@@ -462,10 +462,12 @@ function setupModuleMocks(): void {
       selectedKinds,
       selectedChannel,
       selectedNodeID,
+      selectedHopRange,
       selectedEventID,
       onChangeKinds,
       onChangeChannel,
       onChangeNodeID,
+      onChangeHopRange,
       onSelectEvent,
       onCloseEventDetails
     }: {
@@ -473,10 +475,12 @@ function setupModuleMocks(): void {
       selectedKinds: number[]
       selectedChannel: string
       selectedNodeID?: string
+      selectedHopRange: { min: number; max: number }
       selectedEventID?: number
       onChangeKinds: (kinds: number[]) => void
       onChangeChannel: (channel: string) => void
       onChangeNodeID: (nodeID: string) => void
+      onChangeHopRange: (range: { min: number; max: number }) => void
       onSelectEvent: (id: number) => void
       onCloseEventDetails: () => void
     }): JSX.Element => (
@@ -486,10 +490,12 @@ function setupModuleMocks(): void {
         <p>Log kinds: {selectedKinds.join(',')}</p>
         <p>Log channel: {selectedChannel}</p>
         <p>Log node: {selectedNodeID ?? ''}</p>
+        <p>Log hops: {selectedHopRange.min}-{selectedHopRange.max}</p>
         <p>Log event: {selectedEventID ?? ''}</p>
         <button type="button" onClick={() => onChangeKinds([7])}>Set log kind 7</button>
         <button type="button" onClick={() => onChangeChannel('ops')}>Set log channel ops</button>
         <button type="button" onClick={() => onChangeNodeID('!alpha')}>Set log node alpha</button>
+        <button type="button" onClick={() => onChangeHopRange({ min: 3, max: 7 })}>Set log hops 3+</button>
         <button type="button" onClick={() => onSelectEvent(2)}>Open log event 2</button>
         <button type="button" onClick={onCloseEventDetails}>Close log event</button>
       </section>
@@ -748,7 +754,7 @@ describe('App', () => {
   })
 
   it('hydrates log URL filters and loads filtered log data', async () => {
-    window.history.replaceState(null, '', '/#/log?event_kind=7&event_kind=4&channel=ops&node_id=%21alpha&event_id=2')
+    window.history.replaceState(null, '', '/#/log?event_kind=7&event_kind=4&channel=ops&node_id=%21alpha&hops_min=3&event_id=2')
     setupModuleMocks()
 
     await renderApp()
@@ -757,6 +763,7 @@ describe('App', () => {
     expect(screen.getByText('Log kinds: 7,4')).toBeTruthy()
     expect(screen.getByText('Log channel: ops')).toBeTruthy()
     expect(screen.getByText('Log node: !alpha')).toBeTruthy()
+    expect(screen.getByText('Log hops: 3-7')).toBeTruthy()
     expect(screen.getByText('Log event: 2')).toBeTruthy()
     await waitFor(() => {
       expect(apiMock.logEvents).toHaveBeenCalledWith({
@@ -764,7 +771,9 @@ describe('App', () => {
         before: 3,
         eventKinds: [7, 4],
         channel: 'ops',
-        nodeID: '!alpha'
+        nodeID: '!alpha',
+        hopsMin: 3,
+        hopsMax: 7
       }, expect.anything())
     })
   })
@@ -901,6 +910,7 @@ describe('App', () => {
     apiMock.logEvents
       .mockResolvedValueOnce([logEvent(1), logEvent(2)])
       .mockResolvedValueOnce([logEvent(3)])
+      .mockResolvedValueOnce([logEvent(4)])
 
     await renderApp()
     await screen.findByTestId('map-page')
@@ -935,6 +945,20 @@ describe('App', () => {
 
     expect(screen.getByText('Log items: 1')).toBeTruthy()
     expect(screen.getByText('Log kinds: 7')).toBeTruthy()
+
+    await user.click(screen.getByRole('button', { name: 'Set log hops 3+' }))
+
+    await waitFor(() => {
+      expect(apiMock.logEvents).toHaveBeenNthCalledWith(3, {
+        limit: 100,
+        eventKinds: [7],
+        channel: '',
+        nodeID: '',
+        hopsMin: 3,
+        hopsMax: 7
+      }, expect.anything())
+    })
+    expect(window.location.hash).toBe('#/log?event_kind=7&hops_min=3&hops_max=7')
   })
 
   it('loads older chat messages from the oldest visible row and stops when the page is short', async () => {

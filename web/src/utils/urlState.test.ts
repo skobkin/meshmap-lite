@@ -56,12 +56,13 @@ describe('urlState', () => {
   })
 
   it('parses repeated log event kinds and ignores invalid values', () => {
-    expect(parseFragmentState('#/log?event_kind=7&event_kind=bad&event_kind=4&event_kind=-1&channel=mesh&node_id=%21abc&event_id=42')).toEqual({
+    expect(parseFragmentState('#/log?event_kind=7&event_kind=bad&event_kind=4&event_kind=-1&channel=mesh&node_id=%21abc&hops_min=3&event_id=42')).toEqual({
       page: 'log',
       log: {
         eventKinds: [7, 4],
         channel: 'mesh',
         nodeID: '!abc',
+        hopRange: { min: 3, max: 7 },
         eventID: 42
       }
     })
@@ -73,7 +74,20 @@ describe('urlState', () => {
       log: {
         eventKinds: [],
         channel: '',
-        nodeID: ''
+        nodeID: '',
+        hopRange: { min: 0, max: 7 }
+      }
+    })
+  })
+
+  it('normalizes invalid log hop ranges to the default range', () => {
+    expect(parseFragmentState('#/log?hops_min=bad&hops_max=12')).toEqual({
+      page: 'log',
+      log: {
+        eventKinds: [],
+        channel: '',
+        nodeID: '',
+        hopRange: { min: 0, max: 7 }
       }
     })
   })
@@ -85,9 +99,22 @@ describe('urlState', () => {
         eventKinds: [7, 4],
         channel: 'mesh room',
         nodeID: '!abc',
+        hopRange: { min: 3, max: 7 },
         eventID: 42
       }
-    })).toBe('#/log?event_kind=7&event_kind=4&channel=mesh+room&node_id=%21abc&event_id=42')
+    })).toBe('#/log?event_kind=7&event_kind=4&channel=mesh+room&node_id=%21abc&hops_min=3&hops_max=7&event_id=42')
+  })
+
+  it('omits the default log hop range from route fragments', () => {
+    expect(serializeFragmentState({
+      page: 'log',
+      log: {
+        eventKinds: [],
+        channel: '',
+        nodeID: '',
+        hopRange: { min: 0, max: 7 }
+      }
+    })).toBe('#/log')
   })
 
   it('serializes the shareable information popup route', () => {

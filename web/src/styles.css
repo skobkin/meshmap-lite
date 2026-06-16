@@ -1299,7 +1299,7 @@ body {
 
 .log-filters-content {
   display: grid;
-  grid-template-columns: 260px 260px 180px;
+  grid-template-columns: 260px 260px 180px minmax(220px, 1fr);
   gap: 1rem;
   align-items: start;
   padding-top: 0.8rem;
@@ -1347,6 +1347,40 @@ body {
 }
 
 .log-filter-options input[type="checkbox"] {
+  margin: 0;
+}
+
+.log-hop-filter {
+  min-width: 0;
+}
+
+.log-hop-filter-heading {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.log-hop-filter-heading strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-hop-reset {
+  width: auto;
+  padding: 0.25rem 0.5rem;
+  margin: 0;
+}
+
+.log-hop-range-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+}
+
+.log-hop-range-inputs input[type="range"] {
+  min-width: 0;
   margin: 0;
 }
 

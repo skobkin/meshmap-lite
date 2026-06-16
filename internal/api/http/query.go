@@ -33,6 +33,8 @@ func parseLogQuery(values url.Values, logConfig config.LogConfig) domain.LogEven
 	if raw := values.Get("limit"); raw != "" {
 		limit = parseInt(raw, limit)
 	}
+	hopsMin := parseNonNegativeIntPtr(values.Get("hops_min"))
+	hopsMax := parseNonNegativeIntPtr(values.Get("hops_max"))
 
 	return domain.LogEventQuery{
 		Limit:      limit,
@@ -40,6 +42,8 @@ func parseLogQuery(values url.Values, logConfig config.LogConfig) domain.LogEven
 		EventKinds: parseEventKinds(values),
 		Channel:    values.Get("channel"),
 		NodeID:     values.Get("node_id"),
+		HopsMin:    hopsMin,
+		HopsMax:    hopsMax,
 	}
 }
 
@@ -61,6 +65,18 @@ func parseInt(v string, d int) int {
 	}
 
 	return n
+}
+
+func parseNonNegativeIntPtr(v string) *int {
+	if v == "" {
+		return nil
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 0 {
+		return nil
+	}
+
+	return &n
 }
 
 func parseEventKinds(values url.Values) []domain.LogEventKind {

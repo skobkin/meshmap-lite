@@ -296,6 +296,26 @@ paths:
             oneOf:
               - type: integer
               - type: string
+        - name: hops_min
+          in: query
+          required: false
+          description: |
+            Inclusive minimum traversed-hop filter, where traversed hops are
+            `max(hop_start - hop_limit, 0)`. Rows without usable hop metadata
+            and self-upload rows are excluded when any hop filter is active.
+          schema:
+            type: integer
+            minimum: 0
+        - name: hops_max
+          in: query
+          required: false
+          description: |
+            Inclusive maximum traversed-hop filter, where traversed hops are
+            `max(hop_start - hop_limit, 0)`. Rows without usable hop metadata
+            and self-upload rows are excluded when any hop filter is active.
+          schema:
+            type: integer
+            minimum: 0
       responses:
         '200':
           description: |

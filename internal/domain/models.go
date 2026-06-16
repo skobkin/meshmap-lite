@@ -368,6 +368,8 @@ type LogEventQuery struct {
 	EventKinds []LogEventKind
 	Channel    string
 	NodeID     string
+	HopsMin    *int
+	HopsMax    *int
 }
 
 // ActivityBucket contains packet counts for one complete activity time bucket.

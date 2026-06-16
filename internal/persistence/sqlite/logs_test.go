@@ -268,3 +268,71 @@ func TestLogEventHopMetadataRoundTrip(t *testing.T) {
 		}
 	}
 }
+
+func TestListLogEventsFiltersByTraversedHops(t *testing.T) {
+	ctx := context.Background()
+	s, err := Open(ctx, config.SQLConfig{URL: "file::memory:?cache=shared", AutoMigrate: true}, nil)
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+
+	now := time.Now().UTC()
+	insert := func(name, nodeID, uploaderID string, hopStart, hopLimit *uint32) {
+		t.Helper()
+		if _, err := s.InsertLogEvent(ctx, domain.LogEvent{
+			ObservedAt:         now.Add(time.Duration(len(name)) * time.Second),
+			NodeID:             nodeID,
+			MQTTUploaderNodeID: uploaderID,
+			EventKind:          domain.LogEventKindTelemetryValue,
+			Encrypted:          false,
+			Channel:            "LongFast",
+			Details:            map[string]any{"name": name},
+			HopStart:           hopStart,
+			HopLimit:           hopLimit,
+		}); err != nil {
+			t.Fatalf("insert %s: %v", name, err)
+		}
+	}
+
+	insert("zero", "!zero", "!gateway", uint32Ptr(7), uint32Ptr(7))
+	insert("three", "!three", "!gateway", uint32Ptr(5), uint32Ptr(2))
+	insert("exhausted", "!exhausted", "!gateway", uint32Ptr(5), uint32Ptr(0))
+	insert("missing", "!missing", "!gateway", nil, nil)
+	insert("self", "!self", "!self", uint32Ptr(7), uint32Ptr(7))
+
+	items, err := s.ListLogEvents(ctx, domain.LogEventQuery{Limit: 50, HopsMin: intPtr(0), HopsMax: intPtr(3)})
+	if err != nil {
+		t.Fatalf("list log events: %v", err)
+	}
+	if got := logEventNames(items); len(got) != 2 || got[0] != "three" || got[1] != "zero" {
+		t.Fatalf("expected three and zero hop events, got %#v", got)
+	}
+
+	items, err = s.ListLogEvents(ctx, domain.LogEventQuery{Limit: 50, HopsMin: intPtr(5)})
+	if err != nil {
+		t.Fatalf("list log events: %v", err)
+	}
+	if got := logEventNames(items); len(got) != 1 || got[0] != "exhausted" {
+		t.Fatalf("expected exhausted hop event, got %#v", got)
+	}
+}
+
+func intPtr(v int) *int {
+	return &v
+}
+
+func uint32Ptr(v uint32) *uint32 {
+	return &v
+}
+
+func logEventNames(items []domain.LogEventView) []string {
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		if name, ok := item.Details["name"].(string); ok {
+			out = append(out, name)
+		}
+	}
+
+	return out
+}

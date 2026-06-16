@@ -1,6 +1,8 @@
 import { LogEventList } from '../components/LogEventList'
+import { defaultLogHopRange, logHopRangeLabel, logHopsMax, logHopsMin, normalizeLogHopRange } from '../utils/logHops'
 
 import type { LogEvent } from '../api/types'
+import type { LogHopRange } from '../utils/logHops'
 import type { JSX } from 'preact'
 
 interface Props {
@@ -10,10 +12,12 @@ interface Props {
   selectedKinds: number[]
   selectedChannel: string
   selectedNodeID?: string
+  selectedHopRange?: LogHopRange
   selectedEventID?: number
   onChangeKinds: (kinds: number[]) => void
   onChangeChannel: (channel: string) => void
   onChangeNodeID?: (nodeID: string) => void
+  onChangeHopRange?: (range: LogHopRange) => void
   onSelectEvent?: (id: number) => void
   onCloseEventDetails?: () => void
   onOpenNodeDetails: (id: string) => void
@@ -52,22 +56,33 @@ export function LogPage({
   selectedKinds,
   selectedChannel,
   selectedNodeID = '',
+  selectedHopRange = defaultLogHopRange,
   selectedEventID,
   onChangeKinds,
   onChangeChannel,
   onChangeNodeID = () => undefined,
+  onChangeHopRange = () => undefined,
   onSelectEvent,
   onCloseEventDetails,
   onOpenNodeDetails,
   onLoadMore
 }: Props): JSX.Element {
   const selectedKindSet = new Set(selectedKinds)
+  const hopRange = normalizeLogHopRange(selectedHopRange)
 
   const toggleEventKind = (value: number): void => {
     const nextKinds = selectedKindSet.has(value)
       ? selectedKinds.filter((kind) => kind !== value)
       : eventKinds.filter((item) => selectedKindSet.has(item.value) || item.value === value).map((item) => item.value)
     onChangeKinds(nextKinds)
+  }
+  const changeHopMin = (value: number): void => {
+    const nextMin = Math.min(value, hopRange.max)
+    onChangeHopRange(normalizeLogHopRange({ ...hopRange, min: nextMin }))
+  }
+  const changeHopMax = (value: number): void => {
+    const nextMax = Math.max(value, hopRange.min)
+    onChangeHopRange(normalizeLogHopRange({ ...hopRange, max: nextMax }))
   }
 
   return (
@@ -119,6 +134,42 @@ export function LogPage({
               value={selectedNodeID}
               onInput={(e) => onChangeNodeID((e.currentTarget).value)}
             />
+          </div>
+          <div className="log-filter-field log-hop-filter">
+            <div className="log-hop-filter-heading">
+              <span className="log-filter-label">Hops</span>
+              <strong>{logHopRangeLabel(hopRange)}</strong>
+              <button
+                type="button"
+                className="secondary outline log-hop-reset"
+                onClick={() => onChangeHopRange(defaultLogHopRange)}
+                disabled={hopRange.min === defaultLogHopRange.min && hopRange.max === defaultLogHopRange.max}
+              >
+                Reset
+              </button>
+            </div>
+            <div className="log-hop-range-inputs">
+              <input
+                id="log-hop-min-filter"
+                type="range"
+                min={logHopsMin}
+                max={logHopsMax}
+                step="1"
+                value={hopRange.min}
+                aria-label="Minimum hops"
+                onInput={(e) => changeHopMin(Number((e.currentTarget).value))}
+              />
+              <input
+                id="log-hop-max-filter"
+                type="range"
+                min={logHopsMin}
+                max={logHopsMax}
+                step="1"
+                value={hopRange.max}
+                aria-label="Maximum hops"
+                onInput={(e) => changeHopMax(Number((e.currentTarget).value))}
+              />
+            </div>
           </div>
         </div>
       </details>

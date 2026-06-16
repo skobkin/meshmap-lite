@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { render, screen, within } from '@testing-library/preact'
+import { fireEvent, render, screen, within } from '@testing-library/preact'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'preact/hooks'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -726,6 +726,30 @@ describe('LogPage', () => {
     await user.type(input, '!bravo')
 
     expect(onChangeNodeID).toHaveBeenLastCalledWith('!bravo')
+  })
+
+  it('shows and resets the hop range filter', () => {
+    const onChangeHopRange = vi.fn()
+
+    renderPage([], {
+      selectedHopRange: { min: 3, max: 7 },
+      onChangeHopRange
+    })
+
+    expect(screen.getByText('3+ hops')).toBeTruthy()
+
+    fireEvent.input(screen.getByLabelText('Maximum hops'), { target: { value: '5' } })
+    expect(onChangeHopRange).toHaveBeenLastCalledWith({ min: 3, max: 5 })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
+    expect(onChangeHopRange).toHaveBeenLastCalledWith({ min: 0, max: 7 })
+  })
+
+  it('labels the default hop range as all hops', () => {
+    renderPage([])
+
+    expect(screen.getByText('All hops')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Reset' }).hasAttribute('disabled')).toBe(true)
   })
 
   it('includes Range test in the event type filter list', async () => {

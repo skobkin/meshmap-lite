@@ -158,6 +158,20 @@ LEFT JOIN nodes mu ON mu.node_id=e.mqtt_uploader_node_id`)
 		in.WriteString(`)`)
 		w = append(w, in.String())
 	}
+	if q.HopsMin != nil || q.HopsMax != nil {
+		w = append(w, `e.hop_start IS NOT NULL`)
+		w = append(w, `e.hop_limit IS NOT NULL`)
+		w = append(w, `(e.node_id IS NULL OR e.node_id = '' OR e.mqtt_uploader_node_id IS NULL OR e.node_id <> e.mqtt_uploader_node_id)`)
+		hopsExpr := `(CASE WHEN e.hop_start > e.hop_limit THEN e.hop_start - e.hop_limit ELSE 0 END)`
+		if q.HopsMin != nil {
+			w = append(w, hopsExpr+` >= ?`)
+			a = append(a, *q.HopsMin)
+		}
+		if q.HopsMax != nil {
+			w = append(w, hopsExpr+` <= ?`)
+			a = append(a, *q.HopsMax)
+		}
+	}
 	if len(w) > 0 {
 		b.WriteString(` WHERE `)
 		b.WriteString(strings.Join(w, ` AND `))

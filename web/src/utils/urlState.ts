@@ -1,3 +1,5 @@
+import { defaultLogHopRange, isDefaultLogHopRange, normalizeLogHopRange } from './logHops'
+
 export type FragmentPage = 'map' | 'nodes' | 'stats' | 'log'
 
 export interface MapViewState {
@@ -23,6 +25,10 @@ export interface FragmentState {
     eventKinds: number[]
     channel: string
     nodeID: string
+    hopRange: {
+      min: number
+      max: number
+    }
     eventID?: number
   }
 }
@@ -116,12 +122,18 @@ export function parseFragmentState(hash: string): FragmentState {
 
   if (page === 'log') {
     const eventID = parseURLNumber(params.get('event_id'))
+    const hopsMin = parseURLNumber(params.get('hops_min'))
+    const hopsMax = parseURLNumber(params.get('hops_max'))
     state.log = {
       eventKinds: params.getAll('event_kind')
         .map((value) => Number(value))
         .filter((value) => Number.isInteger(value) && value > 0),
       channel: params.get('channel') ?? '',
-      nodeID: params.get('node_id') ?? ''
+      nodeID: params.get('node_id') ?? '',
+      hopRange: normalizeLogHopRange({
+        min: Number.isInteger(hopsMin) ? hopsMin : defaultLogHopRange.min,
+        max: Number.isInteger(hopsMax) ? hopsMax : defaultLogHopRange.max
+      })
     }
     if (eventID && Number.isInteger(eventID) && eventID > 0) {
       state.log.eventID = eventID
@@ -165,6 +177,10 @@ export function serializeFragmentState(state: FragmentState): string {
       }
       if (state.log?.channel) {params.set('channel', state.log.channel)}
       if (state.log?.nodeID) {params.set('node_id', state.log.nodeID)}
+      if (state.log?.hopRange && !isDefaultLogHopRange(state.log.hopRange)) {
+        params.set('hops_min', String(state.log.hopRange.min))
+        params.set('hops_max', String(state.log.hopRange.max))
+      }
       if (state.log?.eventID) {params.set('event_id', String(state.log.eventID))}
       break
     case 'stats':

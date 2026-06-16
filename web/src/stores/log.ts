@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-import { type LogFilters, prependLiveLogItem } from './logState'
+import { type LogFilters, defaultLogFilters, prependLiveLogItem } from './logState'
 
 import type { LogEvent } from '../api/types'
 
@@ -18,7 +18,7 @@ interface LogState {
 
 export const useLogStore = create<LogState>((set) => ({
   items: [],
-  filters: { eventKinds: [], channel: '', nodeID: '' },
+  filters: defaultLogFilters,
   loadedOnce: false,
   loadError: '',
   setInitial: (items) => set({ items, loadedOnce: true, loadError: '' }),
