@@ -41,6 +41,24 @@ func TestNewBuildsExpectedURLs(t *testing.T) {
 	}
 }
 
+func TestPostProcessorUsesForgejoRepositoryAndUserBase(t *testing.T) {
+	s, err := New(Options{
+		Name:       "meshmap-lite",
+		BaseURL:    "https://git.example.org/",
+		Repository: "skobkin/meshmap-lite",
+		Limit:      7,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	got := s.PostProcessor()("See https://git.example.org/skobkin/meshmap-lite/issues/89 by @skobkin")
+	want := "See [skobkin/meshmap-lite#89](https://git.example.org/skobkin/meshmap-lite/issues/89) by [@skobkin](https://git.example.org/skobkin)"
+	if got != want {
+		t.Fatalf("unexpected processed body: %q", got)
+	}
+}
+
 func TestNewBuildsURLWithPreReleases(t *testing.T) {
 	for _, tc := range []struct {
 		name        string

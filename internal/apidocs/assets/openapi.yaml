@@ -658,7 +658,7 @@ components:
           type: string
         body:
           type: string
-          description: HTML when `format=html` (default), Markdown when `format=markdown`.
+          description: HTML when `format=html` (default), Markdown when `format=markdown`. Release Markdown may be post-processed per source before caching to link commit hashes, issue/PR references, issue/PR URLs, and username references.
         prerelease:
           type: boolean
           description: True when the upstream platform marks the release as a prerelease.

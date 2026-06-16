@@ -33,6 +33,10 @@ func newUpdatesTestLogger() *slog.Logger {
 }
 
 func newUpdatesTestManager(releases []updatecheck.ReleaseInfo) *updatecheck.Manager {
+	return newUpdatesTestManagerWithPostProcess(releases, true)
+}
+
+func newUpdatesTestManagerWithPostProcess(releases []updatecheck.ReleaseInfo, postProcess bool) *updatecheck.Manager {
 	mgr := updatecheck.NewManager(updatecheck.Options{
 		Interval: time.Hour,
 		Timeout:  time.Second,
@@ -44,10 +48,11 @@ func newUpdatesTestManager(releases []updatecheck.ReleaseInfo) *updatecheck.Mana
 		releases: releases,
 	}
 	if err := mgr.Register(updatecheck.SourceSpec{
-		Name:           "meshmap-lite",
-		Label:          "Map",
-		Source:         src,
-		CurrentVersion: "0.6.0",
+		Name:                "meshmap-lite",
+		Label:               "Map",
+		Source:              src,
+		CurrentVersion:      "0.6.0",
+		PostProcessMarkdown: postProcess,
 	}); err != nil {
 		panic(err)
 	}

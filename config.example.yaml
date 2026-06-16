@@ -99,6 +99,10 @@ update_check:
       repository: skobkin/meshmap-lite
       current_version_source: buildinfo
       limit: 15
+      # Post-process release Markdown before caching it. This links commit
+      # hashes, #issue/#PR references, full issue/PR URLs, and @user refs.
+      # Set to false to keep upstream release bodies unchanged.
+      post_process: true
     # GitHub release sources are also supported for public repositories.
     # - name: meshtastic-firmware
     #   label: Meshtastic FW
@@ -112,4 +116,5 @@ update_check:
     #   type: github
     #   repository: meshtastic/firmware
     #   pre_releases: true
+    #   post_process: true
     #   limit: 15

@@ -41,8 +41,10 @@ type NamedSnapshot struct {
 // SourceSpec is the registration-side description of a source. The Manager
 // owns the SourceSpec shape so adapters stay decoupled from config types.
 type SourceSpec struct {
-	Name           string
-	Label          string
-	Source         Source
-	CurrentVersion string
+	Name                string
+	Label               string
+	Source              Source
+	CurrentVersion      string
+	PostProcessMarkdown bool
+	PostProcessor       ReleasePostProcessor
 }

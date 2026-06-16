@@ -361,6 +361,48 @@ update_check:
 	if cfg.UpdateCheck.Sources[1].PreReleases {
 		t.Fatalf("expected forgejo source to have pre-releases=false by default, got %#v", cfg.UpdateCheck.Sources[1])
 	}
+	if !cfg.UpdateCheck.Sources[1].PostProcessEnabled() {
+		t.Fatalf("expected post_process to default enabled, got %#v", cfg.UpdateCheck.Sources[1])
+	}
+}
+
+func TestLoadUpdateCheckSourcePostProcessFromYAML(t *testing.T) {
+	d := t.TempDir()
+	path := filepath.Join(d, "cfg.yaml")
+	if err := os.WriteFile(path, []byte(`
+mqtt:
+  root_topic: msh/test
+channels:
+  LongFast:
+    psk: AQ==
+update_check:
+  enabled: true
+  sources:
+    - name: meshmap-lite
+      type: forgejo
+      base_url: https://git.example.invalid
+      repository: skobkin/meshmap-lite
+      post_process: false
+    - name: meshtastic-firmware
+      type: github
+      repository: meshtastic/firmware
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("unexpected Load error: %v", err)
+	}
+	if len(cfg.UpdateCheck.Sources) != 2 {
+		t.Fatalf("expected two update check sources, got %d", len(cfg.UpdateCheck.Sources))
+	}
+	if cfg.UpdateCheck.Sources[0].PostProcess == nil || cfg.UpdateCheck.Sources[0].PostProcessEnabled() {
+		t.Fatalf("expected yaml post_process=false, got %#v", cfg.UpdateCheck.Sources[0])
+	}
+	if !cfg.UpdateCheck.Sources[1].PostProcessEnabled() {
+		t.Fatalf("expected omitted yaml post_process to default enabled, got %#v", cfg.UpdateCheck.Sources[1])
+	}
 }
 
 func TestLoadUpdateCheckSourcesFromEnvOnly(t *testing.T) {
@@ -378,6 +420,7 @@ func TestLoadUpdateCheckSourcesFromEnvOnly(t *testing.T) {
 	t.Setenv("MML_UPDATE_CHECK__SOURCES__1__REPOSITORY", "meshtastic/firmware")
 	t.Setenv("MML_UPDATE_CHECK__SOURCES__1__CURRENT_VERSION_SOURCE", "none")
 	t.Setenv("MML_UPDATE_CHECK__SOURCES__1__LIMIT", "50")
+	t.Setenv("MML_UPDATE_CHECK__SOURCES__1__POST_PROCESS", "false")
 
 	cfg, err := Load(filepath.Join(t.TempDir(), "missing.yaml"))
 	if err != nil {
@@ -391,6 +434,9 @@ func TestLoadUpdateCheckSourcesFromEnvOnly(t *testing.T) {
 	}
 	if got := cfg.UpdateCheck.Sources[1]; got.Name != "meshtastic-firmware" || got.Type != "github" || got.Repository != "meshtastic/firmware" || got.Limit != 50 {
 		t.Fatalf("unexpected second update check source: %#v", got)
+	}
+	if cfg.UpdateCheck.Sources[1].PostProcess == nil || cfg.UpdateCheck.Sources[1].PostProcessEnabled() {
+		t.Fatalf("expected env-only source post_process=false, got %#v", cfg.UpdateCheck.Sources[1])
 	}
 }
 

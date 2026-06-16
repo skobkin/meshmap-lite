@@ -56,6 +56,39 @@ func TestNewBuildsCustomEnterpriseURLs(t *testing.T) {
 	}
 }
 
+func TestPostProcessorUsesGitHubRepositoryAndUserBase(t *testing.T) {
+	s, err := New(Options{
+		Name:       "firmware",
+		Repository: "meshtastic/firmware",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	got := s.PostProcessor()("See https://github.com/meshtastic/firmware/pull/10166 by @jp-bennett")
+	want := "See [meshtastic/firmware#10166](https://github.com/meshtastic/firmware/pull/10166) by [@jp-bennett](https://github.com/jp-bennett)"
+	if got != want {
+		t.Fatalf("unexpected processed body: %q", got)
+	}
+}
+
+func TestPostProcessorUsesGitHubEnterpriseBase(t *testing.T) {
+	s, err := New(Options{
+		Name:       "meshmap-lite",
+		BaseURL:    "https://github.example.org/api/v3",
+		Repository: "skobkin/meshmap-lite",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	got := s.PostProcessor()("See #12 by @skobkin")
+	want := "See [#12](https://github.example.org/skobkin/meshmap-lite/issues/12) by [@skobkin](https://github.example.org/skobkin)"
+	if got != want {
+		t.Fatalf("unexpected processed body: %q", got)
+	}
+}
+
 func TestNewDefaultsAndClampsLimit(t *testing.T) {
 	for _, tc := range []struct {
 		name  string

@@ -27,6 +27,8 @@ type Source struct {
 	name        string
 	apiURL      string
 	pageURL     string
+	webBaseURL  string
+	repository  string
 	limit       int
 	preReleases bool
 	httpClient  *http.Client
@@ -79,12 +81,14 @@ func New(opts Options) (*Source, error) {
 	api.Path = strings.TrimRight(api.Path, "/") + "/repos/" + url.PathEscape(owner) + "/" + url.PathEscape(repoName) + "/releases"
 	api.RawQuery = fmt.Sprintf("per_page=%d&page=1", limit)
 
-	pageURL := releasesPageURL(*baseURL, owner, repoName)
+	webBaseURL, pageURL := releasesPageURL(*baseURL, owner, repoName)
 
 	return &Source{
 		name:        name,
 		apiURL:      api.String(),
 		pageURL:     pageURL,
+		webBaseURL:  webBaseURL,
+		repository:  owner + "/" + repoName,
 		limit:       limit,
 		preReleases: opts.PreReleases,
 		httpClient:  client,
@@ -100,6 +104,15 @@ func (s *Source) ReleasesPageURL() string { return s.pageURL }
 // APIURL returns the API endpoint the source queries. It is exposed for
 // tests and diagnostics.
 func (s *Source) APIURL() string { return s.apiURL }
+
+// PostProcessor returns the GitHub-specific release Markdown normalizer.
+func (s *Source) PostProcessor() updatecheck.ReleasePostProcessor {
+	return updatecheck.NewReleasePostProcessor(updatecheck.PostProcessOptions{
+		RepoURL:     strings.TrimSuffix(s.pageURL, "/releases"),
+		Repository:  s.repository,
+		UserBaseURL: s.webBaseURL,
+	})
+}
 
 type githubRelease struct {
 	TagName     string    `json:"tag_name"`
@@ -189,7 +202,7 @@ func clampLimit(limit int) int {
 	}
 }
 
-func releasesPageURL(apiBase url.URL, owner, repo string) string {
+func releasesPageURL(apiBase url.URL, owner, repo string) (string, string) {
 	web := apiBase
 	if strings.EqualFold(web.Host, "api.github.com") {
 		web.Host = "github.com"
@@ -200,7 +213,8 @@ func releasesPageURL(apiBase url.URL, owner, repo string) string {
 	}
 	web.RawQuery = ""
 	web.Fragment = ""
+	webBaseURL := strings.TrimRight(web.String(), "/")
 	web.Path = strings.TrimRight(web.Path, "/") + "/" + url.PathEscape(owner) + "/" + url.PathEscape(repo) + "/releases"
 
-	return web.String()
+	return webBaseURL, web.String()
 }

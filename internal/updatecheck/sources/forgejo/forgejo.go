@@ -23,6 +23,8 @@ type Source struct {
 	name        string
 	apiURL      string
 	pageURL     string
+	baseURL     string
+	repository  string
 	limit       int
 	preReleases bool
 	httpClient  *http.Client
@@ -78,6 +80,8 @@ func New(opts Options) (*Source, error) {
 		name:        name,
 		apiURL:      apiURL,
 		pageURL:     pageURL,
+		baseURL:     base,
+		repository:  repo,
 		limit:       limit,
 		preReleases: opts.PreReleases,
 		httpClient:  client,
@@ -94,6 +98,15 @@ func (s *Source) ReleasesPageURL() string { return s.pageURL }
 // APIURL returns the API endpoint the source queries. It is exposed for
 // tests and diagnostics.
 func (s *Source) APIURL() string { return s.apiURL }
+
+// PostProcessor returns the Forgejo-specific release Markdown normalizer.
+func (s *Source) PostProcessor() updatecheck.ReleasePostProcessor {
+	return updatecheck.NewReleasePostProcessor(updatecheck.PostProcessOptions{
+		RepoURL:     strings.TrimSuffix(s.pageURL, "/releases"),
+		Repository:  s.repository,
+		UserBaseURL: s.baseURL,
+	})
+}
 
 // forgejoRelease mirrors the upstream JSON DTO.
 type forgejoRelease struct {

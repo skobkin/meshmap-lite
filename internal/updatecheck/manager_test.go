@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -153,6 +154,76 @@ func TestStartPerformsImmediateFetchAndPopulatesCache(t *testing.T) {
 		time.Sleep(5 * time.Millisecond)
 	}
 	t.Fatalf("expected snapshot to populate within 2s")
+}
+
+func TestFetchPostProcessesReleasesBeforeCaching(t *testing.T) {
+	m := newTestManager(t, time.Hour)
+	now := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	hook := func(context.Context) ([]ReleaseInfo, error) {
+		return []ReleaseInfo{
+			mustRelease(t, "0.7.0", "Fixed #89", now),
+		}, nil
+	}
+	src := &stubSource{name: "meshmap-lite", pageURL: "https://example.com/m", hook: hook}
+
+	if err := m.Register(SourceSpec{
+		Name:                "meshmap-lite",
+		Source:              src,
+		Label:               "Map",
+		CurrentVersion:      "0.6.0",
+		PostProcessMarkdown: true,
+		PostProcessor: func(markdown string) string {
+			return strings.ReplaceAll(markdown, "#89", "[#89](https://example.com/issues/89)")
+		},
+	}); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	if err := m.fetchAndPublish(context.Background(), "meshmap-lite", m.sources["meshmap-lite"]); err != nil {
+		t.Fatalf("fetch: %v", err)
+	}
+
+	snap, ok := m.Snapshot("meshmap-lite")
+	if !ok {
+		t.Fatal("expected snapshot")
+	}
+	if got, want := snap.Releases[0].Body, "Fixed [#89](https://example.com/issues/89)"; got != want {
+		t.Fatalf("expected processed cached body %q, got %q", want, got)
+	}
+}
+
+func TestFetchCanDisableReleasePostProcessing(t *testing.T) {
+	m := newTestManager(t, time.Hour)
+	now := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	hook := func(context.Context) ([]ReleaseInfo, error) {
+		return []ReleaseInfo{
+			mustRelease(t, "0.7.0", "Fixed #89", now),
+		}, nil
+	}
+	src := &stubSource{name: "meshmap-lite", pageURL: "https://example.com/m", hook: hook}
+
+	if err := m.Register(SourceSpec{
+		Name:                "meshmap-lite",
+		Source:              src,
+		Label:               "Map",
+		CurrentVersion:      "0.6.0",
+		PostProcessMarkdown: false,
+		PostProcessor:       func(markdown string) string { return "processed " + markdown },
+	}); err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	if err := m.fetchAndPublish(context.Background(), "meshmap-lite", m.sources["meshmap-lite"]); err != nil {
+		t.Fatalf("fetch: %v", err)
+	}
+
+	snap, ok := m.Snapshot("meshmap-lite")
+	if !ok {
+		t.Fatal("expected snapshot")
+	}
+	if got, want := snap.Releases[0].Body, "Fixed #89"; got != want {
+		t.Fatalf("expected raw cached body %q, got %q", want, got)
+	}
 }
 
 func TestStartRecoversAfterFailedCheck(t *testing.T) {

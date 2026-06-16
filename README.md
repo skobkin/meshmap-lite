@@ -131,6 +131,7 @@ Reference:
 | `update_check.sources[].current_version_source` | `MML_UPDATE_CHECK__SOURCES__0__CURRENT_VERSION_SOURCE` | `"buildinfo"`                          | Current-version source. Use `buildinfo` for the running binary version or `none`.      |
 | `update_check.sources[].limit`      | `MML_UPDATE_CHECK__SOURCES__0__LIMIT`    | `15`                                                  | Number of releases fetched per source. GitHub values are sent as `per_page` and clamped to `1..100`. |
 | `update_check.sources[].pre_releases` | `MML_UPDATE_CHECK__SOURCES__0__PRE_RELEASES` | `false`                                          | Include platform-flagged unstable releases (alpha/beta/RC). For `forgejo`, stable-only mode sends `pre-release=false`; when enabled, the filter is omitted so stable releases remain included. For `github` the per-release `prerelease` flag is honored instead of filtered. |
+| `update_check.sources[].post_process` | `MML_UPDATE_CHECK__SOURCES__0__POST_PROCESS` | `true`                                         | Post-process release Markdown before caching it: 40-character commit hashes become commit links, `#123` references become repository issue links, full issue/PR URLs collapse to `owner/repo#123`, and `@user` references become profile links. Set to `false` to keep upstream release bodies unchanged. |
 
 Notes:
 - Channel names are preserved as configured.

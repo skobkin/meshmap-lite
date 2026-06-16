@@ -155,10 +155,10 @@ func (s *Server) updates(w http.ResponseWriter, r *http.Request) {
 	for _, rel := range snap.Releases {
 		body := rel.Body
 		if format == "html" {
-			rendered, err := siteinfo.RenderMarkdown([]byte(rel.Body))
+			rendered, err := siteinfo.RenderMarkdown([]byte(body))
 			if err != nil {
 				s.log.Warn("render release body failed", "source", sourceName, "version", rel.Version, "err", err)
-				rendered = rel.Body
+				rendered = body
 			}
 			body = rendered
 		}

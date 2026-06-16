@@ -41,6 +41,9 @@ func TestRegisterUpdateCheckSourceConstructsGitHubSource(t *testing.T) {
 	if got, want := src.ReleasesPageURL(), "https://github.com/meshtastic/firmware/releases"; got != want {
 		t.Fatalf("unexpected ReleasesPageURL: %q", got)
 	}
+	if !mgr.PostProcessMarkdown("firmware") {
+		t.Fatalf("expected post_process to default enabled")
+	}
 }
 
 func TestRegisterUpdateCheckSourcePropagatesPreReleases(t *testing.T) {

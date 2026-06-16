@@ -63,26 +63,35 @@ func registerUpdateCheckSource(mgr *updatecheck.Manager, cfg config.UpdateCheckS
 	}
 
 	var (
-		src updatecheck.Source
-		err error
+		src           updatecheck.Source
+		postProcessor updatecheck.ReleasePostProcessor
+		err           error
 	)
 	switch strings.TrimSpace(cfg.Type) {
 	case "forgejo":
-		src, err = forgejo.New(forgejo.Options{
+		forgejoSource, forgejoErr := forgejo.New(forgejo.Options{
 			Name:        cfg.Name,
 			BaseURL:     cfg.BaseURL,
 			Repository:  cfg.Repository,
 			Limit:       cfg.Limit,
 			PreReleases: cfg.PreReleases,
 		})
+		src, err = forgejoSource, forgejoErr
+		if forgejoSource != nil {
+			postProcessor = forgejoSource.PostProcessor()
+		}
 	case "github":
-		src, err = github.New(github.Options{
+		githubSource, githubErr := github.New(github.Options{
 			Name:        cfg.Name,
 			BaseURL:     cfg.BaseURL,
 			Repository:  cfg.Repository,
 			Limit:       cfg.Limit,
 			PreReleases: cfg.PreReleases,
 		})
+		src, err = githubSource, githubErr
+		if githubSource != nil {
+			postProcessor = githubSource.PostProcessor()
+		}
 	default:
 		return errors.New("unsupported source type: " + cfg.Type)
 	}
@@ -91,10 +100,12 @@ func registerUpdateCheckSource(mgr *updatecheck.Manager, cfg config.UpdateCheckS
 	}
 
 	return mgr.Register(updatecheck.SourceSpec{
-		Name:           cfg.Name,
-		Label:          cfg.Label,
-		Source:         src,
-		CurrentVersion: resolveCurrentVersion(cfg.CurrentVersionSource, logger),
+		Name:                cfg.Name,
+		Label:               cfg.Label,
+		Source:              src,
+		CurrentVersion:      resolveCurrentVersion(cfg.CurrentVersionSource, logger),
+		PostProcessMarkdown: cfg.PostProcessEnabled(),
+		PostProcessor:       postProcessor,
 	})
 }
 

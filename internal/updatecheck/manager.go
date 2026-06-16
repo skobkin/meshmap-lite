@@ -177,6 +177,20 @@ func (m *Manager) CurrentVersion(name string) (string, bool) {
 	return rs.spec.CurrentVersion, true
 }
 
+// PostProcessMarkdown reports whether the named source should normalize
+// release Markdown before caching fetched releases.
+func (m *Manager) PostProcessMarkdown(name string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	rs, ok := m.sources[name]
+	if !ok {
+		return false
+	}
+
+	return rs.spec.PostProcessMarkdown
+}
+
 // SeedSnapshot stores a pre-built snapshot in the cache, fans it out to
 // subscribers, and is intended for tests and warm-start paths. Production
 // code should let Start() populate the cache via the Source adapters.
@@ -263,6 +277,9 @@ func (m *Manager) fetchAndPublish(ctx context.Context, name string, rs *register
 	if len(releases) == 0 {
 		return fmt.Errorf("release feed for source %q is empty", name)
 	}
+	if rs.spec.PostProcessMarkdown && rs.spec.PostProcessor != nil {
+		releases = postProcessReleases(releases, rs.spec.PostProcessor)
+	}
 
 	snap := m.buildSnapshot(name, rs.spec.CurrentVersion, releases)
 
@@ -295,6 +312,16 @@ func (m *Manager) buildSnapshot(name, currentVersion string, releases []ReleaseI
 	snap.UpdateAvailable = computeUpdateAvailable(currentVersion, latest.Version)
 
 	return snap
+}
+
+func postProcessReleases(releases []ReleaseInfo, processor ReleasePostProcessor) []ReleaseInfo {
+	out := make([]ReleaseInfo, len(releases))
+	copy(out, releases)
+	for i := range out {
+		out[i].Body = processor(out[i].Body)
+	}
+
+	return out
 }
 
 // computeSourceHash returns a short stable hash of the latest release.
