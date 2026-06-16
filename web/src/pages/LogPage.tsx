@@ -148,7 +148,17 @@ export function LogPage({
                 Reset
               </button>
             </div>
-            <div className="log-hop-range-inputs">
+            <div className="log-hop-range" aria-label="Hop count range">
+              <div className="log-hop-range-track" aria-hidden="true">
+                <div
+                  className="log-hop-range-active"
+                  data-testid="log-hop-range-active"
+                  style={{
+                    left: `${((hopRange.min - logHopsMin) / (logHopsMax - logHopsMin)) * 100}%`,
+                    right: `${((logHopsMax - hopRange.max) / (logHopsMax - logHopsMin)) * 100}%`
+                  }}
+                />
+              </div>
               <input
                 id="log-hop-min-filter"
                 type="range"
@@ -157,6 +167,7 @@ export function LogPage({
                 step="1"
                 value={hopRange.min}
                 aria-label="Minimum hops"
+                className="log-hop-range-input"
                 onInput={(e) => changeHopMin(Number((e.currentTarget).value))}
               />
               <input
@@ -167,6 +178,7 @@ export function LogPage({
                 step="1"
                 value={hopRange.max}
                 aria-label="Maximum hops"
+                className="log-hop-range-input"
                 onInput={(e) => changeHopMax(Number((e.currentTarget).value))}
               />
             </div>

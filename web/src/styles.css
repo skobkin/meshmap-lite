@@ -1355,34 +1355,169 @@ body {
 }
 
 .log-hop-filter-heading {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 0.5rem;
-  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem 0.6rem;
+  min-width: 0;
+}
+
+.log-hop-filter-label {
+  margin: 0;
+  font-weight: 500;
 }
 
 .log-hop-filter-heading strong {
+  margin-left: auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 
 .log-hop-reset {
   width: auto;
-  padding: 0.25rem 0.5rem;
+  padding: 0.15rem 0.55rem;
   margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.2;
+  min-height: 0;
 }
 
-.log-hop-range-inputs {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.55rem;
-}
+/* --- Hop count dual-thumb range slider --- */
 
-.log-hop-range-inputs input[type="range"] {
+.log-hop-range {
+  position: relative;
+  display: block;
+  height: 1.75rem;             /* fits Pico's 0.375rem track + 1rem thumb with breathing room */
   min-width: 0;
-  margin: 0;
+  padding: 0;
+  margin: 0.25rem 0 0;
+  touch-action: none;          /* prevent scroll-while-dragging on touch */
 }
+
+.log-hop-range-track {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 0.375rem;
+  transform: translateY(-50%);
+  background: color-mix(in srgb, var(--pico-muted-border-color) 45%, transparent);
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.log-hop-range-active {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--pico-primary);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.log-hop-range > input.log-hop-range-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  color: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  pointer-events: none;
+}
+
+/* stylelint-disable selector-no-vendor-prefix */
+.log-hop-range-input::-webkit-slider-runnable-track {
+  background: transparent;
+  height: 0.375rem;
+  border: 0;
+}
+
+.log-hop-range-input::-moz-range-track {
+  background: transparent;
+  height: 0.375rem;
+  border: 0;
+}
+
+.log-hop-range-input::-ms-track {
+  background: transparent;
+  height: 0.375rem;
+  border: 0;
+  color: transparent;
+}
+
+.log-hop-range-input::-webkit-slider-thumb {
+  pointer-events: auto;
+  -webkit-appearance: none;
+  appearance: none;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background: var(--pico-primary);
+  border: 2px solid var(--pico-background-color);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--pico-primary) 60%, transparent);
+  margin-top: -0.3125rem;     /* center 1rem thumb on 0.375rem track */
+  cursor: grab;
+  transition: transform 80ms ease;
+}
+
+.log-hop-range-input::-moz-range-thumb {
+  pointer-events: auto;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background: var(--pico-primary);
+  border: 2px solid var(--pico-background-color);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--pico-primary) 60%, transparent);
+  cursor: grab;
+  transition: transform 80ms ease;
+}
+
+.log-hop-range-input::-ms-thumb {
+  pointer-events: auto;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background: var(--pico-primary);
+  border: 2px solid var(--pico-background-color);
+  cursor: grab;
+  transition: transform 80ms ease;
+}
+
+.log-hop-range-input:active::-webkit-slider-thumb {
+  cursor: grabbing;
+  transform: scale(1.1);
+}
+
+.log-hop-range-input:active::-moz-range-thumb {
+  cursor: grabbing;
+  transform: scale(1.1);
+}
+
+.log-hop-range-input:active::-ms-thumb { cursor: grabbing; }
+
+.log-hop-range-input:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 0.16rem color-mix(in srgb, var(--pico-primary-focus) 45%, transparent);
+}
+
+.log-hop-range-input:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 0.16rem color-mix(in srgb, var(--pico-primary-focus) 45%, transparent);
+}
+
+.log-hop-range-input:focus-visible::-ms-thumb {
+  box-shadow: 0 0 0 0.16rem color-mix(in srgb, var(--pico-primary-focus) 45%, transparent);
+}
+/* stylelint-enable selector-no-vendor-prefix */
+
+/* When both thumbs overlap (min == max) the min thumb stays grabbable. */
+#log-hop-min-filter { z-index: 3; }
+#log-hop-max-filter { z-index: 2; }
 
 .log-table-wrap {
   margin-top: 1rem;

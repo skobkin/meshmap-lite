@@ -752,6 +752,48 @@ describe('LogPage', () => {
     expect(screen.getByRole('button', { name: 'Reset' }).hasAttribute('disabled')).toBe(true)
   })
 
+  it('clamps the minimum hop when dragged above the maximum', () => {
+    const onChangeHopRange = vi.fn()
+
+    renderPage([], {
+      selectedHopRange: { min: 2, max: 5 },
+      onChangeHopRange
+    })
+
+    fireEvent.input(screen.getByLabelText('Minimum hops'), { target: { value: '6' } })
+    expect(onChangeHopRange).toHaveBeenLastCalledWith({ min: 5, max: 5 })
+  })
+
+  it('clamps the maximum hop when dragged below the minimum', () => {
+    const onChangeHopRange = vi.fn()
+
+    renderPage([], {
+      selectedHopRange: { min: 2, max: 5 },
+      onChangeHopRange
+    })
+
+    fireEvent.input(screen.getByLabelText('Maximum hops'), { target: { value: '1' } })
+    expect(onChangeHopRange).toHaveBeenLastCalledWith({ min: 2, max: 2 })
+  })
+
+  it('renders the active segment with non-zero width when min < max', () => {
+    renderPage([], { selectedHopRange: { min: 1, max: 4 } })
+
+    const active = screen.getByTestId('log-hop-range-active')
+    const style = active.getAttribute('style') ?? ''
+    expect(style).toMatch(/left:\s*14\.28\d*%/)
+    expect(style).toMatch(/right:\s*42\.85\d*%/)
+  })
+
+  it('renders the active segment full-width at the default range', () => {
+    renderPage([])
+
+    const active = screen.getByTestId('log-hop-range-active')
+    const style = active.getAttribute('style') ?? ''
+    expect(style).toMatch(/left:\s*0%/)
+    expect(style).toMatch(/right:\s*0%/)
+  })
+
   it('includes Range test in the event type filter list', async () => {
     const user = userEvent.setup()
 
