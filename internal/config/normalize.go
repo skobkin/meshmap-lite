@@ -20,10 +20,30 @@ func normalize(cfg *Config) {
 	if cfg.Channels == nil {
 		cfg.Channels = map[string]ChannelConfig{}
 	}
+	channelKeys := make([]string, 0, len(cfg.Channels))
+	for key := range cfg.Channels {
+		channelKeys = append(channelKeys, key)
+	}
+	sort.Slice(channelKeys, func(i, j int) bool {
+		iUpper := channelKeys[i] == strings.ToUpper(channelKeys[i])
+		jUpper := channelKeys[j] == strings.ToUpper(channelKeys[j])
+		if iUpper != jUpper {
+			return !iUpper
+		}
+
+		return channelKeys[i] < channelKeys[j]
+	})
+
 	normalized := make(map[string]ChannelConfig, len(cfg.Channels))
-	for key, channel := range cfg.Channels {
+	for _, key := range channelKeys {
+		channel := cfg.Channels[key]
 		trimmedKey := strings.TrimSpace(key)
 		if trimmedKey == "" {
+			continue
+		}
+		if existing := resolveChannelKey(normalized, trimmedKey); existing != trimmedKey {
+			normalized[existing] = mergeChannelConfig(normalized[existing], channel)
+
 			continue
 		}
 		if channel.PSK == "" {
@@ -96,6 +116,20 @@ func normalize(cfg *Config) {
 	}
 	normalizeStatsActivityBucket(&cfg.Web.Stats.Activity.Daily, defaultStatsDailyBucket)
 	normalizeStatsActivityBucket(&cfg.Web.Stats.Activity.Weekly, defaultStatsWeeklyBucket)
+}
+
+func mergeChannelConfig(dst, src ChannelConfig) ChannelConfig {
+	if src.PSK != "" {
+		dst.PSK = src.PSK
+	}
+	if len(src.Events) > 0 {
+		dst.Events = src.Events
+	}
+	if src.Primary {
+		dst.Primary = true
+	}
+
+	return dst
 }
 
 func normalizeStatsActivityBucket(period *StatsActivityBucketConfig, defaultBucket time.Duration) {

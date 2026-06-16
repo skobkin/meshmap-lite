@@ -3,6 +3,7 @@
 /*.md
 !/AGENTS.md
 !/README.md
+!/UPGRADE.md
 
 /web/node_modules
 /web/dist

@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -23,6 +24,7 @@ channels:
 	t.Setenv("MML_MQTT__TLS", "true")
 	t.Setenv("MML_MQTT__PROTOCOL_VERSION", "5")
 	t.Setenv("MML_CHANNELS__LONGFAST__PRIMARY", "true")
+	t.Setenv("MML_CHANNELS__LONGFAST__EVENTS", "text_message, telemetry")
 	t.Setenv("MML_STORAGE__SQL__LOG_PRUNE_BATCH_ROWS", "1234")
 	t.Setenv("MML_INGEST__TRACEROUTE__MAX_ENTRIES", "2222")
 	t.Setenv("MML_INGEST__MAP_REPORTS__TOPIC_SUFFIX", "custom/map")
@@ -51,6 +53,9 @@ channels:
 	}
 	if !cfg.Channels["LongFast"].Primary {
 		t.Fatalf("expected channel env override")
+	}
+	if got, want := cfg.Channels["LongFast"].Events, []string{"text_message", "telemetry"}; len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("expected channel events env override, got %#v", got)
 	}
 	if cfg.Storage.SQL.LogPruneBatchRows != 1234 {
 		t.Fatalf("expected log_prune_batch_rows env override")
@@ -261,6 +266,56 @@ func TestValidateUpdateCheckRejectsUnknownSourceType(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("expected unknown update source type to fail validation")
+	}
+}
+
+func TestLoadUpdateCheckSourceFromEnv(t *testing.T) {
+	d := t.TempDir()
+	path := filepath.Join(d, "cfg.yaml")
+	if err := os.WriteFile(path, []byte(`
+mqtt:
+  root_topic: msh/test
+channels:
+  LongFast:
+    psk: AQ==
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("MML_UPDATE_CHECK__ENABLED", "true")
+	t.Setenv("MML_UPDATE_CHECK__INTERVAL", "6h")
+	t.Setenv("MML_UPDATE_CHECK__TIMEOUT", "20s")
+	t.Setenv("MML_UPDATE_CHECK__SOURCES__0__NAME", "meshtastic-firmware")
+	t.Setenv("MML_UPDATE_CHECK__SOURCES__0__LABEL", "Meshtastic FW")
+	t.Setenv("MML_UPDATE_CHECK__SOURCES__0__TYPE", "github")
+	t.Setenv("MML_UPDATE_CHECK__SOURCES__0__REPOSITORY", "meshtastic/firmware")
+	t.Setenv("MML_UPDATE_CHECK__SOURCES__0__CURRENT_VERSION_SOURCE", "none")
+	t.Setenv("MML_UPDATE_CHECK__SOURCES__0__LIMIT", "25")
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.UpdateCheck.Enabled {
+		t.Fatal("expected update_check.enabled env override")
+	}
+	if cfg.UpdateCheck.Interval != 6*time.Hour {
+		t.Fatalf("expected update_check.interval env override, got %v", cfg.UpdateCheck.Interval)
+	}
+	if cfg.UpdateCheck.Timeout != 20*time.Second {
+		t.Fatalf("expected update_check.timeout env override, got %v", cfg.UpdateCheck.Timeout)
+	}
+	if len(cfg.UpdateCheck.Sources) != 1 {
+		t.Fatalf("expected one update check source, got %d", len(cfg.UpdateCheck.Sources))
+	}
+	src := cfg.UpdateCheck.Sources[0]
+	if src.Name != "meshtastic-firmware" ||
+		src.Label != "Meshtastic FW" ||
+		src.Type != "github" ||
+		src.Repository != "meshtastic/firmware" ||
+		src.CurrentVersionSource != "none" ||
+		src.Limit != 25 {
+		t.Fatalf("unexpected update check source from env: %#v", src)
 	}
 }
 
@@ -517,12 +572,8 @@ channels:
 		}
 		t.Setenv("MML_WEB__CHAT__HISTORY_WINDOW", "not-a-duration")
 
-		cfg, err := Load(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if cfg.Web.Chat.HistoryWindow != 7*24*time.Hour {
-			t.Fatalf("expected invalid env chat history window to normalize to default, got %v", cfg.Web.Chat.HistoryWindow)
+		if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "decode config") {
+			t.Fatalf("expected invalid env chat history window to fail config decode, got %v", err)
 		}
 	})
 }
@@ -621,19 +672,7 @@ func TestLoadNormalizesLogPageSizeBounds(t *testing.T) {
 	})
 }
 
-func TestMustByteBounds(t *testing.T) {
-	if got := mustByte("-1", 7); got != 0 {
-		t.Fatalf("expected negative byte to clamp to 0, got %d", got)
-	}
-	if got := mustByte("999", 7); got != 255 {
-		t.Fatalf("expected oversized byte to clamp to 255, got %d", got)
-	}
-	if got := mustByte("invalid", 7); got != 7 {
-		t.Fatalf("expected invalid byte to keep default, got %d", got)
-	}
-}
-
-func TestLoadInvalidEnvValuesFallBackToDecodedValues(t *testing.T) {
+func TestLoadInvalidEnvValuesFailDecode(t *testing.T) {
 	d := t.TempDir()
 	path := filepath.Join(d, "cfg.yaml")
 	if err := os.WriteFile(path, []byte(`
@@ -652,15 +691,8 @@ channels:
 	t.Setenv("MML_MQTT__PORT", "not-a-number")
 	t.Setenv("MML_WEB__LOG__PAGE_SIZE_DEFAULT", "wat")
 
-	cfg, err := Load(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cfg.MQTT.Port != 1884 {
-		t.Fatalf("expected invalid env port to keep YAML value, got %d", cfg.MQTT.Port)
-	}
-	if cfg.Web.Log.PageSizeDefault != 123 {
-		t.Fatalf("expected invalid env page size to keep YAML value, got %d", cfg.Web.Log.PageSizeDefault)
+	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "decode config") {
+		t.Fatalf("expected invalid env values to fail config decode, got %v", err)
 	}
 }
 

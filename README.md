@@ -120,20 +120,21 @@ Reference:
 | `web.stats.activity.daily.bucket`   | `MML_WEB__STATS__ACTIVITY__DAILY__BUCKET` | `5m`                                                  | Stats tab daily (24h) activity bucket size; values under `1m` are raised to `1m`.      |
 | `web.stats.activity.weekly.bucket`  | `MML_WEB__STATS__ACTIVITY__WEEKLY__BUCKET` | `1h`                                                  | Stats tab weekly (168h) activity bucket size; values under `7m` are raised to `7m`.     |
 | `logging.level`                     | `MML_LOGGING__LEVEL`                      | `"info"`                                              | Log level.                                                                            |
-| `update_check.enabled`              |                                           | `true`                                                | Enable release checks shown in the UI.                                                |
-| `update_check.interval`             |                                           | `12h`                                                 | Refresh interval for configured release sources.                                      |
-| `update_check.timeout`              |                                           | `15s`                                                 | Per-source release request timeout.                                                   |
-| `update_check.sources[].name`       |                                           | `"meshmap-lite"`                                      | Stable update source identifier.                                                      |
-| `update_check.sources[].label`      |                                           | `"Map"`                                               | User-facing label for the update source.                                              |
-| `update_check.sources[].type`       |                                           | `"forgejo"`                                           | Release source type. Supported values: `forgejo`, `github`.                           |
-| `update_check.sources[].base_url`   |                                           | `"https://git.skobk.in"`                              | API base URL. Required for `forgejo`; optional for `github`, where it defaults to `https://api.github.com`. For GitHub Enterprise use a compatible REST base such as `https://github.example.com/api/v3`. |
-| `update_check.sources[].repository` |                                           | `"skobkin/meshmap-lite"`                              | Repository in `owner/repo` form.                                                      |
-| `update_check.sources[].current_version_source` |                                  | `"buildinfo"`                                         | Current-version source. Use `buildinfo` for the running binary version or `none`.      |
-| `update_check.sources[].limit`      |                                           | `15`                                                  | Number of releases fetched per source. GitHub values are sent as `per_page` and clamped to `1..100`. |
+| `update_check.enabled`              | `MML_UPDATE_CHECK__ENABLED`              | `true`                                                | Enable release checks shown in the UI.                                                |
+| `update_check.interval`             | `MML_UPDATE_CHECK__INTERVAL`             | `12h`                                                 | Refresh interval for configured release sources.                                      |
+| `update_check.timeout`              | `MML_UPDATE_CHECK__TIMEOUT`              | `15s`                                                 | Per-source release request timeout.                                                   |
+| `update_check.sources[].name`       | `MML_UPDATE_CHECK__SOURCES__0__NAME`     | `"meshmap-lite"`                                      | Stable update source identifier. Increase the numeric index for additional ENV-defined sources. |
+| `update_check.sources[].label`      | `MML_UPDATE_CHECK__SOURCES__0__LABEL`    | `"Map"`                                               | User-facing label for the update source.                                              |
+| `update_check.sources[].type`       | `MML_UPDATE_CHECK__SOURCES__0__TYPE`     | `"forgejo"`                                           | Release source type. Supported values: `forgejo`, `github`.                           |
+| `update_check.sources[].base_url`   | `MML_UPDATE_CHECK__SOURCES__0__BASE_URL` | `"https://git.skobk.in"`                              | API base URL. Required for `forgejo`; optional for `github`, where it defaults to `https://api.github.com`. For GitHub Enterprise use a compatible REST base such as `https://github.example.com/api/v3`. |
+| `update_check.sources[].repository` | `MML_UPDATE_CHECK__SOURCES__0__REPOSITORY` | `"skobkin/meshmap-lite"`                            | Repository in `owner/repo` form.                                                      |
+| `update_check.sources[].current_version_source` | `MML_UPDATE_CHECK__SOURCES__0__CURRENT_VERSION_SOURCE` | `"buildinfo"`                          | Current-version source. Use `buildinfo` for the running binary version or `none`.      |
+| `update_check.sources[].limit`      | `MML_UPDATE_CHECK__SOURCES__0__LIMIT`    | `15`                                                  | Number of releases fetched per source. GitHub values are sent as `per_page` and clamped to `1..100`. |
 
 Notes:
 - Channel names are preserved as configured.
 - ENV overrides are parsed as: `bool` (`true/false`), `int`, `float`, `time.Duration` (`10s`, `60m`, `6h`), or string.
+- ENV list entries use numeric path segments, for example `MML_UPDATE_CHECK__SOURCES__0__TYPE=github`.
 - Unknown ENV keys are ignored.
 - If `web.info.file` is set and the file cannot be read or rendered, startup fails. Changing the file requires restarting the app; clients see changed content again because dismissal is keyed to the Markdown source hash.
 - Stats activity periods are normalized to positive durations and capped at 1440 buckets per period. The minimum effective bucket is therefore `1m` for daily and `7m` for weekly; any smaller value is silently raised to the minimum.

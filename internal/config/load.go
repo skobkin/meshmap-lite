@@ -20,12 +20,14 @@ func Load(path string) (Config, error) {
 			}
 		}
 	}
-
-	if err := k.Unmarshal("", &cfg); err != nil {
-		return Config{}, fmt.Errorf("decode yaml: %w", err)
+	if err := loadEnv(k); err != nil {
+		return Config{}, fmt.Errorf("load env: %w", err)
 	}
 
-	applyEnv(&cfg)
+	if err := k.Unmarshal("", &cfg); err != nil {
+		return Config{}, fmt.Errorf("decode config: %w", err)
+	}
+
 	normalize(&cfg)
 	if err := validate(cfg); err != nil {
 		return Config{}, err
