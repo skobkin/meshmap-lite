@@ -76,6 +76,7 @@
 - Config supports YAML and ENV; ENV overrides YAML.
 - YAML fields should be representable via ENV with the `MML_` prefix and `__` nesting separator.
 - Any config schema change must update `README.md` and `config.example.yaml` in the same change.
+- Update `UPGRADE.md` only for breaking changes or changes that require existing operators to take migration or deployment action. Do not add entries for backward-compatible new features, patches, or documentation-only changes that require no operator action.
 - Support ENV-only configuration.
 - Do not hard-code broker hosts, topics, PSKs, or credentials in code/tests.
 - Keep secrets out of the repository.
