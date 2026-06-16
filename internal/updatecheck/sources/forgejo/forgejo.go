@@ -20,11 +20,12 @@ import (
 
 // Source is a Forgejo release source.
 type Source struct {
-	name       string
-	apiURL     string
-	pageURL    string
-	limit      int
-	httpClient *http.Client
+	name        string
+	apiURL      string
+	pageURL     string
+	limit       int
+	preReleases bool
+	httpClient  *http.Client
 }
 
 // Options configures a Forgejo Source.
@@ -33,7 +34,10 @@ type Options struct {
 	BaseURL    string // e.g. https://git.skobk.in
 	Repository string // e.g. skobkin/meshmap-lite
 	Limit      int
-	HTTPClient *http.Client
+	// PreReleases, when true, includes pre-release (alpha/beta/rc) tags
+	// alongside stable releases. Drafts are always excluded regardless.
+	PreReleases bool
+	HTTPClient  *http.Client
 }
 
 // New constructs a Forgejo Source. It returns an error if the required
@@ -60,16 +64,17 @@ func New(opts Options) (*Source, error) {
 		client = &http.Client{Timeout: 15 * time.Second}
 	}
 
-	apiURL := fmt.Sprintf("%s/api/v1/repos/%s/releases?draft=false&pre-release=false&limit=%d",
-		base, repo, limit)
+	apiURL := fmt.Sprintf("%s/api/v1/repos/%s/releases?draft=false&pre-release=%t&limit=%d",
+		base, repo, opts.PreReleases, limit)
 	pageURL := fmt.Sprintf("%s/%s/releases", base, repo)
 
 	return &Source{
-		name:       name,
-		apiURL:     apiURL,
-		pageURL:    pageURL,
-		limit:      limit,
-		httpClient: client,
+		name:        name,
+		apiURL:      apiURL,
+		pageURL:     pageURL,
+		limit:       limit,
+		preReleases: opts.PreReleases,
+		httpClient:  client,
 	}, nil
 }
 

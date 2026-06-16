@@ -200,4 +200,8 @@ type UpdateCheckSourceConfig struct {
 	Repository           string `koanf:"repository"`
 	CurrentVersionSource string `koanf:"current_version_source"`
 	Limit                int    `koanf:"limit"`
+	// PreReleases, when true, includes pre-release (alpha/beta/rc) tags
+	// alongside stable releases for sources that support the distinction.
+	// Defaults to false to preserve the previous stable-only behaviour.
+	PreReleases bool `koanf:"pre_releases"`
 }

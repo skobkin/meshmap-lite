@@ -294,6 +294,7 @@ channels:
 	t.Setenv("MML_UPDATE_CHECK__SOURCES__0__REPOSITORY", "meshtastic/firmware")
 	t.Setenv("MML_UPDATE_CHECK__SOURCES__0__CURRENT_VERSION_SOURCE", "none")
 	t.Setenv("MML_UPDATE_CHECK__SOURCES__0__LIMIT", "25")
+	t.Setenv("MML_UPDATE_CHECK__SOURCES__0__PRE_RELEASES", "true")
 
 	cfg, err := Load(path)
 	if err != nil {
@@ -317,8 +318,48 @@ channels:
 		src.Type != "github" ||
 		src.Repository != "meshtastic/firmware" ||
 		src.CurrentVersionSource != "none" ||
-		src.Limit != 25 {
+		src.Limit != 25 ||
+		!src.PreReleases {
 		t.Fatalf("unexpected update check source from env: %#v", src)
+	}
+}
+
+func TestLoadUpdateCheckSourcePreReleasesFromYAML(t *testing.T) {
+	d := t.TempDir()
+	path := filepath.Join(d, "cfg.yaml")
+	if err := os.WriteFile(path, []byte(`
+mqtt:
+  root_topic: msh/test
+channels:
+  LongFast:
+    psk: AQ==
+update_check:
+  enabled: true
+  sources:
+    - name: meshtastic-firmware
+      type: github
+      repository: meshtastic/firmware
+      pre_releases: true
+    - name: meshmap-lite
+      type: forgejo
+      base_url: https://git.example.invalid
+      repository: skobkin/meshmap-lite
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("unexpected Load error: %v", err)
+	}
+	if len(cfg.UpdateCheck.Sources) != 2 {
+		t.Fatalf("expected two update check sources, got %d", len(cfg.UpdateCheck.Sources))
+	}
+	if !cfg.UpdateCheck.Sources[0].PreReleases {
+		t.Fatalf("expected github source to have pre-releases=true from YAML, got %#v", cfg.UpdateCheck.Sources[0])
+	}
+	if cfg.UpdateCheck.Sources[1].PreReleases {
+		t.Fatalf("expected forgejo source to have pre-releases=false by default, got %#v", cfg.UpdateCheck.Sources[1])
 	}
 }
 

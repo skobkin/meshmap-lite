@@ -105,3 +105,11 @@ update_check:
     #   type: github
     #   repository: meshtastic/firmware
     #   limit: 15
+    # Set pre_releases: true to include alpha/beta/RC releases. Defaults to
+    # false (stable releases only). The flag is forwarded to the platform
+    # query (forgejo) or the per-release filter (github).
+    # - name: meshtastic-firmware-prereleases
+    #   type: github
+    #   repository: meshtastic/firmware
+    #   pre_releases: true
+    #   limit: 15

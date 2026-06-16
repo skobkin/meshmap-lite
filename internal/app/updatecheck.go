@@ -69,17 +69,19 @@ func registerUpdateCheckSource(mgr *updatecheck.Manager, cfg config.UpdateCheckS
 	switch strings.TrimSpace(cfg.Type) {
 	case "forgejo":
 		src, err = forgejo.New(forgejo.Options{
-			Name:       cfg.Name,
-			BaseURL:    cfg.BaseURL,
-			Repository: cfg.Repository,
-			Limit:      cfg.Limit,
+			Name:        cfg.Name,
+			BaseURL:     cfg.BaseURL,
+			Repository:  cfg.Repository,
+			Limit:       cfg.Limit,
+			PreReleases: cfg.PreReleases,
 		})
 	case "github":
 		src, err = github.New(github.Options{
-			Name:       cfg.Name,
-			BaseURL:    cfg.BaseURL,
-			Repository: cfg.Repository,
-			Limit:      cfg.Limit,
+			Name:        cfg.Name,
+			BaseURL:     cfg.BaseURL,
+			Repository:  cfg.Repository,
+			Limit:       cfg.Limit,
+			PreReleases: cfg.PreReleases,
 		})
 	default:
 		return errors.New("unsupported source type: " + cfg.Type)

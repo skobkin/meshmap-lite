@@ -24,11 +24,12 @@ const (
 
 // Source is a GitHub release source.
 type Source struct {
-	name       string
-	apiURL     string
-	pageURL    string
-	limit      int
-	httpClient *http.Client
+	name        string
+	apiURL      string
+	pageURL     string
+	limit       int
+	preReleases bool
+	httpClient  *http.Client
 }
 
 // Options configures a GitHub Source.
@@ -37,7 +38,10 @@ type Options struct {
 	Repository string // e.g. meshtastic/firmware
 	BaseURL    string // optional, defaults to https://api.github.com
 	Limit      int
-	HTTPClient *http.Client
+	// PreReleases, when true, includes pre-release (alpha/beta/rc) tags
+	// alongside stable releases. Drafts are always skipped regardless.
+	PreReleases bool
+	HTTPClient  *http.Client
 }
 
 // New constructs a GitHub Source. It validates metadata and builds the
@@ -78,11 +82,12 @@ func New(opts Options) (*Source, error) {
 	pageURL := releasesPageURL(*baseURL, owner, repoName)
 
 	return &Source{
-		name:       name,
-		apiURL:     api.String(),
-		pageURL:    pageURL,
-		limit:      limit,
-		httpClient: client,
+		name:        name,
+		apiURL:      api.String(),
+		pageURL:     pageURL,
+		limit:       limit,
+		preReleases: opts.PreReleases,
+		httpClient:  client,
 	}, nil
 }
 
@@ -106,7 +111,8 @@ type githubRelease struct {
 }
 
 // FetchReleases performs a single GET against the configured API endpoint
-// and returns non-draft, non-prerelease releases ordered newest-first.
+// and returns non-draft releases ordered newest-first. Pre-release tags
+// are included only when the source was constructed with PreReleases=true.
 func (s *Source) FetchReleases(ctx context.Context) ([]updatecheck.ReleaseInfo, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.apiURL, nil)
 	if err != nil {
@@ -140,7 +146,10 @@ func (s *Source) FetchReleases(ctx context.Context) ([]updatecheck.ReleaseInfo, 
 	out := make([]updatecheck.ReleaseInfo, 0, len(payload))
 	for _, item := range payload {
 		version := strings.TrimSpace(item.TagName)
-		if version == "" || item.Draft || item.Prerelease {
+		if version == "" || item.Draft {
+			continue
+		}
+		if !s.preReleases && item.Prerelease {
 			continue
 		}
 		out = append(out, updatecheck.ReleaseInfo{

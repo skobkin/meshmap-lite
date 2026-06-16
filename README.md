@@ -130,6 +130,7 @@ Reference:
 | `update_check.sources[].repository` | `MML_UPDATE_CHECK__SOURCES__0__REPOSITORY` | `"skobkin/meshmap-lite"`                            | Repository in `owner/repo` form.                                                      |
 | `update_check.sources[].current_version_source` | `MML_UPDATE_CHECK__SOURCES__0__CURRENT_VERSION_SOURCE` | `"buildinfo"`                          | Current-version source. Use `buildinfo` for the running binary version or `none`.      |
 | `update_check.sources[].limit`      | `MML_UPDATE_CHECK__SOURCES__0__LIMIT`    | `15`                                                  | Number of releases fetched per source. GitHub values are sent as `per_page` and clamped to `1..100`. |
+| `update_check.sources[].pre_releases` | `MML_UPDATE_CHECK__SOURCES__0__PRE_RELEASES` | `false`                                          | Include platform-flagged unstable releases (alpha/beta/RC). For `forgejo` this is forwarded as the `pre-release` query parameter; for `github` the per-release `prerelease` flag is honored instead of filtered. |
 
 Notes:
 - Channel names are preserved as configured.

@@ -41,6 +41,33 @@ func TestNewBuildsExpectedURLs(t *testing.T) {
 	}
 }
 
+func TestNewBuildsURLWithPreReleases(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		preReleases bool
+		wantSuffix  string
+	}{
+		{name: "default off", preReleases: false, wantSuffix: "draft=false&pre-release=false&limit=10"},
+		{name: "explicitly on", preReleases: true, wantSuffix: "draft=false&pre-release=true&limit=10"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, err := New(Options{
+				Name:        "meshmap-lite",
+				BaseURL:     "https://git.example.org",
+				Repository:  "skobkin/meshmap-lite",
+				Limit:       10,
+				PreReleases: tc.preReleases,
+			})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got, want := s.APIURL(), "https://git.example.org/api/v1/repos/skobkin/meshmap-lite/releases?"+tc.wantSuffix; got != want {
+				t.Fatalf("unexpected APIURL: %q", got)
+			}
+		})
+	}
+}
+
 func TestFetchReleasesDecodesPayload(t *testing.T) {
 	var accept string
 	var gotURL string

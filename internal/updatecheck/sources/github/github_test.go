@@ -187,3 +187,53 @@ func TestFetchReleasesWrapsDecodeErrors(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestFetchReleasesRespectsPreReleases(t *testing.T) {
+	const payload = `[
+		{"tag_name":"v2.0.0","body":"stable","html_url":"https://example.com/r/v2.0.0","published_at":"2026-02-15T01:00:00Z","draft":false,"prerelease":false},
+		{"tag_name":"v2.0.0-rc1","body":"rc","html_url":"https://example.com/r/rc","published_at":"2026-02-14T01:00:00Z","draft":false,"prerelease":true},
+		{"tag_name":"v1.9.0","body":"older","html_url":"https://example.com/r/v1.9.0","published_at":"2026-02-10T01:00:00Z","draft":false,"prerelease":false}
+	]`
+
+	for _, tc := range []struct {
+		name        string
+		preReleases bool
+		want        []string
+	}{
+		{name: "off drops prereleases", preReleases: false, want: []string{"v2.0.0", "v1.9.0"}},
+		{name: "on keeps prereleases", preReleases: true, want: []string{"v2.0.0", "v2.0.0-rc1", "v1.9.0"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = io.WriteString(w, payload)
+			}))
+			defer server.Close()
+
+			s, err := New(Options{
+				Name:        "x",
+				BaseURL:     server.URL,
+				Repository:  "a/b",
+				Limit:       20,
+				PreReleases: tc.preReleases,
+				HTTPClient:  server.Client(),
+			})
+			if err != nil {
+				t.Fatalf("unexpected New error: %v", err)
+			}
+
+			releases, err := s.FetchReleases(context.Background())
+			if err != nil {
+				t.Fatalf("unexpected FetchReleases error: %v", err)
+			}
+			if len(releases) != len(tc.want) {
+				t.Fatalf("expected %d releases, got %d: %#v", len(tc.want), len(releases), releases)
+			}
+			for i, version := range tc.want {
+				if releases[i].Version != version {
+					t.Fatalf("expected release %d to be %q, got %q", i, version, releases[i].Version)
+				}
+			}
+		})
+	}
+}
