@@ -100,7 +100,7 @@ export function LogPage({
           <span className="log-filters-title">Filters</span>
           <button
             type="button"
-            className="secondary outline log-filter-reset"
+            className={isFiltersAtDefaults ? 'secondary outline log-filter-reset' : 'log-filter-reset'}
             aria-label="Reset all filters"
             onClick={onResetFilters}
             disabled={isFiltersAtDefaults}
