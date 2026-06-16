@@ -20,7 +20,7 @@ func TestRegisterUpdateCheckSourceConstructsGitHubSource(t *testing.T) {
 	err := registerUpdateCheckSource(mgr, config.UpdateCheckSourceConfig{
 		Name:                 "firmware",
 		Label:                "Firmware",
-		Type:                 "github",
+		Type:                 updatecheck.SourceTypeGitHub,
 		Repository:           "meshtastic/firmware",
 		CurrentVersionSource: "none",
 		Limit:                5,
@@ -58,10 +58,10 @@ func TestRegisterUpdateCheckSourcePropagatesPreReleases(t *testing.T) {
 			name: "github pre-releases on",
 			cfg: config.UpdateCheckSourceConfig{
 				Name:        "firmware-pr",
-				Type:        "github",
+				Type:        updatecheck.SourceTypeGitHub,
 				Repository:  "meshtastic/firmware",
 				Limit:       7,
-				PreReleases: true,
+				PreReleases: boolPtr(true),
 			},
 			wantAPIURL: "https://api.github.com/repos/meshtastic/firmware/releases?per_page=7&page=1",
 		},
@@ -69,11 +69,11 @@ func TestRegisterUpdateCheckSourcePropagatesPreReleases(t *testing.T) {
 			name: "forgejo pre-releases on",
 			cfg: config.UpdateCheckSourceConfig{
 				Name:        "meshmap-pr",
-				Type:        "forgejo",
+				Type:        updatecheck.SourceTypeForgejo,
 				BaseURL:     "https://git.example.org",
 				Repository:  "skobkin/meshmap-lite",
 				Limit:       9,
-				PreReleases: true,
+				PreReleases: boolPtr(true),
 			},
 			wantAPIURL: "https://git.example.org/api/v1/repos/skobkin/meshmap-lite/releases?draft=false&limit=9",
 		},
@@ -81,7 +81,7 @@ func TestRegisterUpdateCheckSourcePropagatesPreReleases(t *testing.T) {
 			name: "forgejo pre-releases off",
 			cfg: config.UpdateCheckSourceConfig{
 				Name:       "meshmap-stable",
-				Type:       "forgejo",
+				Type:       updatecheck.SourceTypeForgejo,
 				BaseURL:    "https://git.example.org",
 				Repository: "skobkin/meshmap-lite",
 				Limit:      9,
@@ -101,13 +101,13 @@ func TestRegisterUpdateCheckSourcePropagatesPreReleases(t *testing.T) {
 			}
 			var got string
 			switch tc.cfg.Type {
-			case "forgejo":
+			case updatecheck.SourceTypeForgejo:
 				src, ok := mgr.SnapshotSource(tc.cfg.Name).(*forgejo.Source)
 				if !ok {
 					t.Fatalf("expected forgejo source, got %T", mgr.SnapshotSource(tc.cfg.Name))
 				}
 				got = src.APIURL()
-			case "github":
+			case updatecheck.SourceTypeGitHub:
 				src, ok := mgr.SnapshotSource(tc.cfg.Name).(*github.Source)
 				if !ok {
 					t.Fatalf("expected github source, got %T", mgr.SnapshotSource(tc.cfg.Name))
@@ -119,4 +119,8 @@ func TestRegisterUpdateCheckSourcePropagatesPreReleases(t *testing.T) {
 			}
 		})
 	}
+}
+
+func boolPtr(v bool) *bool {
+	return &v
 }

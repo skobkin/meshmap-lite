@@ -1,6 +1,10 @@
 package config
 
-import "time"
+import (
+	"time"
+
+	"meshmap-lite/internal/updatecheck"
+)
 
 const (
 	envPrefix                 = "MML_"
@@ -130,7 +134,7 @@ func defaultConfig() Config {
 var DefaultUpdateCheckSource = UpdateCheckSourceConfig{
 	Name:                 "meshmap-lite",
 	Label:                "Map",
-	Type:                 "forgejo",
+	Type:                 updatecheck.SourceTypeForgejo,
 	BaseURL:              "https://git.skobk.in",
 	Repository:           "skobkin/meshmap-lite",
 	CurrentVersionSource: "buildinfo",

@@ -203,10 +203,16 @@ type UpdateCheckSourceConfig struct {
 	// PreReleases, when true, includes pre-release (alpha/beta/rc) tags
 	// alongside stable releases for sources that support the distinction.
 	// Defaults to false to preserve the previous stable-only behaviour.
-	PreReleases bool `koanf:"pre_releases"`
+	PreReleases *bool `koanf:"pre_releases"`
 	// PostProcess controls release Markdown post-processing. Defaults to
 	// true; set post_process: false to leave upstream bodies untouched.
 	PostProcess *bool `koanf:"post_process"`
+}
+
+// PreReleasesEnabled reports whether pre-releases should be included for this
+// source. Nil means the field was omitted and the default applies.
+func (c UpdateCheckSourceConfig) PreReleasesEnabled() bool {
+	return c.PreReleases != nil && *c.PreReleases
 }
 
 // PostProcessEnabled reports whether release Markdown should be normalized

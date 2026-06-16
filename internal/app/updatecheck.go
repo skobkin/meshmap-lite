@@ -68,25 +68,25 @@ func registerUpdateCheckSource(mgr *updatecheck.Manager, cfg config.UpdateCheckS
 		err           error
 	)
 	switch strings.TrimSpace(cfg.Type) {
-	case "forgejo":
+	case updatecheck.SourceTypeForgejo:
 		forgejoSource, forgejoErr := forgejo.New(forgejo.Options{
 			Name:        cfg.Name,
 			BaseURL:     cfg.BaseURL,
 			Repository:  cfg.Repository,
 			Limit:       cfg.Limit,
-			PreReleases: cfg.PreReleases,
+			PreReleases: cfg.PreReleasesEnabled(),
 		})
 		src, err = forgejoSource, forgejoErr
 		if forgejoSource != nil {
 			postProcessor = forgejoSource.PostProcessor()
 		}
-	case "github":
+	case updatecheck.SourceTypeGitHub:
 		githubSource, githubErr := github.New(github.Options{
 			Name:        cfg.Name,
 			BaseURL:     cfg.BaseURL,
 			Repository:  cfg.Repository,
 			Limit:       cfg.Limit,
-			PreReleases: cfg.PreReleases,
+			PreReleases: cfg.PreReleasesEnabled(),
 		})
 		src, err = githubSource, githubErr
 		if githubSource != nil {

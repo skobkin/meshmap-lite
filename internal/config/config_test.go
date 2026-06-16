@@ -319,7 +319,7 @@ channels:
 		src.Repository != "meshtastic/firmware" ||
 		src.CurrentVersionSource != "none" ||
 		src.Limit != 25 ||
-		!src.PreReleases {
+		!src.PreReleasesEnabled() {
 		t.Fatalf("unexpected update check source from env: %#v", src)
 	}
 }
@@ -355,10 +355,10 @@ update_check:
 	if len(cfg.UpdateCheck.Sources) != 2 {
 		t.Fatalf("expected two update check sources, got %d", len(cfg.UpdateCheck.Sources))
 	}
-	if !cfg.UpdateCheck.Sources[0].PreReleases {
+	if cfg.UpdateCheck.Sources[0].PreReleases == nil || !cfg.UpdateCheck.Sources[0].PreReleasesEnabled() {
 		t.Fatalf("expected github source to have pre-releases=true from YAML, got %#v", cfg.UpdateCheck.Sources[0])
 	}
-	if cfg.UpdateCheck.Sources[1].PreReleases {
+	if cfg.UpdateCheck.Sources[1].PreReleases != nil || cfg.UpdateCheck.Sources[1].PreReleasesEnabled() {
 		t.Fatalf("expected forgejo source to have pre-releases=false by default, got %#v", cfg.UpdateCheck.Sources[1])
 	}
 	if !cfg.UpdateCheck.Sources[1].PostProcessEnabled() {

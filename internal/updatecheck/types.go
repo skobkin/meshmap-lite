@@ -10,6 +10,12 @@ package updatecheck
 
 import "time"
 
+// Source type values accepted by update-check source registration.
+const (
+	SourceTypeForgejo = "forgejo"
+	SourceTypeGitHub  = "github"
+)
+
 // ReleaseInfo describes a single release entry returned by a Source.
 type ReleaseInfo struct {
 	Version     string
