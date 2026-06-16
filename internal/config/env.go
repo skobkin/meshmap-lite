@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -52,7 +53,10 @@ func normalizeEnvSlices(k *koanf.Koanf) error {
 		return nil
 	}
 
-	sources, ok := indexedEnvMapToSlice(rawSources)
+	sources, ok, err := indexedEnvMapToSlice(rawSources)
+	if err != nil {
+		return err
+	}
 	if !ok {
 		return nil
 	}
@@ -60,10 +64,10 @@ func normalizeEnvSlices(k *koanf.Koanf) error {
 	return k.Set("update_check.sources", sources)
 }
 
-func indexedEnvMapToSlice(raw interface{}) ([]interface{}, bool) {
+func indexedEnvMapToSlice(raw interface{}) ([]interface{}, bool, error) {
 	rawMap, ok := raw.(map[string]interface{})
 	if !ok || len(rawMap) == 0 {
-		return nil, false
+		return nil, false, nil
 	}
 
 	indexes := make([]int, 0, len(rawMap))
@@ -71,7 +75,7 @@ func indexedEnvMapToSlice(raw interface{}) ([]interface{}, bool) {
 	for key, value := range rawMap {
 		index, err := strconv.Atoi(key)
 		if err != nil || index < 0 {
-			return nil, false
+			return nil, false, fmt.Errorf("update_check.sources index %q must be a non-negative integer", key)
 		}
 		indexes = append(indexes, index)
 		byIndex[index] = value
@@ -83,5 +87,5 @@ func indexedEnvMapToSlice(raw interface{}) ([]interface{}, bool) {
 		out[index] = byIndex[index]
 	}
 
-	return out, true
+	return out, true, nil
 }

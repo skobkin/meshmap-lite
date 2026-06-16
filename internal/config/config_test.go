@@ -366,6 +366,19 @@ func TestLoadUpdateCheckSourceFromEnvRejectsSparseIndexes(t *testing.T) {
 	}
 }
 
+func TestLoadUpdateCheckSourceFromEnvRejectsNonNumericIndex(t *testing.T) {
+	t.Setenv("MML_MQTT__ROOT_TOPIC", "msh/env")
+	t.Setenv("MML_CHANNELS__LongFast__PSK", "AQ==")
+	t.Setenv("MML_UPDATE_CHECK__SOURCES__foo__NAME", "meshtastic-firmware")
+	t.Setenv("MML_UPDATE_CHECK__SOURCES__foo__TYPE", "github")
+	t.Setenv("MML_UPDATE_CHECK__SOURCES__foo__REPOSITORY", "meshtastic/firmware")
+
+	_, err := Load(filepath.Join(t.TempDir(), "missing.yaml"))
+	if err == nil || !strings.Contains(err.Error(), `update_check.sources index "foo" must be a non-negative integer`) {
+		t.Fatalf("expected non-numeric update source index to fail env loading, got %v", err)
+	}
+}
+
 func TestLoadNormalizesInvalidTracerouteTrackerBounds(t *testing.T) {
 	d := t.TempDir()
 	path := filepath.Join(d, "cfg.yaml")
@@ -644,6 +657,28 @@ func TestLoadMissingFileUsesDefaultsAndEnv(t *testing.T) {
 	}
 }
 
+func TestLoadDefaultMapViewFromEnvOnly(t *testing.T) {
+	t.Setenv("MML_MQTT__ROOT_TOPIC", "msh/env")
+	t.Setenv("MML_CHANNELS__LongFast__PSK", "AQ==")
+	t.Setenv("MML_WEB__MAP__DEFAULT_VIEW__LATITUDE", "64.54678")
+	t.Setenv("MML_WEB__MAP__DEFAULT_VIEW__LONGITUDE", "40.52470")
+	t.Setenv("MML_WEB__MAP__DEFAULT_VIEW__ZOOM", "13")
+
+	cfg, err := Load(filepath.Join(t.TempDir(), "missing.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Web.Map.DefaultView.Latitude != 64.54678 {
+		t.Fatalf("expected default view latitude from env, got %f", cfg.Web.Map.DefaultView.Latitude)
+	}
+	if cfg.Web.Map.DefaultView.Longitude != 40.52470 {
+		t.Fatalf("expected default view longitude from env, got %f", cfg.Web.Map.DefaultView.Longitude)
+	}
+	if cfg.Web.Map.DefaultView.Zoom != 13 {
+		t.Fatalf("expected default view zoom from env, got %d", cfg.Web.Map.DefaultView.Zoom)
+	}
+}
+
 func TestLoadResolvesChannelNamesCaseInsensitively(t *testing.T) {
 	d := t.TempDir()
 	path := filepath.Join(d, "cfg.yaml")
@@ -740,6 +775,25 @@ channels:
 
 	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "decode config") {
 		t.Fatalf("expected invalid env values to fail config decode, got %v", err)
+	}
+}
+
+func TestLoadRejectsOutOfRangeSubscribeQoSFromEnv(t *testing.T) {
+	d := t.TempDir()
+	path := filepath.Join(d, "cfg.yaml")
+	if err := os.WriteFile(path, []byte(`
+mqtt:
+  root_topic: msh/test
+channels:
+  LongFast:
+    psk: AQ==
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("MML_MQTT__SUBSCRIBE_QOS", "300")
+
+	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "decode config") {
+		t.Fatalf("expected out-of-range subscribe qos env value to fail config decode, got %v", err)
 	}
 }
 
