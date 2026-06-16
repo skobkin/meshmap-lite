@@ -502,6 +502,13 @@ func (s *Service) logEventFromParsed(evt meshtastic.ParsedEvent, channel, mqttUp
 		}
 
 		return e, true
+	case meshtastic.ParsedStoreForward:
+		e.EventKind = domain.LogEventKindStoreForwardValue
+		if evt.StoreForward != nil {
+			e.Details = storeForwardLogDetails(evt.StoreForward)
+		}
+
+		return e, true
 	case meshtastic.ParsedOtherPortnum:
 		e.EventKind = domain.LogEventKindOtherPortnumValue
 		if evt.Portnum == generated.PortNum_RANGE_TEST_APP {
@@ -606,6 +613,54 @@ func pkiLogDetails(in *meshtastic.PKIPayload) map[string]any {
 	}
 	if in.Priority != "" {
 		details["priority"] = in.Priority
+	}
+
+	return details
+}
+
+func storeForwardLogDetails(in *meshtastic.StoreForwardPayload) map[string]any {
+	if in == nil {
+		return nil
+	}
+
+	details := map[string]any{
+		"rr":   in.RR,
+		"role": in.Role,
+	}
+	if in.FromNodeID != "" {
+		details["from"] = in.FromNodeID
+	}
+	if in.ToNodeID != "" {
+		details["to"] = in.ToNodeID
+	}
+	if in.Stats != nil {
+		details["stats"] = map[string]any{
+			"messages_total":   in.Stats.MessagesTotal,
+			"messages_saved":   in.Stats.MessagesSaved,
+			"messages_max":     in.Stats.MessagesMax,
+			"up_time":          in.Stats.UpTimeSeconds,
+			"requests":         in.Stats.Requests,
+			"requests_history": in.Stats.RequestsHistory,
+			"heartbeat":        in.Stats.HeartbeatEnabled,
+			"return_max":       in.Stats.ReturnMax,
+			"return_window":    in.Stats.ReturnWindow,
+		}
+	}
+	if in.History != nil {
+		details["history"] = map[string]any{
+			"history_messages": in.History.HistoryMessages,
+			"window":           in.History.WindowMinutes,
+			"last_request":     in.History.LastRequest,
+		}
+	}
+	if in.Heartbeat != nil {
+		details["heartbeat"] = map[string]any{
+			"period":    in.Heartbeat.PeriodSeconds,
+			"secondary": in.Heartbeat.Secondary,
+		}
+	}
+	if in.Text != "" {
+		details["text"] = in.Text
 	}
 
 	return details

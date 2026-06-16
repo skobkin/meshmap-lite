@@ -413,6 +413,96 @@ func TestLogEventFromParsedOtherPortnumKeepsFallbackDetails(t *testing.T) {
 	}
 }
 
+func TestLogEventFromParsedStoreForwardUsesDedicatedKindWithStructuredDetails(t *testing.T) {
+	svc := &Service{}
+	now := time.Unix(1772296589, 0).UTC()
+
+	event, ok := svc.logEventFromParsed(meshtastic.ParsedEvent{
+		Kind:    meshtastic.ParsedStoreForward,
+		NodeID:  "!aabbccdd",
+		Portnum: generated.PortNum_STORE_FORWARD_APP,
+		StoreForward: &meshtastic.StoreForwardPayload{
+			RR:         "ROUTER_STATS",
+			Role:       "router",
+			FromNodeID: "!aabbccdd",
+			ToNodeID:   "!11223344",
+			Stats: &meshtastic.StoreForwardStats{
+				MessagesTotal:    128,
+				MessagesSaved:    32,
+				MessagesMax:      256,
+				UpTimeSeconds:    7200,
+				Requests:         5,
+				RequestsHistory:  2,
+				HeartbeatEnabled: true,
+				ReturnMax:        16,
+				ReturnWindow:     480,
+			},
+		},
+	}, "LongFast", "", now)
+	if !ok {
+		t.Fatalf("expected store_forward log event")
+	}
+	if event.EventKind != domain.LogEventKindStoreForwardValue {
+		t.Fatalf("unexpected event kind: %v", event.EventKind)
+	}
+	if event.Details["rr"] != "ROUTER_STATS" || event.Details["role"] != "router" {
+		t.Fatalf("unexpected scalar details: %#v", event.Details)
+	}
+	if event.Details["from"] != "!aabbccdd" || event.Details["to"] != "!11223344" {
+		t.Fatalf("unexpected node details: %#v", event.Details)
+	}
+	stats, ok := event.Details["stats"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected stats map, got %#v", event.Details["stats"])
+	}
+	if stats["messages_total"] != uint32(128) || stats["up_time"] != uint32(7200) || stats["heartbeat"] != true || stats["return_window"] != uint32(480) {
+		t.Fatalf("unexpected stats detail values: %#v", stats)
+	}
+	if _, present := event.Details["history"]; present {
+		t.Fatalf("history should be absent for stats sub-payload")
+	}
+	if _, present := event.Details["text"]; present {
+		t.Fatalf("text should be absent for stats sub-payload")
+	}
+}
+
+func TestLogEventFromParsedStoreForwardClientHistoryOmitsStats(t *testing.T) {
+	svc := &Service{}
+	now := time.Unix(1772296589, 0).UTC()
+
+	event, ok := svc.logEventFromParsed(meshtastic.ParsedEvent{
+		Kind:    meshtastic.ParsedStoreForward,
+		NodeID:  "!deadbeef",
+		Portnum: generated.PortNum_STORE_FORWARD_APP,
+		StoreForward: &meshtastic.StoreForwardPayload{
+			RR:         "CLIENT_HISTORY",
+			Role:       "client",
+			FromNodeID: "!deadbeef",
+			History: &meshtastic.StoreForwardHistory{
+				HistoryMessages: 7,
+				WindowMinutes:   90,
+				LastRequest:     13,
+			},
+		},
+	}, "LongFast", "", now)
+	if !ok {
+		t.Fatalf("expected store_forward log event")
+	}
+	if event.EventKind != domain.LogEventKindStoreForwardValue {
+		t.Fatalf("unexpected event kind: %v", event.EventKind)
+	}
+	history, ok := event.Details["history"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected history map, got %#v", event.Details["history"])
+	}
+	if history["history_messages"] != uint32(7) || history["window"] != uint32(90) || history["last_request"] != uint32(13) {
+		t.Fatalf("unexpected history detail values: %#v", history)
+	}
+	if _, present := event.Details["stats"]; present {
+		t.Fatalf("stats should be absent for history sub-payload")
+	}
+}
+
 func TestLogEventFromParsedPKIUsesDedicatedKindWithOuterHeaderDetails(t *testing.T) {
 	svc := &Service{}
 	now := time.Unix(1772296589, 0).UTC()

@@ -638,3 +638,185 @@ func TestParsePayloadRealWorldRoutingSamples(t *testing.T) {
 		})
 	}
 }
+
+func TestDecodeStoreForwardPayloadVariants(t *testing.T) {
+	const fromNode = uint32(0x11111111)
+	const toNode = uint32(0x22222222)
+
+	newPacket := func() *generated.MeshPacket {
+		return &generated.MeshPacket{From: fromNode, To: toNode}
+	}
+
+	t.Run("router stats", func(t *testing.T) {
+		payload, err := proto.Marshal(&generated.StoreAndForward{
+			Rr: generated.StoreAndForward_ROUTER_STATS,
+			Variant: &generated.StoreAndForward_Stats{
+				Stats: &generated.StoreAndForward_Statistics{
+					MessagesTotal:   100,
+					MessagesSaved:   25,
+					MessagesMax:     250,
+					UpTime:          86400,
+					Requests:        12,
+					RequestsHistory: 4,
+					Heartbeat:       true,
+					ReturnMax:       50,
+					ReturnWindow:    240,
+				},
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		sf, err := decodeStoreForwardPayload(newPacket(), &generated.Data{Portnum: generated.PortNum_STORE_FORWARD_APP, Payload: payload})
+		if err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if sf.RR != "ROUTER_STATS" {
+			t.Fatalf("unexpected rr: got %q", sf.RR)
+		}
+		if sf.Role != "router" {
+			t.Fatalf("unexpected role: got %q", sf.Role)
+		}
+		if sf.FromNodeID != "!11111111" || sf.ToNodeID != "!22222222" {
+			t.Fatalf("unexpected node ids: from=%q to=%q", sf.FromNodeID, sf.ToNodeID)
+		}
+		if sf.Stats == nil {
+			t.Fatalf("expected stats payload")
+		}
+		if sf.Stats.MessagesTotal != 100 || sf.Stats.UpTimeSeconds != 86400 || !sf.Stats.HeartbeatEnabled || sf.Stats.ReturnWindow != 240 {
+			t.Fatalf("unexpected stats payload: %#v", sf.Stats)
+		}
+		if sf.History != nil || sf.Heartbeat != nil || sf.Text != "" {
+			t.Fatalf("unexpected extra sub-payload: history=%#v heartbeat=%#v text=%q", sf.History, sf.Heartbeat, sf.Text)
+		}
+	})
+
+	t.Run("router history header", func(t *testing.T) {
+		payload, err := proto.Marshal(&generated.StoreAndForward{
+			Rr: generated.StoreAndForward_ROUTER_HISTORY,
+			Variant: &generated.StoreAndForward_History_{
+				History: &generated.StoreAndForward_History{
+					HistoryMessages: 17,
+					Window:          120,
+					LastRequest:     42,
+				},
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		sf, err := decodeStoreForwardPayload(newPacket(), &generated.Data{Portnum: generated.PortNum_STORE_FORWARD_APP, Payload: payload})
+		if err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if sf.RR != "ROUTER_HISTORY" {
+			t.Fatalf("unexpected rr: got %q", sf.RR)
+		}
+		if sf.History == nil || sf.History.HistoryMessages != 17 || sf.History.WindowMinutes != 120 || sf.History.LastRequest != 42 {
+			t.Fatalf("unexpected history payload: %#v", sf.History)
+		}
+		if sf.Stats != nil || sf.Heartbeat != nil || sf.Text != "" {
+			t.Fatalf("expected only history sub-payload")
+		}
+	})
+
+	t.Run("router heartbeat", func(t *testing.T) {
+		payload, err := proto.Marshal(&generated.StoreAndForward{
+			Rr: generated.StoreAndForward_ROUTER_HEARTBEAT,
+			Variant: &generated.StoreAndForward_Heartbeat_{
+				Heartbeat: &generated.StoreAndForward_Heartbeat{
+					Period:    60,
+					Secondary: 1,
+				},
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		sf, err := decodeStoreForwardPayload(newPacket(), &generated.Data{Portnum: generated.PortNum_STORE_FORWARD_APP, Payload: payload})
+		if err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if sf.RR != "ROUTER_HEARTBEAT" {
+			t.Fatalf("unexpected rr: got %q", sf.RR)
+		}
+		if sf.Heartbeat == nil || sf.Heartbeat.PeriodSeconds != 60 || sf.Heartbeat.Secondary != 1 {
+			t.Fatalf("unexpected heartbeat payload: %#v", sf.Heartbeat)
+		}
+		if sf.Stats != nil || sf.History != nil || sf.Text != "" {
+			t.Fatalf("expected only heartbeat sub-payload")
+		}
+	})
+
+	t.Run("router text direct", func(t *testing.T) {
+		payload, err := proto.Marshal(&generated.StoreAndForward{
+			Rr: generated.StoreAndForward_ROUTER_TEXT_DIRECT,
+			Variant: &generated.StoreAndForward_Text{
+				Text: []byte("hello"),
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		sf, err := decodeStoreForwardPayload(newPacket(), &generated.Data{Portnum: generated.PortNum_STORE_FORWARD_APP, Payload: payload})
+		if err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if sf.RR != "ROUTER_TEXT_DIRECT" {
+			t.Fatalf("unexpected rr: got %q", sf.RR)
+		}
+		if sf.Text != "hello" {
+			t.Fatalf("unexpected text: got %q", sf.Text)
+		}
+		if sf.Stats != nil || sf.History != nil || sf.Heartbeat != nil {
+			t.Fatalf("expected only text sub-payload")
+		}
+	})
+
+	t.Run("client history has client role", func(t *testing.T) {
+		payload, err := proto.Marshal(&generated.StoreAndForward{
+			Rr: generated.StoreAndForward_CLIENT_HISTORY,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		sf, err := decodeStoreForwardPayload(newPacket(), &generated.Data{Portnum: generated.PortNum_STORE_FORWARD_APP, Payload: payload})
+		if err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if sf.RR != "CLIENT_HISTORY" {
+			t.Fatalf("unexpected rr: got %q", sf.RR)
+		}
+		if sf.Role != "client" {
+			t.Fatalf("expected client role, got %q", sf.Role)
+		}
+	})
+
+	t.Run("data source overrides packet from", func(t *testing.T) {
+		payload, err := proto.Marshal(&generated.StoreAndForward{
+			Rr: generated.StoreAndForward_ROUTER_PING,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		pkt := &generated.MeshPacket{From: fromNode, To: toNode}
+		sf, err := decodeStoreForwardPayload(pkt, &generated.Data{
+			Portnum: generated.PortNum_STORE_FORWARD_APP,
+			Payload: payload,
+			Source:  0x33333333,
+			Dest:    0x44444444,
+		})
+		if err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if sf.FromNodeID != "!33333333" || sf.ToNodeID != "!44444444" {
+			t.Fatalf("expected data source/dest to override packet from/to, got from=%q to=%q", sf.FromNodeID, sf.ToNodeID)
+		}
+	})
+}

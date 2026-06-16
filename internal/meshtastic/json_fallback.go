@@ -10,23 +10,24 @@ import (
 
 func parseJSONFallback(kind TopicKind, payload []byte) (ParsedEvent, error) {
 	var raw struct {
-		Type       string              `json:"type"`
-		NodeID     string              `json:"node_id"`
-		PacketID   uint32              `json:"packet_id"`
-		Portnum    int32               `json:"portnum"`
-		Timestamp  *time.Time          `json:"timestamp"`
-		Emoji      bool                `json:"emoji,omitempty"`
-		ReplyID    uint32              `json:"reply_id,omitempty"`
-		Chat       ChatPayload         `json:"chat"`
-		NodeInfo   NodeInfoPayload     `json:"node_info"`
-		Position   PositionPayload     `json:"position"`
-		Telemetry  TelemetryPayload    `json:"telemetry"`
-		MapReport  MapReportPayload    `json:"map_report"`
-		Traceroute TraceroutePayload   `json:"traceroute"`
-		Neighbor   NeighborInfoPayload `json:"neighbor_info"`
-		Routing    RoutingPayload      `json:"routing"`
-		PKI        PKIPayload          `json:"pki"`
-		Other      OtherPortnumPayload `json:"other"`
+		Type         string              `json:"type"`
+		NodeID       string              `json:"node_id"`
+		PacketID     uint32              `json:"packet_id"`
+		Portnum      int32               `json:"portnum"`
+		Timestamp    *time.Time          `json:"timestamp"`
+		Emoji        bool                `json:"emoji,omitempty"`
+		ReplyID      uint32              `json:"reply_id,omitempty"`
+		Chat         ChatPayload         `json:"chat"`
+		NodeInfo     NodeInfoPayload     `json:"node_info"`
+		Position     PositionPayload     `json:"position"`
+		Telemetry    TelemetryPayload    `json:"telemetry"`
+		MapReport    MapReportPayload    `json:"map_report"`
+		Traceroute   TraceroutePayload   `json:"traceroute"`
+		Neighbor     NeighborInfoPayload `json:"neighbor_info"`
+		Routing      RoutingPayload      `json:"routing"`
+		PKI          PKIPayload          `json:"pki"`
+		StoreForward StoreForwardPayload `json:"store_forward"`
+		Other        OtherPortnumPayload `json:"other"`
 	}
 	if err := json.Unmarshal(payload, &raw); err != nil {
 		return ParsedEvent{}, fmt.Errorf("decode payload: %w", err)
@@ -84,6 +85,9 @@ func parseJSONFallback(kind TopicKind, payload []byte) (ParsedEvent, error) {
 		}
 		out.Encrypted = raw.PKI.Encrypted
 		out.Decrypted = raw.PKI.Decrypted
+	case "store_forward":
+		out.Kind = ParsedStoreForward
+		out.StoreForward = &raw.StoreForward
 	case "other_portnum":
 		out.Kind = ParsedOtherPortnum
 		out.Other = &raw.Other

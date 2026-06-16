@@ -7,7 +7,7 @@ import (
 	"log/slog"
 )
 
-const targetSchemaVersion = 17
+const targetSchemaVersion = 18
 
 type migrationStep struct {
 	version int
@@ -33,6 +33,7 @@ var schemaMigrations = []migrationStep{
 	{version: 15, name: "hop_tracking", apply: migrateV15HopTracking},
 	{version: 16, name: "chat_reactions", apply: migrateV16ChatReactions},
 	{version: 17, name: "backfill_log_visible_nodes", apply: migrateV17BackfillLogVisibleNodes},
+	{version: 18, name: "log_event_store_forward_kind", apply: migrateV18LogEventStoreForwardKind},
 }
 
 // Apply upgrades the SQLite schema to the latest supported version.

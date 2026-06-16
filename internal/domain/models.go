@@ -249,6 +249,7 @@ const (
 	LogEventKindUnknownEncryptedValue LogEventKind = 9
 	LogEventKindRangeTestValue        LogEventKind = 10
 	LogEventKindPKIValue              LogEventKind = 11
+	LogEventKindStoreForwardValue     LogEventKind = 12
 )
 
 // Human-friendly titles for compact log event kind values.
@@ -264,6 +265,7 @@ const (
 	LogEventKindUnknownEncryptedTitle = "Encrypted (undecryptable)"
 	LogEventKindRangeTestTitle        = "Range test"
 	LogEventKindPKITitle              = "PKI"
+	LogEventKindStoreForwardTitle     = "S&F"
 )
 
 // LogEventKindTitle returns human-ready event kind title.
@@ -291,6 +293,8 @@ func LogEventKindTitle(kind LogEventKind) string {
 		return LogEventKindRangeTestTitle
 	case LogEventKindPKIValue:
 		return LogEventKindPKITitle
+	case LogEventKindStoreForwardValue:
+		return LogEventKindStoreForwardTitle
 	default:
 		return "Unknown"
 	}
@@ -321,6 +325,8 @@ func LogEventKindFromInt(v int) (LogEventKind, bool) {
 		return LogEventKindRangeTestValue, true
 	case int(LogEventKindPKIValue):
 		return LogEventKindPKIValue, true
+	case int(LogEventKindStoreForwardValue):
+		return LogEventKindStoreForwardValue, true
 	default:
 		return 0, false
 	}

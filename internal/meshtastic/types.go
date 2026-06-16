@@ -22,33 +22,35 @@ const (
 	ParsedNeighborInfo     ParsedKind = "neighbor_info"
 	ParsedRouting          ParsedKind = "routing"
 	ParsedPKI              ParsedKind = "pki"
+	ParsedStoreForward     ParsedKind = "store_forward"
 	ParsedOtherPortnum     ParsedKind = "other_portnum"
 	ParsedUnknownEncrypted ParsedKind = "unknown_encrypted"
 )
 
 // ParsedEvent is a normalized decoded payload produced by parser.
 type ParsedEvent struct {
-	Kind       ParsedKind
-	NodeID     string
-	PacketID   uint32
-	Portnum    generated.PortNum
-	Format     string
-	Encrypted  bool
-	Decrypted  bool
-	Timestamp  *time.Time
-	HopStart   uint32
-	HopLimit   uint32
-	RxSNR      *float64
-	Chat       *ChatPayload
-	NodeInfo   *NodeInfoPayload
-	Position   *PositionPayload
-	Telemetry  *TelemetryPayload
-	MapReport  *MapReportPayload
-	Traceroute *TraceroutePayload
-	Neighbor   *NeighborInfoPayload
-	Routing    *RoutingPayload
-	PKI        *PKIPayload
-	Other      *OtherPortnumPayload
+	Kind         ParsedKind
+	NodeID       string
+	PacketID     uint32
+	Portnum      generated.PortNum
+	Format       string
+	Encrypted    bool
+	Decrypted    bool
+	Timestamp    *time.Time
+	HopStart     uint32
+	HopLimit     uint32
+	RxSNR        *float64
+	Chat         *ChatPayload
+	NodeInfo     *NodeInfoPayload
+	Position     *PositionPayload
+	Telemetry    *TelemetryPayload
+	MapReport    *MapReportPayload
+	Traceroute   *TraceroutePayload
+	Neighbor     *NeighborInfoPayload
+	Routing      *RoutingPayload
+	PKI          *PKIPayload
+	StoreForward *StoreForwardPayload
+	Other        *OtherPortnumPayload
 }
 
 // ChatPayload contains decoded text message fields. When Emoji is true the
@@ -201,4 +203,46 @@ const (
 type OtherPortnumPayload struct {
 	PortnumValue int32  `json:"portnum_value"`
 	PortnumName  string `json:"portnum_name"`
+}
+
+// StoreForwardPayload contains decoded STORE_FORWARD_APP details. The RR
+// field carries the proto enum name (e.g. "ROUTER_STATS", "CLIENT_HISTORY").
+// Role is "router" for ROUTER_* values and "client" for CLIENT_* values.
+// Exactly one of Stats, History, Heartbeat, or Text is populated, matching
+// the proto oneof.
+type StoreForwardPayload struct {
+	RR         string                 `json:"rr"`
+	Role       string                 `json:"role"`
+	FromNodeID string                 `json:"from,omitempty"`
+	ToNodeID   string                 `json:"to,omitempty"`
+	Stats      *StoreForwardStats     `json:"stats,omitempty"`
+	History    *StoreForwardHistory   `json:"history,omitempty"`
+	Heartbeat  *StoreForwardHeartbeat `json:"heartbeat,omitempty"`
+	Text       string                 `json:"text,omitempty"`
+}
+
+// StoreForwardStats mirrors the ROUTER_STATS sub-payload.
+type StoreForwardStats struct {
+	MessagesTotal    uint32 `json:"messages_total"`
+	MessagesSaved    uint32 `json:"messages_saved"`
+	MessagesMax      uint32 `json:"messages_max"`
+	UpTimeSeconds    uint32 `json:"up_time"`
+	Requests         uint32 `json:"requests"`
+	RequestsHistory  uint32 `json:"requests_history"`
+	HeartbeatEnabled bool   `json:"heartbeat"`
+	ReturnMax        uint32 `json:"return_max"`
+	ReturnWindow     uint32 `json:"return_window"`
+}
+
+// StoreForwardHistory mirrors the ROUTER_HISTORY sub-payload header.
+type StoreForwardHistory struct {
+	HistoryMessages uint32 `json:"history_messages"`
+	WindowMinutes   uint32 `json:"window"`
+	LastRequest     uint32 `json:"last_request"`
+}
+
+// StoreForwardHeartbeat mirrors the ROUTER_HEARTBEAT sub-payload.
+type StoreForwardHeartbeat struct {
+	PeriodSeconds uint32 `json:"period"`
+	Secondary     uint32 `json:"secondary"`
 }

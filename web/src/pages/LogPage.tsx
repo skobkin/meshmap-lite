@@ -37,7 +37,8 @@ const eventKinds = [
   { value: 8, label: 'Other app packet' },
   { value: 9, label: 'Encrypted (undecryptable)' },
   { value: 10, label: 'Range test' },
-  { value: 11, label: 'PKI' }
+  { value: 11, label: 'PKI' },
+  { value: 12, label: 'S&F' }
 ]
 
 function summaryForEventKinds(selectedKinds: number[]): string {

@@ -73,6 +73,13 @@ func parseDecodedPacketPayload(base ParsedEvent, packet *generated.MeshPacket, d
 		}
 		base.Kind = ParsedRouting
 		base.Routing = routing
+	case generated.PortNum_STORE_FORWARD_APP:
+		storeForward, err := decodeStoreForwardPayload(packet, data)
+		if err != nil {
+			return ParsedEvent{}, err
+		}
+		base.Kind = ParsedStoreForward
+		base.StoreForward = storeForward
 
 	// Known-but-unhandled app payloads.
 	default:
@@ -323,6 +330,64 @@ func decodeRoutingPayload(packet *generated.MeshPacket, data *generated.Data) (*
 
 	out.Variant = RoutingVariantError
 	out.ErrorReason = routing.GetErrorReason().String()
+
+	return out, nil
+}
+
+func decodeStoreForwardPayload(packet *generated.MeshPacket, data *generated.Data) (*StoreForwardPayload, error) {
+	var sf generated.StoreAndForward
+	if err := proto.Unmarshal(data.GetPayload(), &sf); err != nil {
+		return nil, fmt.Errorf("decode store forward: %w", err)
+	}
+
+	rr := sf.GetRr()
+	role := "router"
+	if int32(rr) >= 64 {
+		role = "client"
+	}
+
+	fromNodeNum := packet.GetFrom()
+	if source := data.GetSource(); source != 0 {
+		fromNodeNum = source
+	}
+	toNodeNum := packet.GetTo()
+	if dest := data.GetDest(); dest != 0 {
+		toNodeNum = dest
+	}
+
+	out := &StoreForwardPayload{
+		RR:         rr.String(),
+		Role:       role,
+		FromNodeID: nodeIDFromNum(fromNodeNum),
+		ToNodeID:   nodeIDFromNum(toNodeNum),
+	}
+
+	if stats := sf.GetStats(); stats != nil {
+		out.Stats = &StoreForwardStats{
+			MessagesTotal:    stats.GetMessagesTotal(),
+			MessagesSaved:    stats.GetMessagesSaved(),
+			MessagesMax:      stats.GetMessagesMax(),
+			UpTimeSeconds:    stats.GetUpTime(),
+			Requests:         stats.GetRequests(),
+			RequestsHistory:  stats.GetRequestsHistory(),
+			HeartbeatEnabled: stats.GetHeartbeat(),
+			ReturnMax:        stats.GetReturnMax(),
+			ReturnWindow:     stats.GetReturnWindow(),
+		}
+	} else if history := sf.GetHistory(); history != nil {
+		out.History = &StoreForwardHistory{
+			HistoryMessages: history.GetHistoryMessages(),
+			WindowMinutes:   history.GetWindow(),
+			LastRequest:     history.GetLastRequest(),
+		}
+	} else if heartbeat := sf.GetHeartbeat(); heartbeat != nil {
+		out.Heartbeat = &StoreForwardHeartbeat{
+			PeriodSeconds: heartbeat.GetPeriod(),
+			Secondary:     heartbeat.GetSecondary(),
+		}
+	} else if textBytes := sf.GetText(); textBytes != nil {
+		out.Text = string(textBytes)
+	}
 
 	return out, nil
 }

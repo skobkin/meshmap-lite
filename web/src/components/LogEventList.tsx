@@ -8,6 +8,7 @@ import { LogDetailsModal, hasLogDetails } from './LogDetailsModal'
 import { pkiLogDetailsRenderer } from './PKILogDetails'
 import { ResolvedNodeData } from './ResolvedNodeData'
 import { routingLogDetailsRenderer } from './RoutingLogDetails'
+import { storeForwardLogDetailsRenderer } from './StoreForwardLogDetails'
 import { tracerouteLogDetailsRenderer } from './TracerouteLogDetails'
 
 import type { LogEvent } from '../api/types'
@@ -369,7 +370,7 @@ export function LogEventList({
         event={selectedEvent}
         onClose={closeEventDetails}
         onOpenNodeDetails={onOpenNodeDetails}
-        renderers={[tracerouteLogDetailsRenderer, pkiLogDetailsRenderer, routingLogDetailsRenderer]}
+        renderers={[tracerouteLogDetailsRenderer, pkiLogDetailsRenderer, routingLogDetailsRenderer, storeForwardLogDetailsRenderer]}
       />
     </>
   )

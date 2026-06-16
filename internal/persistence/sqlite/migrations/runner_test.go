@@ -370,7 +370,7 @@ CREATE TABLE log_events (
 INSERT INTO log_channels(id, name) VALUES (1, 'LongFast');
 INSERT INTO log_events(id, observed_at, node_id, event_kind, encrypted, channel_id, details_json) VALUES
   (1, '2026-03-23T10:00:00Z', '!range000', 8, 0, 1, '{"portnum_value":66,"portnum_name":"RANGE_TEST_APP"}'),
-  (2, '2026-03-23T10:01:00Z', '!other000', 8, 0, 1, '{"portnum_value":65,"portnum_name":"SERIAL_APP"}');
+  (2, '2026-03-23T10:01:00Z', '!other000', 8, 0, 1, '{"portnum_value":32,"portnum_name":"SERIAL_APP"}');
 `)
 	if err != nil {
 		t.Fatalf("seed schema: %v", err)
@@ -756,8 +756,12 @@ CREATE TABLE chat_events (
 CREATE TABLE log_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   observed_at TEXT NOT NULL,
+  node_id TEXT,
   event_kind INTEGER NOT NULL,
-  encrypted INTEGER NOT NULL
+  encrypted INTEGER NOT NULL,
+  channel_id INTEGER,
+  details_json TEXT,
+  mqtt_uploader_node_id TEXT
 );
 `)
 	if err != nil {
@@ -944,5 +948,107 @@ VALUES
 	}
 	if lastSeen != "2026-06-16T10:02:00Z" {
 		t.Fatalf("expected existing timestamp to be advanced, got %q", lastSeen)
+	}
+}
+
+func TestApply_ReclassifiesStoreForwardLogEvents(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite", "file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	_, err = db.ExecContext(ctx, `
+PRAGMA user_version = 17;
+CREATE TABLE log_channels (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE
+);
+CREATE TABLE log_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  observed_at TEXT NOT NULL,
+  node_id TEXT,
+  event_kind INTEGER NOT NULL,
+  encrypted INTEGER NOT NULL,
+  channel_id INTEGER REFERENCES log_channels(id) ON DELETE SET NULL,
+  details_json TEXT,
+  mqtt_uploader_node_id TEXT,
+  hop_start INTEGER,
+  hop_limit INTEGER,
+  CHECK (event_kind BETWEEN 1 AND 11),
+  CHECK (encrypted IN (0, 1)),
+  CHECK (details_json IS NULL OR json_valid(details_json))
+);
+INSERT INTO log_channels(id, name) VALUES (1, 'LongFast');
+INSERT INTO log_events(id, observed_at, node_id, event_kind, encrypted, channel_id, details_json, mqtt_uploader_node_id, hop_start, hop_limit) VALUES
+  (1, '2026-06-17T10:00:00Z', '!sf0001', 8, 0, 1, '{"portnum_value":65,"portnum_name":"STORE_FORWARD_APP"}', '!gateway1', 5, 3),
+  (2, '2026-06-17T10:01:00Z', '!other0', 8, 0, 1, '{"portnum_value":32,"portnum_name":"SERIAL_APP"}', NULL, 0, 0),
+  (3, '2026-06-17T10:02:00Z', '!sf0002', 8, 0, 1, '{"portnum_name":"STORE_FORWARD_APP","extra":"data"}', NULL, 0, 0);
+`)
+	if err != nil {
+		t.Fatalf("seed schema: %v", err)
+	}
+
+	if err := Apply(ctx, db, nil); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	var version int
+	if err := db.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
+		t.Fatalf("read user_version: %v", err)
+	}
+	if version != 18 {
+		t.Fatalf("expected user_version=18, got %d", version)
+	}
+
+	var eventKind int
+	var details sql.NullString
+	var mqttUploader sql.NullString
+	var hopStart, hopLimit sql.NullInt64
+	if err := db.QueryRowContext(ctx, `SELECT event_kind, details_json, mqtt_uploader_node_id, hop_start, hop_limit FROM log_events WHERE id = 1`).Scan(&eventKind, &details, &mqttUploader, &hopStart, &hopLimit); err != nil {
+		t.Fatalf("read migrated store forward row: %v", err)
+	}
+	if eventKind != 12 {
+		t.Fatalf("expected store forward kind 12, got %d", eventKind)
+	}
+	if details.Valid {
+		t.Fatalf("expected migrated store forward details to be cleared, got %q", details.String)
+	}
+	if !mqttUploader.Valid || mqttUploader.String != "!gateway1" {
+		t.Fatalf("expected mqtt_uploader_node_id preserved, got %#v", mqttUploader)
+	}
+	if !hopStart.Valid || hopStart.Int64 != 5 {
+		t.Fatalf("expected hop_start preserved, got %#v", hopStart)
+	}
+	if !hopLimit.Valid || hopLimit.Int64 != 3 {
+		t.Fatalf("expected hop_limit preserved, got %#v", hopLimit)
+	}
+
+	if err := db.QueryRowContext(ctx, `SELECT event_kind, details_json FROM log_events WHERE id = 2`).Scan(&eventKind, &details); err != nil {
+		t.Fatalf("read preserved other-portnum row: %v", err)
+	}
+	if eventKind != 8 {
+		t.Fatalf("expected other-portnum kind 8, got %d", eventKind)
+	}
+	if !details.Valid || details.String == "" {
+		t.Fatalf("expected other-portnum details preserved")
+	}
+
+	if err := db.QueryRowContext(ctx, `SELECT event_kind FROM log_events WHERE id = 3`).Scan(&eventKind); err != nil {
+		t.Fatalf("read second store forward row: %v", err)
+	}
+	if eventKind != 12 {
+		t.Fatalf("expected store forward kind 12 for portnum_name match, got %d", eventKind)
+	}
+
+	if _, err := db.ExecContext(ctx, `INSERT INTO log_events(observed_at, node_id, event_kind, encrypted, channel_id, details_json) VALUES (?, ?, ?, ?, ?, ?)`,
+		"2026-06-17T10:03:00Z", "!sf0003", 12, 0, 1, `{"rr":"ROUTER_STATS","role":"router"}`); err != nil {
+		t.Fatalf("expected event kind 12 to be accepted, got %v", err)
+	}
+
+	if _, err := db.ExecContext(ctx, `INSERT INTO log_events(observed_at, node_id, event_kind, encrypted, channel_id, details_json) VALUES (?, ?, ?, ?, ?, ?)`,
+		"2026-06-17T10:04:00Z", "!bogus01", 13, 0, 1, "NULL"); err == nil {
+		t.Fatalf("expected event kind 13 to be rejected by CHECK")
 	}
 }
