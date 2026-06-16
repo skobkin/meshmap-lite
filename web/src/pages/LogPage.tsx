@@ -1,5 +1,6 @@
 import { LogEventList } from '../components/LogEventList'
-import { defaultLogHopRange, logHopRangeLabel, logHopsMax, logHopsMin, normalizeLogHopRange } from '../utils/logHops'
+import { defaultLogFilters } from '../stores/logState'
+import { defaultLogHopRange, isDefaultLogHopRange, logHopRangeLabel, logHopsMax, logHopsMin, normalizeLogHopRange } from '../utils/logHops'
 
 import type { LogEvent } from '../api/types'
 import type { LogHopRange } from '../utils/logHops'
@@ -18,6 +19,7 @@ interface Props {
   onChangeChannel: (channel: string) => void
   onChangeNodeID?: (nodeID: string) => void
   onChangeHopRange?: (range: LogHopRange) => void
+  onResetFilters?: () => void
   onSelectEvent?: (id: number) => void
   onCloseEventDetails?: () => void
   onOpenNodeDetails: (id: string) => void
@@ -62,6 +64,7 @@ export function LogPage({
   onChangeChannel,
   onChangeNodeID = () => undefined,
   onChangeHopRange = () => undefined,
+  onResetFilters = () => undefined,
   onSelectEvent,
   onCloseEventDetails,
   onOpenNodeDetails,
@@ -69,6 +72,11 @@ export function LogPage({
 }: Props): JSX.Element {
   const selectedKindSet = new Set(selectedKinds)
   const hopRange = normalizeLogHopRange(selectedHopRange)
+  const isFiltersAtDefaults =
+    selectedKinds.length === defaultLogFilters.eventKinds.length &&
+    selectedChannel === defaultLogFilters.channel &&
+    selectedNodeID === defaultLogFilters.nodeID &&
+    isDefaultLogHopRange(hopRange)
 
   const toggleEventKind = (value: number): void => {
     const nextKinds = selectedKindSet.has(value)
@@ -88,7 +96,18 @@ export function LogPage({
   return (
     <section className="log-layout container-fluid">
       <details className="log-filters">
-        <summary>Filters</summary>
+        <summary>
+          <span className="log-filters-title">Filters</span>
+          <button
+            type="button"
+            className="secondary outline log-filter-reset"
+            aria-label="Reset all filters"
+            onClick={onResetFilters}
+            disabled={isFiltersAtDefaults}
+          >
+            Reset
+          </button>
+        </summary>
         <div className="log-filters-content">
           <div className="log-filter-field">
             <span className="log-filter-label">Event type</span>
@@ -139,14 +158,6 @@ export function LogPage({
             <div className="log-hop-filter-heading">
               <span className="log-filter-label">Hops</span>
               <strong>{logHopRangeLabel(hopRange)}</strong>
-              <button
-                type="button"
-                className="secondary outline log-hop-reset"
-                onClick={() => onChangeHopRange(defaultLogHopRange)}
-                disabled={hopRange.min === defaultLogHopRange.min && hopRange.max === defaultLogHopRange.max}
-              >
-                Reset
-              </button>
             </div>
             <div className="log-hop-range" aria-label="Hop count range">
               <div className="log-hop-range-track" aria-hidden="true">

@@ -10,6 +10,7 @@ import { NodesPage } from './pages/NodesPage'
 import { StatsPage } from './pages/StatsPage'
 import { useChatStore } from './stores/chat'
 import { useLogStore } from './stores/log'
+import { defaultLogFilters } from './stores/logState'
 import { useMetaStore } from './stores/meta'
 import { useNodeStore } from './stores/nodes'
 import { useTopologyAllStore } from './stores/topologyAll'
@@ -783,6 +784,10 @@ export function App(): JSX.Element {
     }, 'replace')
   }, [setLogFilters, updateURL])
 
+  const resetLogFilters = useCallback((): void => {
+    changeLogFilters(defaultLogFilters)
+  }, [changeLogFilters])
+
   const selectLogEvent = useCallback((eventID: number): void => {
     setSelectedLogEventID(eventID)
     updateURL({
@@ -1034,6 +1039,7 @@ export function App(): JSX.Element {
           onChangeHopRange={(hopRange) => {
             changeLogFilters({ ...logFilters, hopRange })
           }}
+          onResetFilters={resetLogFilters}
           onSelectEvent={selectLogEvent}
           onCloseEventDetails={closeLogEvent}
           onOpenNodeDetails={openNodeDetails}

@@ -1295,6 +1295,14 @@ body {
   cursor: pointer;
   font-weight: 600;
   user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.log-filters-title {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .log-filters-content {
@@ -1376,13 +1384,14 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-.log-hop-reset {
+.log-filter-reset {
   width: auto;
   padding: 0.15rem 0.55rem;
   margin: 0;
   font-size: 0.8125rem;
   line-height: 1.2;
   min-height: 0;
+  flex: 0 0 auto;
 }
 
 /* --- Hop count dual-thumb range slider --- */

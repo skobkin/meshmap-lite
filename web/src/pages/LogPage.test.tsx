@@ -106,6 +106,7 @@ function renderPage(items: LogEvent[], overrides: Partial<Parameters<typeof LogP
       selectedChannel=""
       onChangeKinds={() => undefined}
       onChangeChannel={() => undefined}
+      onResetFilters={() => undefined}
       onOpenNodeDetails={() => undefined}
       onLoadMore={() => undefined}
       {...overrides}
@@ -730,10 +731,12 @@ describe('LogPage', () => {
 
   it('shows and resets the hop range filter', () => {
     const onChangeHopRange = vi.fn()
+    const onResetFilters = vi.fn()
 
     renderPage([], {
       selectedHopRange: { min: 3, max: 7 },
-      onChangeHopRange
+      onChangeHopRange,
+      onResetFilters
     })
 
     expect(screen.getByText('3+ hops')).toBeTruthy()
@@ -741,15 +744,30 @@ describe('LogPage', () => {
     fireEvent.input(screen.getByLabelText('Maximum hops'), { target: { value: '5' } })
     expect(onChangeHopRange).toHaveBeenLastCalledWith({ min: 3, max: 5 })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
-    expect(onChangeHopRange).toHaveBeenLastCalledWith({ min: 0, max: 7 })
+    fireEvent.click(screen.getByRole('button', { name: 'Reset all filters' }))
+    expect(onResetFilters).toHaveBeenCalledTimes(1)
   })
 
   it('labels the default hop range as all hops', () => {
     renderPage([])
 
     expect(screen.getByText('All hops')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Reset' }).hasAttribute('disabled')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Reset all filters' }).hasAttribute('disabled')).toBe(true)
+  })
+
+  it('disables the global Reset when any filter is non-default', () => {
+    const onResetFilters = vi.fn()
+
+    renderPage([], {
+      selectedHopRange: { min: 1, max: 4 },
+      onResetFilters
+    })
+
+    const button = screen.getByRole('button', { name: 'Reset all filters' })
+    expect(button.hasAttribute('disabled')).toBe(false)
+
+    fireEvent.click(button)
+    expect(onResetFilters).toHaveBeenCalledTimes(1)
   })
 
   it('clamps the minimum hop when dragged above the maximum', () => {
