@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { render, screen } from '@testing-library/preact'
+import { fireEvent, render, screen } from '@testing-library/preact'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { storeForwardLogDetailsRenderer } from './StoreForwardLogDetails'
@@ -335,5 +335,164 @@ describe('storeForwardLogDetailsRenderer', () => {
 
     expect(rowForLabel(container, 'Role').textContent).toBe('router')
     expect(rowForLabel(container, 'Role (raw)').textContent).toBe('repeater')
+  })
+
+  it('switches to the Raw tab and back to the Details tab', () => {
+    const container = render(
+      storeForwardLogDetailsRenderer.render(
+        event({
+          rr: 7,
+          from: '!aabbccdd',
+          stats: { messages_total: 1 }
+        }),
+        { onOpenNodeDetails: () => undefined }
+      )
+    ).container
+
+    // Initial state: the structured Details panel is visible.
+    expect(container.querySelector('.store-forward-summary')).not.toBeNull()
+    expect(container.querySelector('.store-forward-subpayload')).not.toBeNull()
+
+    // Click the Raw tab.
+    const rawTab = screen.getByRole('tab', { name: 'Raw' })
+    expect(rawTab.getAttribute('aria-selected')).toBe('false')
+    fireEvent.click(rawTab)
+
+    // The structured panel is no longer in the DOM; the JSON view
+    // is the active tab panel.
+    expect(container.querySelector('.store-forward-summary')).toBeNull()
+    expect(container.querySelector('.store-forward-subpayload')).toBeNull()
+    expect(rawTab.getAttribute('aria-selected')).toBe('true')
+    // The JSON view surfaces the rr key we seeded.
+    expect(container.textContent).toContain('"rr": 7')
+
+    // Click the Details tab to come back.
+    const detailsTab = screen.getByRole('tab', { name: 'Details' })
+    fireEvent.click(detailsTab)
+    expect(container.querySelector('.store-forward-summary')).not.toBeNull()
+    expect(container.querySelector('.store-forward-subpayload')).not.toBeNull()
+    expect(detailsTab.getAttribute('aria-selected')).toBe('true')
+    expect(rawTab.getAttribute('aria-selected')).toBe('false')
+  })
+
+  it('renders the stats sub-payload grid with human-readable labels', () => {
+    const container = render(
+      storeForwardLogDetailsRenderer.render(
+        event({
+          rr: 7,
+          stats: {
+            messages_total: 12,
+            messages_saved: 34,
+            messages_max: 56,
+            up_time: 78,
+            requests: 9,
+            requests_history: 10,
+            heartbeat: true,
+            return_max: 11,
+            return_window: 12
+          }
+        }),
+        { onOpenNodeDetails: () => undefined }
+      )
+    ).container
+
+    // The section is titled "Router stats" and every label from
+    // statsLabels shows up.
+    expect(container.querySelector('.store-forward-subpayload h4')?.textContent).toBe('Router stats')
+    const statsGrid = container.querySelector('.store-forward-subpayload .log-details-grid')
+    expect(statsGrid).not.toBeNull()
+    const labels = Array.from(statsGrid!.querySelectorAll('.log-details-label'))
+      .map((el) => el.textContent)
+    expect(labels).toEqual(expect.arrayContaining([
+      'Messages total',
+      'Messages saved',
+      'Messages max',
+      'Up time (s)',
+      'Requests',
+      'History requests',
+      'Heartbeat enabled',
+      'Return max',
+      'Return window (s)'
+    ]))
+    // Spot-check a value to make sure the rows are wired up.
+    expect(container.textContent).toContain('12')
+  })
+
+  it('renders the history sub-payload grid with human-readable labels', () => {
+    const container = render(
+      storeForwardLogDetailsRenderer.render(
+        event({
+          rr: 65,
+          history: {
+            history_messages: 3,
+            window: 60,
+            last_request: 1700000000
+          }
+        }),
+        { onOpenNodeDetails: () => undefined }
+      )
+    ).container
+
+    expect(container.querySelector('.store-forward-subpayload h4')?.textContent).toBe('Router history')
+    const historyGrid = container.querySelector('.store-forward-subpayload .log-details-grid')
+    expect(historyGrid).not.toBeNull()
+    const labels = Array.from(historyGrid!.querySelectorAll('.log-details-label'))
+      .map((el) => el.textContent)
+    expect(labels).toEqual(expect.arrayContaining([
+      'History messages',
+      'Window (min)',
+      'Last request'
+    ]))
+  })
+
+  it('renders the heartbeat sub-payload grid with human-readable labels', () => {
+    const container = render(
+      storeForwardLogDetailsRenderer.render(
+        event({
+          rr: 2,
+          heartbeat: {
+            period: 60,
+            secondary: true
+          }
+        }),
+        { onOpenNodeDetails: () => undefined }
+      )
+    ).container
+
+    expect(container.querySelector('.store-forward-subpayload h4')?.textContent).toBe('Router heartbeat')
+    const heartbeatGrid = container.querySelector('.store-forward-subpayload .log-details-grid')
+    expect(heartbeatGrid).not.toBeNull()
+    const labels = Array.from(heartbeatGrid!.querySelectorAll('.log-details-label'))
+      .map((el) => el.textContent)
+    expect(labels).toEqual(expect.arrayContaining([
+      'Period (s)',
+      'Secondary'
+    ]))
+  })
+
+  it('renders both from and to as separate rows when both are populated', () => {
+    useNodeStore.setState({
+      mapNodes: [mapNode('!aabbccdd', 'Field Router'), mapNode('!11223344', 'Other Router')]
+    })
+
+    const container = render(
+      storeForwardLogDetailsRenderer.render(
+        event({
+          rr: 7,
+          from: '!aabbccdd',
+          to: '!11223344',
+          stats: { messages_total: 1 }
+        }),
+        { onOpenNodeDetails: () => undefined }
+      )
+    ).container
+
+    const fromCell = rowForLabel(container, 'From')
+    const toCell = rowForLabel(container, 'To')
+    // Both rows exist and both are node links, not broadcast labels.
+    expect(fromCell.textContent).not.toBe('broadcast')
+    expect(toCell.textContent).not.toBe('broadcast')
+    expect(fromCell.querySelector('.log-details-node-link')).not.toBeNull()
+    expect(toCell.querySelector('.log-details-node-link')).not.toBeNull()
   })
 })

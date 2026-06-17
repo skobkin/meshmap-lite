@@ -14,8 +14,16 @@ import (
 // path. v18 walks existing kind=12 rows and rewrites them in the
 // compact shape (integer `rr`, no `role`, `text` replaced by
 // `text_bytes`).
+//
+// `rr` is typed as `json.RawMessage` rather than `string` so the
+// migration can also tolerate the mixed shape a row may end up in
+// when an operator (or an in-flight code path) writes an integer
+// `rr` but leaves a stale `role` key behind. The v17 path always
+// emitted a string `rr`, but the v18 detector flags role-bearing
+// rows as legacy regardless of the `rr` type, so the decode side
+// has to accept both.
 type legacyStoreForwardDetails struct {
-	RR         string          `json:"rr"`
+	RR         json.RawMessage `json:"rr"`
 	Role       string          `json:"role"`
 	FromNodeID string          `json:"from"`
 	ToNodeID   string          `json:"to"`
@@ -237,7 +245,14 @@ func compactLegacyStoreForwardDetails(raw string) (string, error) {
 		Heartbeat:  nonEmptyRaw(legacy.Heartbeat),
 	}
 
-	rrValue, rawRR, err := mapLegacyRR(legacy.RR)
+	// Resolve rr. The v17 path always emitted a string `rr`, but a
+	// row may have ended up in a mixed shape (int `rr` + stale
+	// `role` key) — e.g. an operator hand-edited the database, or
+	// an in-flight code path wrote a numeric rr but left the
+	// legacy role key. Accept either type and preserve the int
+	// verbatim. A genuinely missing or unparseable rr is still an
+	// error: there is nothing to migrate.
+	rrValue, rawRR, err := resolveLegacyRR(legacy.RR)
 	if err != nil {
 		return "", err
 	}
@@ -279,6 +294,31 @@ func mapLegacyRR(rr string) (int32, string, error) {
 		return v, "", nil
 	}
 	return -1, rr, nil
+}
+
+// resolveLegacyRR accepts the on-disk encoding of `rr` in a legacy
+// row and returns the value to persist in the v18 shape. Three
+// shapes are tolerated: (a) a string, looked up against the pinned
+// proto — known values become the numeric enum code, unknown
+// values become the -1 sentinel + the original string in raw_rr;
+// (b) a number, preserved verbatim (the row was already partially
+// migrated — a stale `role` key is the only legacy bit left); (c)
+// missing or unparseable, which is a loud-failure because there is
+// nothing meaningful to preserve.
+func resolveLegacyRR(raw json.RawMessage) (int32, string, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return mapLegacyRR("")
+	}
+	var asString string
+	if err := json.Unmarshal(raw, &asString); err == nil {
+		return mapLegacyRR(asString)
+	}
+	var asInt int32
+	if err := json.Unmarshal(raw, &asInt); err == nil {
+		return asInt, "", nil
+	}
+
+	return 0, "", fmt.Errorf("rr in legacy s&f row is neither string nor int: %s", string(raw))
 }
 
 func nonEmptyRaw(raw json.RawMessage) json.RawMessage {

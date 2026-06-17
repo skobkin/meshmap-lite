@@ -1208,6 +1208,197 @@ INSERT INTO log_events(id, observed_at, node_id, event_kind, encrypted, channel_
 	})
 }
 
+// TestApply_CompactsStoreForwardDetails_AdditionalShapes covers the
+// migration's behaviour on shapes the main test does not exercise:
+// compacting empty sub-payloads, the heartbeat sub-payload, the
+// mixed legacy shape (int rr + role) and from/to preservation.
+func TestApply_CompactsStoreForwardDetails_AdditionalShapes(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite", "file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	_, err = db.ExecContext(ctx, `
+PRAGMA user_version = 17;
+CREATE TABLE log_channels (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE
+);
+CREATE TABLE log_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  observed_at TEXT NOT NULL,
+  node_id TEXT,
+  event_kind INTEGER NOT NULL,
+  encrypted INTEGER NOT NULL,
+  channel_id INTEGER REFERENCES log_channels(id) ON DELETE SET NULL,
+  details_json TEXT,
+  mqtt_uploader_node_id TEXT,
+  hop_start INTEGER,
+  hop_limit INTEGER,
+  CHECK (event_kind BETWEEN 1 AND 12),
+  CHECK (encrypted IN (0, 1)),
+  CHECK (details_json IS NULL OR json_valid(details_json))
+);
+INSERT INTO log_channels(id, name) VALUES (1, 'LongFast');
+INSERT INTO log_events(id, observed_at, node_id, event_kind, encrypted, channel_id, details_json) VALUES
+  -- Row 1: all three sub-payloads empty/null — must all be dropped
+  -- from the rewritten details (nonEmptyRaw filter).
+  (1, '2026-06-17T10:00:00Z', '!sf0001', 12, 0, 1, '{"rr":"ROUTER_STATS","role":"router","stats":{},"history":null,"heartbeat":[]}'),
+  -- Row 2: heartbeat sub-payload preserved verbatim.
+  (2, '2026-06-17T10:01:00Z', '!sf0002', 12, 0, 1, '{"rr":"ROUTER_HEARTBEAT","role":"router","heartbeat":{"period":60,"secondary":false}}'),
+  -- Row 3: mixed legacy — int rr AND role key. The role key alone
+  -- is enough to flag the row as legacy; the int rr is preserved
+  -- as-is (not re-mapped) and the role is stripped.
+  (3, '2026-06-17T10:02:00Z', '!sf0003', 12, 0, 1, '{"rr":2,"role":"router","heartbeat":{"period":60}}'),
+  -- Row 4: from and to both set — both must be preserved.
+  (4, '2026-06-17T10:03:00Z', '!sf0004', 12, 0, 1, '{"rr":"ROUTER_STATS","role":"router","from":"!aabbccdd","to":"!11223344"}');
+`)
+	if err != nil {
+		t.Fatalf("seed schema: %v", err)
+	}
+
+	if err := Apply(ctx, db, nil); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	// Row 1: empty sub-payloads are stripped from the rewritten JSON.
+	assertStoreForwardDetails(t, ctx, db, 1, func(d map[string]any) {
+		if _, present := d["stats"]; present {
+			t.Errorf("row 1: empty stats object should be dropped, got %#v", d["stats"])
+		}
+		if _, present := d["history"]; present {
+			t.Errorf("row 1: null history should be dropped, got %#v", d["history"])
+		}
+		if _, present := d["heartbeat"]; present {
+			t.Errorf("row 1: empty heartbeat array should be dropped, got %#v", d["heartbeat"])
+		}
+		// rr=7 (ROUTER_STATS) and no role are still applied.
+		rr, ok := d["rr"].(float64)
+		if !ok || rr != 7 {
+			t.Errorf("row 1: expected rr=7, got %#v", d["rr"])
+		}
+		if _, present := d["role"]; present {
+			t.Errorf("row 1: role should be removed, got %#v", d["role"])
+		}
+	})
+
+	// Row 2: heartbeat sub-payload round-trips through the rewrite.
+	assertStoreForwardDetails(t, ctx, db, 2, func(d map[string]any) {
+		rr, ok := d["rr"].(float64)
+		if !ok || rr != 2 {
+			t.Errorf("row 2: expected rr=2, got %#v", d["rr"])
+		}
+		hb, ok := d["heartbeat"].(map[string]any)
+		if !ok {
+			t.Fatalf("row 2: heartbeat sub-payload missing: %#v", d["heartbeat"])
+		}
+		if hb["period"].(float64) != 60 {
+			t.Errorf("row 2: heartbeat.period not preserved: %#v", hb["period"])
+		}
+		if hb["secondary"].(bool) != false {
+			t.Errorf("row 2: heartbeat.secondary not preserved: %#v", hb["secondary"])
+		}
+		if _, present := d["role"]; present {
+			t.Errorf("row 2: role should be removed, got %#v", d["role"])
+		}
+	})
+
+	// Row 3: mixed legacy shape — int rr preserved verbatim, role removed.
+	assertStoreForwardDetails(t, ctx, db, 3, func(d map[string]any) {
+		rr, ok := d["rr"].(float64)
+		if !ok || rr != 2 {
+			t.Errorf("row 3: int rr should be preserved (got %#v, want 2)", d["rr"])
+		}
+		if _, present := d["role"]; present {
+			t.Errorf("row 3: role should be removed, got %#v", d["role"])
+		}
+	})
+
+	// Row 4: both from and to preserved.
+	assertStoreForwardDetails(t, ctx, db, 4, func(d map[string]any) {
+		if d["from"] != "!aabbccdd" {
+			t.Errorf("row 4: from not preserved: %#v", d["from"])
+		}
+		if d["to"] != "!11223344" {
+			t.Errorf("row 4: to not preserved: %#v", d["to"])
+		}
+	})
+}
+
+// TestApply_CompactsStoreForwardDetails_MissingRRFailsLoudly covers
+// the migration's promise that a legacy row with no `rr` (and no
+// recoverable replacement) aborts the migration rather than silently
+// writing a meaningless row. The legacy shape detector flags any row
+// with a `role` key as legacy, even if `rr` is missing — that row
+// must surface an error from mapLegacyRR.
+func TestApply_CompactsStoreForwardDetails_MissingRRFailsLoudly(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite", "file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	_, err = db.ExecContext(ctx, `
+PRAGMA user_version = 17;
+CREATE TABLE log_channels (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE
+);
+CREATE TABLE log_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  observed_at TEXT NOT NULL,
+  node_id TEXT,
+  event_kind INTEGER NOT NULL,
+  encrypted INTEGER NOT NULL,
+  channel_id INTEGER REFERENCES log_channels(id) ON DELETE SET NULL,
+  details_json TEXT,
+  mqtt_uploader_node_id TEXT,
+  hop_start INTEGER,
+  hop_limit INTEGER,
+  CHECK (event_kind BETWEEN 1 AND 12),
+  CHECK (encrypted IN (0, 1)),
+  CHECK (details_json IS NULL OR json_valid(details_json))
+);
+INSERT INTO log_channels(id, name) VALUES (1, 'LongFast');
+INSERT INTO log_events(id, observed_at, node_id, event_kind, encrypted, channel_id, details_json) VALUES
+  (1, '2026-06-17T10:00:00Z', '!sf0001', 12, 0, 1, '{"role":"router","from":"!aabbccdd","stats":{}}');
+`)
+	if err != nil {
+		t.Fatalf("seed schema: %v", err)
+	}
+
+	err = Apply(ctx, db, nil)
+	if err == nil {
+		t.Fatalf("expected Apply to fail on legacy row with missing rr, got nil")
+	}
+	if !strings.Contains(err.Error(), "missing rr") {
+		t.Errorf("expected error to mention missing rr, got: %v", err)
+	}
+
+	// The failed migration must roll back: schema version stays at
+	// 17 and the offending row must not be partially rewritten.
+	var version int
+	if err := db.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
+		t.Fatalf("read user_version: %v", err)
+	}
+	if version != 17 {
+		t.Errorf("expected user_version=17 after failed migration, got %d", version)
+	}
+	var details sql.NullString
+	if err := db.QueryRowContext(ctx, `SELECT details_json FROM log_events WHERE id = 1`).Scan(&details); err != nil {
+		t.Fatalf("read row 1: %v", err)
+	}
+	if !details.Valid {
+		t.Fatalf("row 1: expected details_json to remain set after rollback, got NULL")
+	}
+	if details.String != `{"role":"router","from":"!aabbccdd","stats":{}}` {
+		t.Errorf("row 1: expected details_json unchanged after rollback, got %q", details.String)
+	}
+}
+
 // assertEventKindAndDetailsNull reads log_events row id, asserts the
 // event_kind, and asserts the details_json column is NULL.
 func assertEventKindAndDetailsNull(t *testing.T, ctx context.Context, db *sql.DB, id int64, wantKind int) {
