@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"log/slog"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -1051,4 +1053,208 @@ INSERT INTO log_events(id, observed_at, node_id, event_kind, encrypted, channel_
 		"2026-06-17T10:04:00Z", "!bogus01", 13, 0, 1, "NULL"); err == nil {
 		t.Fatalf("expected event kind 13 to be rejected by CHECK")
 	}
+}
+
+func TestApply_CompactsStoreForwardDetails(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite", "file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	// Seed a v17-stamped DB (PRAGMA user_version = 17) that already
+	// has the v18-extended CHECK bound in place. This simulates an
+	// operator who ran v18 once, hand-rolled-back the schema version
+	// without dropping the table, and is now re-applying v18 — so
+	// kind=12 rows from the previous v18 run are still in the table
+	// alongside the kind=8 rows that v18 should reclassify. The
+	// compact-shaping pass must then walk those surviving kind=12
+	// rows and rewrite them in place.
+	_, err = db.ExecContext(ctx, `
+PRAGMA user_version = 17;
+CREATE TABLE log_channels (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE
+);
+CREATE TABLE log_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  observed_at TEXT NOT NULL,
+  node_id TEXT,
+  event_kind INTEGER NOT NULL,
+  encrypted INTEGER NOT NULL,
+  channel_id INTEGER REFERENCES log_channels(id) ON DELETE SET NULL,
+  details_json TEXT,
+  mqtt_uploader_node_id TEXT,
+  hop_start INTEGER,
+  hop_limit INTEGER,
+  CHECK (event_kind BETWEEN 1 AND 12),
+  CHECK (encrypted IN (0, 1)),
+  CHECK (details_json IS NULL OR json_valid(details_json))
+);
+INSERT INTO log_channels(id, name) VALUES (1, 'LongFast');
+INSERT INTO log_events(id, observed_at, node_id, event_kind, encrypted, channel_id, details_json) VALUES
+  (1, '2026-06-17T10:00:00Z', '!sf0001', 8,  0, 1, '{"portnum_value":65,"portnum_name":"STORE_FORWARD_APP"}'),
+  (2, '2026-06-17T10:01:00Z', '!sf0002', 8,  0, 1, '{"portnum_name":"STORE_FORWARD_APP","extra":"data"}'),
+  (3, '2026-06-17T10:02:00Z', '!sf0003', 12, 0, 1, '{"rr":"ROUTER_STATS","role":"router","from":"!aabbccdd","stats":{"messages_total":42}}'),
+  (4, '2026-06-17T10:03:00Z', '!sf0004', 12, 0, 1, '{"rr":7,"from":"!aabbccdd","stats":{"messages_total":42}}'),
+  (5, '2026-06-17T10:04:00Z', '!sf0005', 12, 0, 1, '{"rr":"CLIENT_HISTORY","role":"client","text":"hello world"}'),
+  (6, '2026-06-17T10:05:00Z', '!sf0006', 12, 0, 1, NULL),
+  (7, '2026-06-17T10:06:00Z', '!sf0007', 12, 0, 1, '{"rr":"ROUTER_PING_PONG_2027"}');
+`)
+	if err != nil {
+		t.Fatalf("seed schema: %v", err)
+	}
+
+	if err := Apply(ctx, db, nil); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	var version int
+	if err := db.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
+		t.Fatalf("read user_version: %v", err)
+	}
+	if version != 18 {
+		t.Fatalf("expected user_version=18, got %d", version)
+	}
+
+	// Row 1: kind 8 with portnum_name=STORE_FORWARD_APP — promoted
+	// to kind 12, details nulled (the renderer re-emits the
+	// structured details on the new code path).
+	assertEventKindAndDetailsNull(t, ctx, db, 1, 12)
+
+	// Row 2: kind 8 with portnum_name=STORE_FORWARD_APP and extra
+	// keys — same treatment.
+	assertEventKindAndDetailsNull(t, ctx, db, 2, 12)
+
+	// Row 3: kind 12 with legacy S&F details. v18 compacts in place:
+	// string `rr` becomes int, `role` removed, `from` preserved,
+	// sub-payload `stats` preserved.
+	assertStoreForwardDetails(t, ctx, db, 3, func(d map[string]any) {
+		rr, ok := d["rr"].(float64)
+		if !ok || rr != 7 {
+			t.Errorf("row 3: expected rr=7, got %#v", d["rr"])
+		}
+		if _, present := d["role"]; present {
+			t.Errorf("row 3: role should be removed, got %#v", d["role"])
+		}
+		if d["from"] != "!aabbccdd" {
+			t.Errorf("row 3: from not preserved: %#v", d["from"])
+		}
+		stats, ok := d["stats"].(map[string]any)
+		if !ok || stats["messages_total"].(float64) != 42 {
+			t.Errorf("row 3: stats not preserved: %#v", d["stats"])
+		}
+	})
+
+	// Row 4: kind 12 already in the compact shape. Migration must be
+	// idempotent.
+	var details sql.NullString
+	if err := db.QueryRowContext(ctx, `SELECT details_json FROM log_events WHERE id = 4`).Scan(&details); err != nil {
+		t.Fatalf("read idempotent row: %v", err)
+	}
+	if !details.Valid {
+		t.Fatalf("row 4: expected details to remain, got NULL")
+	}
+	original := map[string]any{
+		"from":  "!aabbccdd",
+		"rr":    float64(7),
+		"stats": map[string]any{"messages_total": float64(42)},
+	}
+	assertDetailsEqual(t, details.String, original)
+
+	// Row 5: kind 12 legacy with `text` — expect rr=65, no `role`,
+	// text_bytes=11 ("hello world").
+	assertStoreForwardDetails(t, ctx, db, 5, func(d map[string]any) {
+		rr, ok := d["rr"].(float64)
+		if !ok || rr != 65 {
+			t.Errorf("row 5: expected rr=65, got %#v", d["rr"])
+		}
+		if _, present := d["role"]; present {
+			t.Errorf("row 5: role should be removed, got %#v", d["role"])
+		}
+		tb, ok := d["text_bytes"].(float64)
+		if !ok || tb != 11 {
+			t.Errorf("row 5: expected text_bytes=11, got %#v", d["text_bytes"])
+		}
+		if _, present := d["text"]; present {
+			t.Errorf("row 5: text should be removed, got %#v", d["text"])
+		}
+	})
+
+	// Row 6: kind 12 with NULL details — must remain NULL.
+	if err := db.QueryRowContext(ctx, `SELECT details_json FROM log_events WHERE id = 6`).Scan(&details); err != nil {
+		t.Fatalf("read null row: %v", err)
+	}
+	if details.Valid {
+		t.Errorf("row 6: expected details to remain NULL, got %q", details.String)
+	}
+
+	// Row 7: kind 12 with an RR value the pinned proto does not know
+	// about — the migration preserves the original string in
+	// `raw_rr` and writes `rr: -1` (the Go-side sentinel) so future
+	// firmware codes never silently lose data.
+	assertStoreForwardDetails(t, ctx, db, 7, func(d map[string]any) {
+		rr, ok := d["rr"].(float64)
+		if !ok || rr != -1 {
+			t.Errorf("row 7: expected rr=-1, got %#v", d["rr"])
+		}
+		if d["raw_rr"] != "ROUTER_PING_PONG_2027" {
+			t.Errorf("row 7: expected raw_rr=ROUTER_PING_PONG_2027, got %#v", d["raw_rr"])
+		}
+		if _, present := d["role"]; present {
+			t.Errorf("row 7: role should be removed, got %#v", d["role"])
+		}
+	})
+}
+
+// assertEventKindAndDetailsNull reads log_events row id, asserts the
+// event_kind, and asserts the details_json column is NULL.
+func assertEventKindAndDetailsNull(t *testing.T, ctx context.Context, db *sql.DB, id int64, wantKind int) {
+	t.Helper()
+	var eventKind int
+	var details sql.NullString
+	if err := db.QueryRowContext(ctx, `SELECT event_kind, details_json FROM log_events WHERE id = ?`, id).Scan(&eventKind, &details); err != nil {
+		t.Fatalf("read row %d: %v", id, err)
+	}
+	if eventKind != wantKind {
+		t.Errorf("row %d: expected event_kind=%d, got %d", id, wantKind, eventKind)
+	}
+	if details.Valid {
+		t.Errorf("row %d: expected details to be NULL, got %q", id, details.String)
+	}
+}
+
+func assertStoreForwardDetails(t *testing.T, ctx context.Context, db *sql.DB, id int64, check func(map[string]any)) {
+	t.Helper()
+	var raw string
+	if err := db.QueryRowContext(ctx, `SELECT details_json FROM log_events WHERE id = ?`, id).Scan(&raw); err != nil {
+		t.Fatalf("read row %d: %v", id, err)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal([]byte(raw), &decoded); err != nil {
+		t.Fatalf("decode row %d details: %v", id, err)
+	}
+	check(decoded)
+}
+
+func assertDetailsEqual(t *testing.T, raw string, expected map[string]any) {
+	t.Helper()
+	var got map[string]any
+	if err := json.Unmarshal([]byte(raw), &got); err != nil {
+		t.Fatalf("decode details %q: %v", raw, err)
+	}
+	if !reflect.DeepEqual(got, expected) {
+		t.Errorf("details mismatch\n  got:  %s\n  want: %s", raw, marshalCanonical(t, expected))
+	}
+}
+
+func marshalCanonical(t *testing.T, v any) string {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatalf("marshal canonical: %v", err)
+	}
+
+	return string(b)
 }

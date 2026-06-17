@@ -422,8 +422,8 @@ func TestLogEventFromParsedStoreForwardUsesDedicatedKindWithStructuredDetails(t 
 		NodeID:  "!aabbccdd",
 		Portnum: generated.PortNum_STORE_FORWARD_APP,
 		StoreForward: &meshtastic.StoreForwardPayload{
-			RR:         "ROUTER_STATS",
-			Role:       "router",
+			RR:         int32(generated.StoreAndForward_ROUTER_STATS),
+			Role:       meshtastic.StoreForwardRoleRouter,
 			FromNodeID: "!aabbccdd",
 			ToNodeID:   "!11223344",
 			Stats: &meshtastic.StoreForwardStats{
@@ -445,8 +445,11 @@ func TestLogEventFromParsedStoreForwardUsesDedicatedKindWithStructuredDetails(t 
 	if event.EventKind != domain.LogEventKindStoreForwardValue {
 		t.Fatalf("unexpected event kind: %v", event.EventKind)
 	}
-	if event.Details["rr"] != "ROUTER_STATS" || event.Details["role"] != "router" {
-		t.Fatalf("unexpected scalar details: %#v", event.Details)
+	if event.Details["rr"] != int32(generated.StoreAndForward_ROUTER_STATS) {
+		t.Fatalf("unexpected rr: got %#v", event.Details["rr"])
+	}
+	if _, present := event.Details["role"]; present {
+		t.Fatalf("role should be derived in the renderer, not stored: %#v", event.Details["role"])
 	}
 	if event.Details["from"] != "!aabbccdd" || event.Details["to"] != "!11223344" {
 		t.Fatalf("unexpected node details: %#v", event.Details)
@@ -464,6 +467,9 @@ func TestLogEventFromParsedStoreForwardUsesDedicatedKindWithStructuredDetails(t 
 	if _, present := event.Details["text"]; present {
 		t.Fatalf("text should be absent for stats sub-payload")
 	}
+	if _, present := event.Details["text_bytes"]; present {
+		t.Fatalf("text_bytes should be absent for stats sub-payload")
+	}
 }
 
 func TestLogEventFromParsedStoreForwardClientHistoryOmitsStats(t *testing.T) {
@@ -475,8 +481,8 @@ func TestLogEventFromParsedStoreForwardClientHistoryOmitsStats(t *testing.T) {
 		NodeID:  "!deadbeef",
 		Portnum: generated.PortNum_STORE_FORWARD_APP,
 		StoreForward: &meshtastic.StoreForwardPayload{
-			RR:         "CLIENT_HISTORY",
-			Role:       "client",
+			RR:         int32(generated.StoreAndForward_CLIENT_HISTORY),
+			Role:       meshtastic.StoreForwardRoleClient,
 			FromNodeID: "!deadbeef",
 			History: &meshtastic.StoreForwardHistory{
 				HistoryMessages: 7,
@@ -500,6 +506,40 @@ func TestLogEventFromParsedStoreForwardClientHistoryOmitsStats(t *testing.T) {
 	}
 	if _, present := event.Details["stats"]; present {
 		t.Fatalf("stats should be absent for history sub-payload")
+	}
+}
+
+func TestLogEventFromParsedStoreForwardTextStoresByteCountOnly(t *testing.T) {
+	svc := &Service{}
+	now := time.Unix(1772296589, 0).UTC()
+
+	event, ok := svc.logEventFromParsed(meshtastic.ParsedEvent{
+		Kind:    meshtastic.ParsedStoreForward,
+		NodeID:  "!aabbccdd",
+		Portnum: generated.PortNum_STORE_FORWARD_APP,
+		StoreForward: &meshtastic.StoreForwardPayload{
+			RR:         int32(generated.StoreAndForward_ROUTER_TEXT_BROADCAST),
+			Role:       meshtastic.StoreForwardRoleRouter,
+			FromNodeID: "!aabbccdd",
+			ToNodeID:   "!ffffffff",
+			Text:       "hello world",
+		},
+	}, "LongFast", "", now)
+	if !ok {
+		t.Fatalf("expected store_forward log event")
+	}
+	if event.Details["rr"] != int32(generated.StoreAndForward_ROUTER_TEXT_BROADCAST) {
+		t.Fatalf("unexpected rr: got %#v", event.Details["rr"])
+	}
+	// Body must NOT be persisted; only its length.
+	if textBytes, present := event.Details["text_bytes"]; !present || textBytes != len("hello world") {
+		t.Fatalf("expected text_bytes=%d, got %#v (present=%v)", len("hello world"), textBytes, present)
+	}
+	if _, present := event.Details["text"]; present {
+		t.Fatalf("text body should not be stored: %#v", event.Details["text"])
+	}
+	if _, present := event.Details["role"]; present {
+		t.Fatalf("role should be derived in the renderer, not stored")
 	}
 }
 

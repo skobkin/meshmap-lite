@@ -341,10 +341,8 @@ func decodeStoreForwardPayload(packet *generated.MeshPacket, data *generated.Dat
 	}
 
 	rr := sf.GetRr()
-	role := "router"
-	if int32(rr) >= 64 {
-		role = "client"
-	}
+	rrInt := int32(rr)
+	role := deriveRoleFromRR(rrInt)
 
 	fromNodeNum := packet.GetFrom()
 	if source := data.GetSource(); source != 0 {
@@ -356,7 +354,7 @@ func decodeStoreForwardPayload(packet *generated.MeshPacket, data *generated.Dat
 	}
 
 	out := &StoreForwardPayload{
-		RR:         rr.String(),
+		RR:         rrInt,
 		Role:       role,
 		FromNodeID: nodeIDFromNum(fromNodeNum),
 		ToNodeID:   nodeIDFromNum(toNodeNum),

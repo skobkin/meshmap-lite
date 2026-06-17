@@ -624,14 +624,25 @@ func storeForwardLogDetails(in *meshtastic.StoreForwardPayload) map[string]any {
 	}
 
 	details := map[string]any{
-		"rr":   in.RR,
-		"role": in.Role,
+		"rr": in.RR,
+	}
+	// raw_rr is emitted only when the proto enum did not recognise the
+	// value (a newer firmware shipped a code we have not pinned yet).
+	// We stash the original name so a future migration can promote it
+	// to a typed RR without losing data.
+	if in.RawRR != "" {
+		details["raw_rr"] = in.RawRR
 	}
 	if in.FromNodeID != "" {
 		details["from"] = in.FromNodeID
 	}
 	if in.ToNodeID != "" {
 		details["to"] = in.ToNodeID
+	}
+	// raw_role carries an unknown role value through storage. The
+	// renderer surfaces it alongside the typed "unknown" label.
+	if in.RawRole != "" {
+		details["raw_role"] = string(in.RawRole)
 	}
 	if in.Stats != nil {
 		details["stats"] = map[string]any{
@@ -660,7 +671,10 @@ func storeForwardLogDetails(in *meshtastic.StoreForwardPayload) map[string]any {
 		}
 	}
 	if in.Text != "" {
-		details["text"] = in.Text
+		// Store the message length only; the body itself is intentionally
+		// not retained to keep log storage compact. The renderer
+		// surfaces the byte count instead of the message text.
+		details["text_bytes"] = len(in.Text)
 	}
 
 	return details

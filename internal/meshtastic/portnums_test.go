@@ -672,10 +672,10 @@ func TestDecodeStoreForwardPayloadVariants(t *testing.T) {
 		if err != nil {
 			t.Fatalf("decode: %v", err)
 		}
-		if sf.RR != "ROUTER_STATS" {
-			t.Fatalf("unexpected rr: got %q", sf.RR)
+		if sf.RR != int32(generated.StoreAndForward_ROUTER_STATS) {
+			t.Fatalf("unexpected rr: got %d", sf.RR)
 		}
-		if sf.Role != "router" {
+		if sf.Role != StoreForwardRoleRouter {
 			t.Fatalf("unexpected role: got %q", sf.Role)
 		}
 		if sf.FromNodeID != "!11111111" || sf.ToNodeID != "!22222222" {
@@ -711,8 +711,8 @@ func TestDecodeStoreForwardPayloadVariants(t *testing.T) {
 		if err != nil {
 			t.Fatalf("decode: %v", err)
 		}
-		if sf.RR != "ROUTER_HISTORY" {
-			t.Fatalf("unexpected rr: got %q", sf.RR)
+		if sf.RR != int32(generated.StoreAndForward_ROUTER_HISTORY) {
+			t.Fatalf("unexpected rr: got %d", sf.RR)
 		}
 		if sf.History == nil || sf.History.HistoryMessages != 17 || sf.History.WindowMinutes != 120 || sf.History.LastRequest != 42 {
 			t.Fatalf("unexpected history payload: %#v", sf.History)
@@ -740,8 +740,8 @@ func TestDecodeStoreForwardPayloadVariants(t *testing.T) {
 		if err != nil {
 			t.Fatalf("decode: %v", err)
 		}
-		if sf.RR != "ROUTER_HEARTBEAT" {
-			t.Fatalf("unexpected rr: got %q", sf.RR)
+		if sf.RR != int32(generated.StoreAndForward_ROUTER_HEARTBEAT) {
+			t.Fatalf("unexpected rr: got %d", sf.RR)
 		}
 		if sf.Heartbeat == nil || sf.Heartbeat.PeriodSeconds != 60 || sf.Heartbeat.Secondary != 1 {
 			t.Fatalf("unexpected heartbeat payload: %#v", sf.Heartbeat)
@@ -766,8 +766,8 @@ func TestDecodeStoreForwardPayloadVariants(t *testing.T) {
 		if err != nil {
 			t.Fatalf("decode: %v", err)
 		}
-		if sf.RR != "ROUTER_TEXT_DIRECT" {
-			t.Fatalf("unexpected rr: got %q", sf.RR)
+		if sf.RR != int32(generated.StoreAndForward_ROUTER_TEXT_DIRECT) {
+			t.Fatalf("unexpected rr: got %d", sf.RR)
 		}
 		if sf.Text != "hello" {
 			t.Fatalf("unexpected text: got %q", sf.Text)
@@ -789,10 +789,10 @@ func TestDecodeStoreForwardPayloadVariants(t *testing.T) {
 		if err != nil {
 			t.Fatalf("decode: %v", err)
 		}
-		if sf.RR != "CLIENT_HISTORY" {
-			t.Fatalf("unexpected rr: got %q", sf.RR)
+		if sf.RR != int32(generated.StoreAndForward_CLIENT_HISTORY) {
+			t.Fatalf("unexpected rr: got %d", sf.RR)
 		}
-		if sf.Role != "client" {
+		if sf.Role != StoreForwardRoleClient {
 			t.Fatalf("expected client role, got %q", sf.Role)
 		}
 	})

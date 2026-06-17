@@ -1,6 +1,10 @@
 package meshtastic
 
-import "testing"
+import (
+	"testing"
+
+	generated "meshmap-lite/internal/meshtasticpb"
+)
 
 func TestParseJSONFallbackMapReportInheritsNodeID(t *testing.T) {
 	payload := []byte(`{
@@ -55,8 +59,8 @@ func TestParseJSONFallbackStoreForward(t *testing.T) {
 	if sf == nil {
 		t.Fatal("expected non-nil store forward payload")
 	}
-	if sf.RR != "ROUTER_STATS" || sf.Role != "router" {
-		t.Fatalf("unexpected rr/role: %q %q", sf.RR, sf.Role)
+	if sf.RR != int32(generated.StoreAndForward_ROUTER_STATS) || sf.Role != StoreForwardRoleRouter {
+		t.Fatalf("unexpected rr/role: %d %q", sf.RR, sf.Role)
 	}
 	if sf.Stats == nil || sf.Stats.MessagesTotal != 42 || sf.Stats.MessagesSaved != 10 || sf.Stats.UpTimeSeconds != 3600 || !sf.Stats.HeartbeatEnabled {
 		t.Fatalf("unexpected stats payload: %#v", sf.Stats)
@@ -91,10 +95,105 @@ func TestParseJSONFallbackStoreForwardClientHistory(t *testing.T) {
 	if sf == nil {
 		t.Fatal("expected non-nil store forward payload")
 	}
-	if sf.RR != "CLIENT_HISTORY" || sf.Role != "client" {
-		t.Fatalf("unexpected rr/role: %q %q", sf.RR, sf.Role)
+	if sf.RR != int32(generated.StoreAndForward_CLIENT_HISTORY) || sf.Role != StoreForwardRoleClient {
+		t.Fatalf("unexpected rr/role: %d %q", sf.RR, sf.Role)
 	}
 	if sf.History == nil || sf.History.HistoryMessages != 3 || sf.History.WindowMinutes != 60 {
 		t.Fatalf("unexpected history payload: %#v", sf.History)
+	}
+}
+
+func TestParseJSONFallbackStoreForwardLegacyStringRR(t *testing.T) {
+	payload := []byte(`{
+		"type":"store_forward",
+		"node_id":"12345678",
+		"portnum":65,
+		"store_forward":{
+			"rr":"ROUTER_TEXT_BROADCAST",
+			"role":"router",
+			"text":"legacy"
+		}
+	}`)
+
+	evt, err := parseJSONFallback(TopicKindChannel, payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sf := evt.StoreForward
+	if sf == nil {
+		t.Fatal("expected non-nil store forward payload")
+	}
+	if sf.RR != int32(generated.StoreAndForward_ROUTER_TEXT_BROADCAST) {
+		t.Fatalf("expected legacy string RR to be mapped, got %d", sf.RR)
+	}
+	if sf.Role != StoreForwardRoleRouter {
+		t.Fatalf("expected role to be derived from RR, got %q", sf.Role)
+	}
+	if sf.Text != "legacy" {
+		t.Fatalf("expected legacy text body, got %q", sf.Text)
+	}
+}
+
+func TestParseJSONFallbackStoreForwardUnknownRRTolerant(t *testing.T) {
+	// Simulate a publisher shipping a RequestResponse value that the
+	// pinned proto does not know about. The unmarshaller must NOT
+	// reject it — it should land in RawRR with the sentinel RR
+	// value, and Role should be Unknown.
+	payload := []byte(`{
+		"type":"store_forward",
+		"node_id":"12345678",
+		"store_forward":{
+			"rr":"ROUTER_PING_PONG_2027"
+		}
+	}`)
+
+	evt, err := parseJSONFallback(TopicKindChannel, payload)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	sf := evt.StoreForward
+	if sf == nil {
+		t.Fatal("expected non-nil store forward payload")
+	}
+	if sf.RR != StoreForwardRRUnknown {
+		t.Fatalf("expected RR sentinel, got %d", sf.RR)
+	}
+	if sf.RawRR != "ROUTER_PING_PONG_2027" {
+		t.Fatalf("expected raw_rr preserved, got %q", sf.RawRR)
+	}
+	if sf.Role != StoreForwardRoleUnknown {
+		t.Fatalf("expected unknown role for unknown RR, got %q", sf.Role)
+	}
+}
+
+func TestParseJSONFallbackStoreForwardUnknownRoleTolerant(t *testing.T) {
+	// Legacy JSON carrying a `role` value the decoder does not
+	// recognise. The unknown value should be preserved in RawRole
+	// and the typed Role should be Unknown.
+	payload := []byte(`{
+		"type":"store_forward",
+		"node_id":"12345678",
+		"store_forward":{
+			"rr":"ROUTER_STATS",
+			"role":"repeater"
+		}
+	}`)
+
+	evt, err := parseJSONFallback(TopicKindChannel, payload)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	sf := evt.StoreForward
+	if sf == nil {
+		t.Fatal("expected non-nil store forward payload")
+	}
+	if sf.RR != int32(generated.StoreAndForward_ROUTER_STATS) {
+		t.Fatalf("expected known RR, got %d", sf.RR)
+	}
+	if sf.Role != StoreForwardRoleUnknown {
+		t.Fatalf("expected unknown role, got %q", sf.Role)
+	}
+	if sf.RawRole != "repeater" {
+		t.Fatalf("expected raw role preserved, got %q", sf.RawRole)
 	}
 }
