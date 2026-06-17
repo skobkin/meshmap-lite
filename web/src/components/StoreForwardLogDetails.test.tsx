@@ -250,6 +250,29 @@ describe('storeForwardLogDetailsRenderer', () => {
     expect(rowForLabel(container, 'Request/Response').textContent).toBe('RR 200')
   })
 
+  it('renders the human-readable label for ROUTER_HEARTBEAT (rr=2) and does not duplicate the raw value', () => {
+    const container = render(
+      storeForwardLogDetailsRenderer.render(
+        event({
+          rr: 2
+        }),
+        { onOpenNodeDetails: () => undefined }
+      )
+    ).container
+
+    // ROUTER_HEARTBEAT = 2. The custom view should show the label,
+    // not the raw enum code — operators do not have the proto enum
+    // table in their head.
+    expect(rowForLabel(container, 'Request/Response').textContent).toBe('ROUTER_HEARTBEAT')
+
+    // Only one "Request/Response" row should be rendered; the raw
+    // integer is hidden in the custom view (it stays available in
+    // the Raw tab).
+    const requestResponseRows = Array.from(container.querySelectorAll('.log-details-label'))
+      .filter((el) => el.textContent === 'Request/Response')
+    expect(requestResponseRows.length).toBe(1)
+  })
+
   it('renders the text length and skips the body when text_bytes is present', () => {
     const container = render(
       storeForwardLogDetailsRenderer.render(

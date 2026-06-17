@@ -7,8 +7,11 @@ import type { LogDetailsRenderer } from './LogDetailsModal'
 import type { LogEvent } from '../api/types'
 import type { JSX } from 'preact'
 
+// `rr` is rendered explicitly (with a human-readable label) above
+// this list, so it is intentionally NOT in scalarKeys — keeping it
+// here would also render a duplicate "Request/Response" row showing
+// the raw enum code, which is unhelpful on its own.
 const scalarKeys = [
-  'rr',
   'from',
   'to'
 ] as const
@@ -111,10 +114,6 @@ function scalar(value: unknown): string | undefined {
   return undefined
 }
 
-function isNodeReferenceKey(key: typeof scalarKeys[number]): boolean {
-  return key === 'from' || key === 'to'
-}
-
 function isBroadcastNodeID(nodeId: string): boolean {
   return nodeId.toLowerCase() === BROADCAST_NODE_ID
 }
@@ -140,8 +139,6 @@ function scalarRows(details: Record<string, unknown>): ScalarRow[] {
 
 function labelForKey(key: typeof scalarKeys[number]): string {
   switch (key) {
-    case 'rr':
-      return 'Request/Response'
     case 'from':
       return 'From'
     case 'to':
@@ -376,9 +373,7 @@ function StoreForwardLogDetailsView({
               <div key={row.key} className="log-details-row">
                 <dt className="log-details-label">{row.label}</dt>
                 <dd className="log-details-value">
-                  {isNodeReferenceKey(row.key)
-                    ? <NodeReferenceOrBroadcast nodeId={row.value} onOpenNodeDetails={onOpenNodeDetails} />
-                    : row.value}
+                  <NodeReferenceOrBroadcast nodeId={row.value} onOpenNodeDetails={onOpenNodeDetails} />
                 </dd>
               </div>
             ))}
