@@ -161,12 +161,14 @@ func compactStoreForwardDetailsInPlace(ctx context.Context, tx *sql.Tx) error {
 		var raw string
 		if err := rows.Scan(&id, &raw); err != nil {
 			_ = rows.Close()
+
 			return fmt.Errorf("scan s&f row %d: %w", id, err)
 		}
 
 		rewritten, err := rewriteStoreForwardDetails(raw)
 		if err != nil {
 			_ = rows.Close()
+
 			return fmt.Errorf("rewrite s&f row %d: %w", id, err)
 		}
 		if rewritten == raw {
@@ -176,6 +178,7 @@ func compactStoreForwardDetailsInPlace(ctx context.Context, tx *sql.Tx) error {
 	}
 	if err := rows.Err(); err != nil {
 		_ = rows.Close()
+
 		return fmt.Errorf("iterate s&f rows: %w", err)
 	}
 	_ = rows.Close()
@@ -199,8 +202,9 @@ func rewriteStoreForwardDetails(raw string) (string, error) {
 	var probe map[string]json.RawMessage
 	if err := json.Unmarshal([]byte(raw), &probe); err != nil {
 		// Not a JSON object — leave it alone for the generic fallback
-		// renderer to display.
-		return raw, nil
+		// renderer to display. The error is intentionally swallowed:
+		// any non-object payload is pass-through by design.
+		return raw, nil //nolint:nilerr
 	}
 
 	// New shape detection: the legacy v17 code path emitted `rr` as
@@ -277,6 +281,7 @@ func compactLegacyStoreForwardDetails(raw string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("encode new shape: %w", err)
 	}
+
 	return string(encoded), nil
 }
 
@@ -293,6 +298,7 @@ func mapLegacyRR(rr string) (int32, string, error) {
 	if v, ok := generated.StoreAndForward_RequestResponse_value[rr]; ok {
 		return v, "", nil
 	}
+
 	return -1, rr, nil
 }
 
