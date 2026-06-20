@@ -65,9 +65,21 @@ func TestDecodeTelemetryPayloadPreservesExplicitZeroValues(t *testing.T) {
 			msg: &generated.Telemetry{
 				Variant: &generated.Telemetry_DeviceMetrics{
 					DeviceMetrics: &generated.DeviceMetrics{
-						ChannelUtilization: func() *float32 { v := float32(12.5); return &v }(),
-						AirUtilTx:          func() *float32 { v := float32(2.5); return &v }(),
-						UptimeSeconds:      func() *uint32 { v := uint32(86400); return &v }(),
+						ChannelUtilization: func() *float32 {
+							v := float32(12.5)
+
+							return &v
+						}(),
+						AirUtilTx: func() *float32 {
+							v := float32(2.5)
+
+							return &v
+						}(),
+						UptimeSeconds: func() *uint32 {
+							v := uint32(86400)
+
+							return &v
+						}(),
 					},
 				},
 			},
