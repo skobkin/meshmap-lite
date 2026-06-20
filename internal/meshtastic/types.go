@@ -94,6 +94,7 @@ type TelemetryPayload struct {
 	Power struct {
 		Voltage      *float64 `json:"voltage"`
 		BatteryLevel *float64 `json:"battery_level"`
+		Current      *float64 `json:"current"`
 	} `json:"power"`
 	Environment struct {
 		TemperatureC *float64 `json:"temperature_c"`

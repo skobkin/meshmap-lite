@@ -164,7 +164,7 @@ SELECT n.node_id,n.node_num,n.long_name,n.short_name,n.role,n.board_model,n.firm
        n.modem_preset,n.has_default_channel,n.has_opted_report_location,n.neighbor_nodes_count,n.mqtt_gateway_capable,n.first_seen_at,n.last_seen_any_event_at,n.last_seen_mqtt_gateway_at,
        n.last_mqtt_uploader_node_id,nu.long_name,nu.short_name,n.last_mqtt_uploader_at,n.last_seen_position_at,n.updated_at,
        p.latitude,p.longitude,p.altitude_m,p.position_precision,p.source_kind,p.source_channel,p.mqtt_uploader_node_id,pu.long_name,pu.short_name,p.reported_at,p.observed_at,p.updated_at,
-       t.node_id,t.power_voltage,t.power_battery_level,t.env_temperature_c,t.env_humidity,t.env_pressure_hpa,t.air_pm25,t.air_pm10,t.air_co2,t.air_iaq,t.util_ch_util,t.util_air_util_tx,t.dev_uptime_seconds,t.source_channel,t.mqtt_uploader_node_id,tu.long_name,tu.short_name,t.reported_at,t.observed_at,t.updated_at
+       t.node_id,t.power_voltage,t.power_battery_level,t.power_current,t.env_temperature_c,t.env_humidity,t.env_pressure_hpa,t.air_pm25,t.air_pm10,t.air_co2,t.air_iaq,t.util_ch_util,t.util_air_util_tx,t.dev_uptime_seconds,t.source_channel,t.mqtt_uploader_node_id,tu.long_name,tu.short_name,t.reported_at,t.observed_at,t.updated_at
 FROM nodes n
 LEFT JOIN node_positions p ON p.node_id=n.node_id
 LEFT JOIN node_telemetry_snapshots t ON t.node_id=n.node_id AND (?='' OR t.observed_at>=?)

@@ -12,7 +12,7 @@ import (
 
 // scanTelemetryValues unpacks telemetry fields from nullable SQL types into a NodeTelemetrySnapshot.
 // It consolidates telemetry unpacking logic to avoid inconsistencies across different scanner functions.
-func scanTelemetryValues(nodeID string, pv, pbl, etc, eh, eph, ap25, ap10, aco2, aiaq sql.NullFloat64,
+func scanTelemetryValues(nodeID string, pv, pbl, pcur, etc, eh, eph, ap25, ap10, aco2, aiaq sql.NullFloat64,
 	utilCh, utilAir sql.NullFloat64, devUptime sql.NullInt64,
 	source, uploaderID, uploaderLong, uploaderShort sql.NullString, reported sql.NullString, observed, updated sql.NullString) *domain.NodeTelemetrySnapshot {
 	// Return nil if nodeID is empty (no row found)
@@ -25,6 +25,7 @@ func scanTelemetryValues(nodeID string, pv, pbl, etc, eh, eph, ap25, ap10, aco2,
 	}
 	out.Power.Voltage = parseNullableFloat(pv)
 	out.Power.BatteryLevel = parseNullableFloat(pbl)
+	out.Power.Current = parseNullableFloat(pcur)
 	out.Environment.TemperatureC = parseNullableFloat(etc)
 	out.Environment.Humidity = parseNullableFloat(eh)
 	out.Environment.PressureHpa = parseNullableFloat(eph)
@@ -137,7 +138,7 @@ func scanMapNodeWithTelemetry(rows *sql.Rows) (domain.Node, *domain.NodePosition
 	var pPrec sql.NullInt64
 	var pKind, pChannel, pUploaderID, pUploaderLong, pUploaderShort, pReported, pObserved, pUpdated sql.NullString
 	var tNodeID sql.NullString
-	var tPv, tPbl, tEtc, tEh, tEph, tAp25, tAp10, tAco2, tAiaq sql.NullFloat64
+	var tPv, tPbl, tPcur, tEtc, tEh, tEph, tAp25, tAp10, tAco2, tAiaq sql.NullFloat64
 	var tUtilCh, tUtilAir sql.NullFloat64
 	var tDevUptime sql.NullInt64
 	var tSource, tUploaderID, tUploaderLong, tUploaderShort, tReported, tObserved, tUpdated sql.NullString
@@ -146,7 +147,7 @@ func scanMapNodeWithTelemetry(rows *sql.Rows) (domain.Node, *domain.NodePosition
 		&modemPreset, &hasDefaultCh, &hasOptedReportLoc, &neighbor, &gw, &firstSeen, &lastAny, &lastMQTT,
 		&lastUploaderID, &lastUploaderLong, &lastUploaderShort, &lastUploaderAt, &lastPos, &updated,
 		&pLat, &pLon, &pAlt, &pPrec, &pKind, &pChannel, &pUploaderID, &pUploaderLong, &pUploaderShort, &pReported, &pObserved, &pUpdated,
-		&tNodeID, &tPv, &tPbl, &tEtc, &tEh, &tEph, &tAp25, &tAp10, &tAco2, &tAiaq, &tUtilCh, &tUtilAir, &tDevUptime, &tSource, &tUploaderID, &tUploaderLong, &tUploaderShort, &tReported, &tObserved, &tUpdated)
+		&tNodeID, &tPv, &tPbl, &tPcur, &tEtc, &tEh, &tEph, &tAp25, &tAp10, &tAco2, &tAiaq, &tUtilCh, &tUtilAir, &tDevUptime, &tSource, &tUploaderID, &tUploaderLong, &tUploaderShort, &tReported, &tObserved, &tUpdated)
 	if err != nil {
 		return n, nil, nil, err
 	}
@@ -209,7 +210,7 @@ func scanMapNodeWithTelemetry(rows *sql.Rows) (domain.Node, *domain.NodePosition
 	if tNodeID.Valid {
 		telemetryNodeID = tNodeID.String
 	}
-	telemetry := scanTelemetryValues(telemetryNodeID, tPv, tPbl, tEtc, tEh, tEph, tAp25, tAp10, tAco2, tAiaq,
+	telemetry := scanTelemetryValues(telemetryNodeID, tPv, tPbl, tPcur, tEtc, tEh, tEph, tAp25, tAp10, tAco2, tAiaq,
 		tUtilCh, tUtilAir, tDevUptime,
 		tSource, tUploaderID, tUploaderLong, tUploaderShort, tReported, tObserved, tUpdated)
 

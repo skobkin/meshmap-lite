@@ -214,6 +214,22 @@ func decodeTelemetryPayload(payload []byte) (*TelemetryPayload, error) {
 			voltage := float64(metrics.GetCh1Voltage())
 			telemetry.Power.Voltage = &voltage
 		}
+		if metrics.Ch1Current != nil {
+			current := float64(metrics.GetCh1Current())
+			telemetry.Power.Current = &current
+		}
+	}
+	if stats := tel.GetLocalStats(); stats != nil {
+		// LocalStats fields are proto3 scalars; in proto3 there's no nil
+		// distinction, so we always copy them. Merge semantics on the
+		// consumer side (nil from the parsed payload means "not present")
+		// make this safe to do unconditionally.
+		chutil := float64(stats.GetChannelUtilization())
+		telemetry.Utilization.ChUtil = &chutil
+		airutiltx := float64(stats.GetAirUtilTx())
+		telemetry.Utilization.AirUtilTx = &airutiltx
+		uptime := stats.GetUptimeSeconds()
+		telemetry.Device.UptimeSeconds = &uptime
 	}
 
 	return telemetry, nil

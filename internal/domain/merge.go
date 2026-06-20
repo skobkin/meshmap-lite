@@ -6,6 +6,7 @@ func MergeTelemetry(current NodeTelemetrySnapshot, incoming NodeTelemetrySnapsho
 	merged.NodeID = incoming.NodeID
 	mergeFloat(&merged.Power.Voltage, incoming.Power.Voltage)
 	mergeFloat(&merged.Power.BatteryLevel, incoming.Power.BatteryLevel)
+	mergeFloat(&merged.Power.Current, incoming.Power.Current)
 	mergeFloat(&merged.Environment.TemperatureC, incoming.Environment.TemperatureC)
 	mergeFloat(&merged.Environment.Humidity, incoming.Environment.Humidity)
 	mergeFloat(&merged.Environment.PressureHpa, incoming.Environment.PressureHpa)

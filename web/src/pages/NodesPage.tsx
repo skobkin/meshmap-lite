@@ -163,6 +163,7 @@ function detailSections(details: NodeDetails): DetailSection[] {
             </>
           )
         })()),
+        row('Current (mA)', displayValue(details.telemetry?.power.current)),
         row('Temperature (C)', displayValue(details.telemetry?.environment.temperature_c)),
         row('Humidity', displayValue(details.telemetry?.environment.humidity)),
         row('Pressure (hPa)', displayValue(details.telemetry?.environment.pressure_hpa)),

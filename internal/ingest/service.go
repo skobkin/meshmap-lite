@@ -1221,6 +1221,7 @@ func (s *Service) handleTelemetry(ctx context.Context, evt meshtastic.ParsedEven
 	t := domain.NodeTelemetrySnapshot{NodeID: evt.NodeID, SourceChannel: channel, MQTTUploaderNodeID: mqttUploaderNodeID, MQTTUploaderDisplayName: s.resolveNodeDisplayName(ctx, mqttUploaderNodeID), ReportedAt: evt.Timestamp, ObservedAt: now, UpdatedAt: now}
 	t.Power.Voltage = in.Power.Voltage
 	t.Power.BatteryLevel = in.Power.BatteryLevel
+	t.Power.Current = in.Power.Current
 	t.Environment.TemperatureC = in.Environment.TemperatureC
 	t.Environment.Humidity = in.Environment.Humidity
 	t.Environment.PressureHpa = in.Environment.PressureHpa

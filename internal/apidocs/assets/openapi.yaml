@@ -1118,6 +1118,9 @@ components:
           type: number
         battery_level:
           type: number
+        current:
+          type: number
+          description: Channel 1 current draw in mA, from PowerMetrics.Ch1Current.
     TelemetryEnvironment:
       type: object
       properties:

@@ -57,6 +57,7 @@ type NodePosition struct {
 type TelemetrySectionPower struct {
 	Voltage      *float64 `json:"voltage,omitempty"`
 	BatteryLevel *float64 `json:"battery_level,omitempty"`
+	Current      *float64 `json:"current,omitempty"`
 }
 
 // TelemetrySectionEnvironment stores environment sensor values.

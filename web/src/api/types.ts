@@ -159,6 +159,7 @@ export interface NodeTelemetry {
   power: {
     voltage?: number
     battery_level?: number
+    current?: number
   }
   environment: {
     temperature_c?: number
