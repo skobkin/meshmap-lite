@@ -161,7 +161,7 @@ func (s *Service) HandleMessage(ctx context.Context, topic string, payload []byt
 	logAllowed := s.allowLogEvent(topicInfo.Kind, channel, evt.Kind)
 	tracerouteDecision := tracerouteLogDecision{}
 	if logAllowed {
-		tracerouteDecision = s.tracerouteLogDecision(evt, channel, now)
+		tracerouteDecision = s.tracerouteLogDecision(evt, channel, mqttUploaderNodeID, now)
 	}
 	minimalCreated := make(map[string]struct{})
 	if logAllowed {
@@ -345,7 +345,7 @@ type tracerouteLogDecision struct {
 	lifecycleEvents   []domain.LogEvent
 }
 
-func (s *Service) tracerouteLogDecision(evt meshtastic.ParsedEvent, channel string, now time.Time) tracerouteLogDecision {
+func (s *Service) tracerouteLogDecision(evt meshtastic.ParsedEvent, channel, mqttUploaderNodeID string, now time.Time) tracerouteLogDecision {
 	if s.tracker == nil {
 		return tracerouteLogDecision{}
 	}
@@ -359,19 +359,21 @@ func (s *Service) tracerouteLogDecision(evt meshtastic.ParsedEvent, channel stri
 		switch evt.Traceroute.Role {
 		case "request":
 			result = s.tracker.OnRequest(tracerouteObservation{
-				packetID:   evt.PacketID,
-				channel:    channel,
-				now:        now,
-				reportedAt: evt.Timestamp,
-				payload:    evt.Traceroute,
+				packetID:           evt.PacketID,
+				channel:            channel,
+				now:                now,
+				reportedAt:         evt.Timestamp,
+				payload:            evt.Traceroute,
+				mqttUploaderNodeID: mqttUploaderNodeID,
 			})
 		case "reply":
 			result = s.tracker.OnReply(tracerouteObservation{
-				packetID:   evt.PacketID,
-				channel:    channel,
-				now:        now,
-				reportedAt: evt.Timestamp,
-				payload:    evt.Traceroute,
+				packetID:           evt.PacketID,
+				channel:            channel,
+				now:                now,
+				reportedAt:         evt.Timestamp,
+				payload:            evt.Traceroute,
+				mqttUploaderNodeID: mqttUploaderNodeID,
 			})
 		}
 
@@ -382,11 +384,12 @@ func (s *Service) tracerouteLogDecision(evt meshtastic.ParsedEvent, channel stri
 		}
 
 		return tracerouteDecisionFromTracker(s.tracker.OnRouting(tracerouteRoutingObservation{
-			packetID:   evt.PacketID,
-			channel:    channel,
-			now:        now,
-			reportedAt: evt.Timestamp,
-			payload:    evt.Routing,
+			packetID:           evt.PacketID,
+			channel:            channel,
+			now:                now,
+			reportedAt:         evt.Timestamp,
+			payload:            evt.Routing,
+			mqttUploaderNodeID: mqttUploaderNodeID,
 		}))
 	default:
 		return tracerouteLogDecision{}

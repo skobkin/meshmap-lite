@@ -17,19 +17,21 @@ type tracerouteTrackerOptions struct {
 }
 
 type tracerouteObservation struct {
-	packetID   uint32
-	channel    string
-	now        time.Time
-	reportedAt *time.Time
-	payload    *meshtastic.TraceroutePayload
+	packetID           uint32
+	channel            string
+	now                time.Time
+	reportedAt         *time.Time
+	payload            *meshtastic.TraceroutePayload
+	mqttUploaderNodeID string
 }
 
 type tracerouteRoutingObservation struct {
-	packetID   uint32
-	channel    string
-	now        time.Time
-	reportedAt *time.Time
-	payload    *meshtastic.RoutingPayload
+	packetID           uint32
+	channel            string
+	now                time.Time
+	reportedAt         *time.Time
+	payload            *meshtastic.RoutingPayload
+	mqttUploaderNodeID string
 }
 
 type tracerouteStep struct {
@@ -54,6 +56,7 @@ type tracerouteLifecycleRecord struct {
 	inferredReturnPath  bool
 	inferredDirect      bool
 	errorReason         string
+	mqttUploaderNodeID  string
 	startedAt           time.Time
 	updatedAt           time.Time
 	completedAt         *time.Time
@@ -95,6 +98,7 @@ type tracerouteTrackerEntry struct {
 	inferredReturnPath  bool
 	inferredDirect      bool
 	errorReason         string
+	mqttUploaderNodeID  string
 	finalEmitted        bool
 	completedAt         *time.Time
 	steps               []tracerouteStep
@@ -134,15 +138,16 @@ func (t *tracerouteTracker) OnRequest(obs tracerouteObservation) tracerouteTrack
 	t.evictForInsert(obs.now)
 
 	entry := &tracerouteTrackerEntry{
-		key:             tracerouteTrackerKey(obs.payload.RequestID, obs.packetID),
-		requestID:       effectiveTracerouteRequestID(obs.payload.RequestID, obs.packetID),
-		requestPacketID: obs.packetID,
-		fromNodeID:      obs.payload.FromNodeID,
-		toNodeID:        obs.payload.ToNodeID,
-		channel:         obs.channel,
-		startedAt:       obs.now,
-		updatedAt:       obs.now,
-		status:          "requested",
+		key:                tracerouteTrackerKey(obs.payload.RequestID, obs.packetID),
+		requestID:          effectiveTracerouteRequestID(obs.payload.RequestID, obs.packetID),
+		requestPacketID:    obs.packetID,
+		fromNodeID:         obs.payload.FromNodeID,
+		toNodeID:           obs.payload.ToNodeID,
+		channel:            obs.channel,
+		mqttUploaderNodeID: obs.mqttUploaderNodeID,
+		startedAt:          obs.now,
+		updatedAt:          obs.now,
+		status:             "requested",
 	}
 	entry.steps = append(entry.steps, tracerouteStep{
 		Type:       "request",
@@ -178,6 +183,9 @@ func (t *tracerouteTracker) OnReply(obs tracerouteObservation) tracerouteTracker
 	entry.updatedAt = obs.now
 	if entry.channel == "" {
 		entry.channel = obs.channel
+	}
+	if entry.mqttUploaderNodeID == "" {
+		entry.mqttUploaderNodeID = obs.mqttUploaderNodeID
 	}
 	if entry.fromNodeID == "" {
 		entry.fromNodeID = obs.payload.FromNodeID
@@ -244,6 +252,9 @@ func (t *tracerouteTracker) OnRouting(obs tracerouteRoutingObservation) tracerou
 	entry.updatedAt = obs.now
 	if entry.channel == "" {
 		entry.channel = obs.channel
+	}
+	if entry.mqttUploaderNodeID == "" {
+		entry.mqttUploaderNodeID = obs.mqttUploaderNodeID
 	}
 	if entry.fromNodeID == "" {
 		entry.fromNodeID = obs.payload.FromNodeID
@@ -402,6 +413,7 @@ func (e *tracerouteTrackerEntry) snapshot() tracerouteLifecycleRecord {
 		inferredReturnPath:  e.inferredReturnPath,
 		inferredDirect:      e.inferredDirect,
 		errorReason:         e.errorReason,
+		mqttUploaderNodeID:  e.mqttUploaderNodeID,
 		startedAt:           e.startedAt,
 		updatedAt:           e.updatedAt,
 		completedAt:         completedAt,
@@ -461,11 +473,12 @@ func tracerouteLifecycleLogEvent(in tracerouteLifecycleRecord) domain.LogEvent {
 	}
 
 	return domain.LogEvent{
-		ObservedAt: in.updatedAt,
-		NodeID:     in.nodeID,
-		EventKind:  domain.LogEventKindTracerouteValue,
-		Channel:    in.channel,
-		Details:    details,
+		ObservedAt:         in.updatedAt,
+		NodeID:             in.nodeID,
+		MQTTUploaderNodeID: in.mqttUploaderNodeID,
+		EventKind:          domain.LogEventKindTracerouteValue,
+		Channel:            in.channel,
+		Details:            details,
 	}
 }
 

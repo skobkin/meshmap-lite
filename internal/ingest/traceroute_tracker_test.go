@@ -293,7 +293,7 @@ func TestServiceTracerouteLogDecisionSuppressesMatchedPacketRows(t *testing.T) {
 			ToNodeID:   "!11223344",
 		},
 		PacketID: 101,
-	}, "LongFast", start)
+	}, "LongFast", "", start)
 	if !request.suppressPacketLog || len(request.lifecycleEvents) != 0 {
 		t.Fatalf("request should not persist raw or intermediate lifecycle rows: %#v", request)
 	}
@@ -308,7 +308,7 @@ func TestServiceTracerouteLogDecisionSuppressesMatchedPacketRows(t *testing.T) {
 			ForwardPath: []string{"!a55e5e56", "!01020304", "!11223344"},
 		},
 		PacketID: 202,
-	}, "LongFast", start.Add(time.Second))
+	}, "LongFast", "", start.Add(time.Second))
 	if !reply.suppressPacketLog || len(reply.lifecycleEvents) != 1 {
 		t.Fatalf("matched reply should emit one lifecycle row and suppress raw row: %#v", reply)
 	}
@@ -328,8 +328,124 @@ func TestServiceTracerouteLogDecisionSuppressesMatchedPacketRows(t *testing.T) {
 			ForwardPath: []string{"!x", "!y"},
 		},
 		PacketID: 303,
-	}, "LongFast", start.Add(2*time.Second))
+	}, "LongFast", "", start.Add(2*time.Second))
 	if orphan.suppressPacketLog || len(orphan.lifecycleEvents) != 0 {
 		t.Fatalf("orphan reply should remain raw packet evidence: %#v", orphan)
+	}
+}
+
+func TestTracerouteLifecyclePreservesMQTTUploader(t *testing.T) {
+	svc := &Service{
+		cfg: Config{
+			Traceroute: TracerouteConfig{
+				Timeout:        30 * time.Second,
+				MaxEntries:     16,
+				FinalRetention: 30 * time.Second,
+			},
+		},
+		tracker: newTracerouteTracker(nil, tracerouteTrackerOptions{
+			timeout:        30 * time.Second,
+			maxEntries:     16,
+			finalRetention: 30 * time.Second,
+		}),
+	}
+	start := time.Unix(1772296589, 0).UTC()
+
+	// Request arrives via MQTT gateway "!gw01".
+	_ = svc.tracerouteLogDecision(meshtastic.ParsedEvent{
+		Kind: meshtastic.ParsedTraceroute,
+		Traceroute: &meshtastic.TraceroutePayload{
+			Role:       "request",
+			RequestID:  555,
+			FromNodeID: "!a55e5e56",
+			ToNodeID:   "!11223344",
+		},
+		PacketID: 1,
+	}, "LongFast", "!gw01", start)
+
+	// Reply arrives via a different gateway "!gw02"; the request's uploader wins.
+	reply := svc.tracerouteLogDecision(meshtastic.ParsedEvent{
+		Kind: meshtastic.ParsedTraceroute,
+		Traceroute: &meshtastic.TraceroutePayload{
+			Role:        "reply",
+			Status:      "completed",
+			RequestID:   555,
+			ReplyID:     1,
+			ForwardPath: []string{"!a55e5e56", "!11223344"},
+		},
+		PacketID: 2,
+	}, "LongFast", "!gw02", start.Add(time.Second))
+	if len(reply.lifecycleEvents) != 1 {
+		t.Fatalf("expected one lifecycle row, got %#v", reply)
+	}
+	if got, want := reply.lifecycleEvents[0].MQTTUploaderNodeID, "!gw01"; got != want {
+		t.Fatalf("expected request's MQTT uploader %q to win, got %q", want, got)
+	}
+
+	// When only the reply carries the uploader, the lifecycle row should reflect it.
+	request2 := svc.tracerouteLogDecision(meshtastic.ParsedEvent{
+		Kind: meshtastic.ParsedTraceroute,
+		Traceroute: &meshtastic.TraceroutePayload{
+			Role:       "request",
+			RequestID:  666,
+			FromNodeID: "!a55e5e56",
+			ToNodeID:   "!11223344",
+		},
+		PacketID: 3,
+	}, "LongFast", "", start.Add(2*time.Second))
+	if len(request2.lifecycleEvents) != 0 {
+		t.Fatalf("request with no uploader should not emit lifecycle yet: %#v", request2)
+	}
+
+	reply2 := svc.tracerouteLogDecision(meshtastic.ParsedEvent{
+		Kind: meshtastic.ParsedTraceroute,
+		Traceroute: &meshtastic.TraceroutePayload{
+			Role:        "reply",
+			Status:      "completed",
+			RequestID:   666,
+			ReplyID:     3,
+			ForwardPath: []string{"!a55e5e56", "!11223344"},
+		},
+		PacketID: 4,
+	}, "LongFast", "!gw03", start.Add(3*time.Second))
+	if len(reply2.lifecycleEvents) != 1 {
+		t.Fatalf("expected one lifecycle row, got %#v", reply2)
+	}
+	if got, want := reply2.lifecycleEvents[0].MQTTUploaderNodeID, "!gw03"; got != want {
+		t.Fatalf("expected reply's MQTT uploader %q to be used, got %q", want, got)
+	}
+
+	// Timeout sweep should preserve the uploader captured on the request.
+	timeoutSvc := &Service{
+		cfg: Config{
+			Traceroute: TracerouteConfig{
+				Timeout:        5 * time.Second,
+				MaxEntries:     16,
+				FinalRetention: 30 * time.Second,
+			},
+		},
+		tracker: newTracerouteTracker(nil, tracerouteTrackerOptions{
+			timeout:        5 * time.Second,
+			maxEntries:     16,
+			finalRetention: 30 * time.Second,
+		}),
+	}
+	_ = timeoutSvc.tracerouteLogDecision(meshtastic.ParsedEvent{
+		Kind: meshtastic.ParsedTraceroute,
+		Traceroute: &meshtastic.TraceroutePayload{
+			Role:       "request",
+			RequestID:  777,
+			FromNodeID: "!a55e5e56",
+			ToNodeID:   "!11223344",
+		},
+		PacketID: 5,
+	}, "LongFast", "!gw04", start)
+	swept := timeoutSvc.tracker.Sweep(start.Add(10 * time.Second))
+	if len(swept) != 1 {
+		t.Fatalf("expected one swept timeout lifecycle, got %d", len(swept))
+	}
+	logEvent := tracerouteLifecycleLogEvent(swept[0])
+	if got, want := logEvent.MQTTUploaderNodeID, "!gw04"; got != want {
+		t.Fatalf("expected swept timeout to retain uploader %q, got %q", want, got)
 	}
 }
