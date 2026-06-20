@@ -23,6 +23,9 @@ type tracerouteObservation struct {
 	reportedAt         *time.Time
 	payload            *meshtastic.TraceroutePayload
 	mqttUploaderNodeID string
+	encrypted          bool
+	hopStart           uint32
+	hopLimit           uint32
 }
 
 type tracerouteRoutingObservation struct {
@@ -32,6 +35,9 @@ type tracerouteRoutingObservation struct {
 	reportedAt         *time.Time
 	payload            *meshtastic.RoutingPayload
 	mqttUploaderNodeID string
+	encrypted          bool
+	hopStart           uint32
+	hopLimit           uint32
 }
 
 type tracerouteStep struct {
@@ -57,6 +63,9 @@ type tracerouteLifecycleRecord struct {
 	inferredDirect      bool
 	errorReason         string
 	mqttUploaderNodeID  string
+	encrypted           bool
+	hopStart            *uint32
+	hopLimit            *uint32
 	startedAt           time.Time
 	updatedAt           time.Time
 	completedAt         *time.Time
@@ -99,6 +108,9 @@ type tracerouteTrackerEntry struct {
 	inferredDirect      bool
 	errorReason         string
 	mqttUploaderNodeID  string
+	encrypted           bool
+	hopStart            *uint32
+	hopLimit            *uint32
 	finalEmitted        bool
 	completedAt         *time.Time
 	steps               []tracerouteStep
@@ -145,9 +157,16 @@ func (t *tracerouteTracker) OnRequest(obs tracerouteObservation) tracerouteTrack
 		toNodeID:           obs.payload.ToNodeID,
 		channel:            obs.channel,
 		mqttUploaderNodeID: obs.mqttUploaderNodeID,
+		encrypted:          obs.encrypted,
 		startedAt:          obs.now,
 		updatedAt:          obs.now,
 		status:             "requested",
+	}
+	if obs.hopStart > 0 {
+		start := obs.hopStart
+		entry.hopStart = &start
+		limit := obs.hopLimit
+		entry.hopLimit = &limit
 	}
 	entry.steps = append(entry.steps, tracerouteStep{
 		Type:       "request",
@@ -193,6 +212,13 @@ func (t *tracerouteTracker) OnReply(obs tracerouteObservation) tracerouteTracker
 	if entry.toNodeID == "" {
 		entry.toNodeID = obs.payload.ToNodeID
 	}
+	if entry.hopStart == nil && obs.hopStart > 0 {
+		start := obs.hopStart
+		entry.hopStart = &start
+		limit := obs.hopLimit
+		entry.hopLimit = &limit
+	}
+	entry.encrypted = entry.encrypted || obs.encrypted
 	entry.forwardPath, entry.inferredForwardPath = preferTraceroutePath(
 		entry.forwardPath,
 		entry.inferredForwardPath,
@@ -262,6 +288,13 @@ func (t *tracerouteTracker) OnRouting(obs tracerouteRoutingObservation) tracerou
 	if entry.toNodeID == "" {
 		entry.toNodeID = obs.payload.ToNodeID
 	}
+	if entry.hopStart == nil && obs.hopStart > 0 {
+		start := obs.hopStart
+		entry.hopStart = &start
+		limit := obs.hopLimit
+		entry.hopLimit = &limit
+	}
+	entry.encrypted = entry.encrypted || obs.encrypted
 
 	stepType := "routing"
 	if obs.payload.ErrorReason != "" && obs.payload.ErrorReason != "NONE" {
@@ -414,6 +447,9 @@ func (e *tracerouteTrackerEntry) snapshot() tracerouteLifecycleRecord {
 		inferredDirect:      e.inferredDirect,
 		errorReason:         e.errorReason,
 		mqttUploaderNodeID:  e.mqttUploaderNodeID,
+		encrypted:           e.encrypted,
+		hopStart:            cloneUint32Ptr(e.hopStart),
+		hopLimit:            cloneUint32Ptr(e.hopLimit),
 		startedAt:           e.startedAt,
 		updatedAt:           e.updatedAt,
 		completedAt:         completedAt,
@@ -478,6 +514,9 @@ func tracerouteLifecycleLogEvent(in tracerouteLifecycleRecord) domain.LogEvent {
 		MQTTUploaderNodeID: in.mqttUploaderNodeID,
 		EventKind:          domain.LogEventKindTracerouteValue,
 		Channel:            in.channel,
+		Encrypted:          in.encrypted,
+		HopStart:           in.hopStart,
+		HopLimit:           in.hopLimit,
 		Details:            details,
 	}
 }
@@ -536,6 +575,15 @@ func firstNonEmpty(values ...string) string {
 }
 
 func cloneTimePtr(in *time.Time) *time.Time {
+	if in == nil {
+		return nil
+	}
+	v := *in
+
+	return &v
+}
+
+func cloneUint32Ptr(in *uint32) *uint32 {
 	if in == nil {
 		return nil
 	}

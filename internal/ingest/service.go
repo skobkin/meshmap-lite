@@ -365,6 +365,9 @@ func (s *Service) tracerouteLogDecision(evt meshtastic.ParsedEvent, channel, mqt
 				reportedAt:         evt.Timestamp,
 				payload:            evt.Traceroute,
 				mqttUploaderNodeID: mqttUploaderNodeID,
+				encrypted:          evt.Encrypted,
+				hopStart:           evt.HopStart,
+				hopLimit:           evt.HopLimit,
 			})
 		case "reply":
 			result = s.tracker.OnReply(tracerouteObservation{
@@ -374,6 +377,9 @@ func (s *Service) tracerouteLogDecision(evt meshtastic.ParsedEvent, channel, mqt
 				reportedAt:         evt.Timestamp,
 				payload:            evt.Traceroute,
 				mqttUploaderNodeID: mqttUploaderNodeID,
+				encrypted:          evt.Encrypted,
+				hopStart:           evt.HopStart,
+				hopLimit:           evt.HopLimit,
 			})
 		}
 
@@ -390,6 +396,9 @@ func (s *Service) tracerouteLogDecision(evt meshtastic.ParsedEvent, channel, mqt
 			reportedAt:         evt.Timestamp,
 			payload:            evt.Routing,
 			mqttUploaderNodeID: mqttUploaderNodeID,
+			encrypted:          evt.Encrypted,
+			hopStart:           evt.HopStart,
+			hopLimit:           evt.HopLimit,
 		}))
 	default:
 		return tracerouteLogDecision{}

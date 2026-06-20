@@ -449,3 +449,105 @@ func TestTracerouteLifecyclePreservesMQTTUploader(t *testing.T) {
 		t.Fatalf("expected swept timeout to retain uploader %q, got %q", want, got)
 	}
 }
+
+func TestTracerouteLifecyclePreservesEncryptedAndHops(t *testing.T) {
+	svc := &Service{
+		cfg: Config{
+			Traceroute: TracerouteConfig{
+				Timeout:        30 * time.Second,
+				MaxEntries:     16,
+				FinalRetention: 30 * time.Second,
+			},
+		},
+		tracker: newTracerouteTracker(nil, tracerouteTrackerOptions{
+			timeout:        30 * time.Second,
+			maxEntries:     16,
+			finalRetention: 30 * time.Second,
+		}),
+	}
+	start := time.Unix(1772296589, 0).UTC()
+
+	// Request: hop_start=3, hop_limit=2, not encrypted.
+	_ = svc.tracerouteLogDecision(meshtastic.ParsedEvent{
+		Kind: meshtastic.ParsedTraceroute,
+		Traceroute: &meshtastic.TraceroutePayload{
+			Role:       "request",
+			RequestID:  888,
+			FromNodeID: "!a55e5e56",
+			ToNodeID:   "!11223344",
+		},
+		PacketID:  1,
+		HopStart:  3,
+		HopLimit:  2,
+		Encrypted: false,
+	}, "LongFast", "", start)
+
+	// Reply: hop_start=3, hop_limit=1, encrypted. Request's hop values should win.
+	reply := svc.tracerouteLogDecision(meshtastic.ParsedEvent{
+		Kind: meshtastic.ParsedTraceroute,
+		Traceroute: &meshtastic.TraceroutePayload{
+			Role:        "reply",
+			Status:      "completed",
+			RequestID:   888,
+			ReplyID:     1,
+			ForwardPath: []string{"!a55e5e56", "!11223344"},
+		},
+		PacketID:  2,
+		HopStart:  3,
+		HopLimit:  1,
+		Encrypted: true,
+	}, "LongFast", "", start.Add(time.Second))
+	if len(reply.lifecycleEvents) != 1 {
+		t.Fatalf("expected one lifecycle row, got %#v", reply)
+	}
+	got := reply.lifecycleEvents[0]
+	if !got.Encrypted {
+		t.Fatalf("expected Encrypted=true (OR-merged from reply)")
+	}
+	if got.HopStart == nil || *got.HopStart != 3 {
+		t.Fatalf("expected HopStart=3 (from request), got %#v", got.HopStart)
+	}
+	if got.HopLimit == nil || *got.HopLimit != 2 {
+		t.Fatalf("expected HopLimit=2 (from request), got %#v", got.HopLimit)
+	}
+
+	// Reply-only path: request had no hop info, reply has hop info, lifecycle should reflect reply.
+	_ = svc.tracerouteLogDecision(meshtastic.ParsedEvent{
+		Kind: meshtastic.ParsedTraceroute,
+		Traceroute: &meshtastic.TraceroutePayload{
+			Role:       "request",
+			RequestID:  889,
+			FromNodeID: "!a55e5e56",
+			ToNodeID:   "!11223344",
+		},
+		PacketID: 3,
+	}, "LongFast", "", start.Add(2*time.Second))
+
+	reply2 := svc.tracerouteLogDecision(meshtastic.ParsedEvent{
+		Kind: meshtastic.ParsedTraceroute,
+		Traceroute: &meshtastic.TraceroutePayload{
+			Role:        "reply",
+			Status:      "completed",
+			RequestID:   889,
+			ReplyID:     3,
+			ForwardPath: []string{"!a55e5e56", "!11223344"},
+		},
+		PacketID:  4,
+		HopStart:  4,
+		HopLimit:  2,
+		Encrypted: false,
+	}, "LongFast", "", start.Add(3*time.Second))
+	if len(reply2.lifecycleEvents) != 1 {
+		t.Fatalf("expected one lifecycle row, got %#v", reply2)
+	}
+	got2 := reply2.lifecycleEvents[0]
+	if got2.Encrypted {
+		t.Fatalf("expected Encrypted=false when both unencrypted")
+	}
+	if got2.HopStart == nil || *got2.HopStart != 4 {
+		t.Fatalf("expected HopStart=4 (from reply), got %#v", got2.HopStart)
+	}
+	if got2.HopLimit == nil || *got2.HopLimit != 2 {
+		t.Fatalf("expected HopLimit=2 (from reply), got %#v", got2.HopLimit)
+	}
+}
