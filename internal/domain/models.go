@@ -76,16 +76,17 @@ type TelemetrySectionAirQuality struct {
 }
 
 // TelemetrySectionUtilization stores radio channel utilization metrics.
-// These come from Meshtastic DeviceMetrics and LocalStats (channel/air utilization
-// as percentages, where 0 means "idle" and is valid).
+// Source: Meshtastic DeviceMetrics (channel/air utilization as percentages,
+// where 0 means "idle" and is valid). LocalStats carries the same fields but
+// is intentionally not decoded — see internal/meshtastic/portnums.go.
 type TelemetrySectionUtilization struct {
 	ChUtil    *float64 `json:"ch_util,omitempty"`
 	AirUtilTx *float64 `json:"air_util_tx,omitempty"`
 }
 
 // TelemetrySectionDevice stores device-level runtime metrics.
-// UptimeSeconds comes from Meshtastic DeviceMetrics and LocalStats; 0 is valid
-// (means "just booted").
+// UptimeSeconds comes from Meshtastic DeviceMetrics; 0 is valid (means "just
+// booted"). LocalStats carries the same field but is intentionally not decoded.
 type TelemetrySectionDevice struct {
 	UptimeSeconds *uint32 `json:"uptime_seconds,omitempty"`
 }

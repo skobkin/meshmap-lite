@@ -219,18 +219,32 @@ func decodeTelemetryPayload(payload []byte) (*TelemetryPayload, error) {
 			telemetry.Power.Current = &current
 		}
 	}
-	if stats := tel.GetLocalStats(); stats != nil {
-		// LocalStats fields are proto3 scalars; in proto3 there's no nil
-		// distinction, so we always copy them. Merge semantics on the
-		// consumer side (nil from the parsed payload means "not present")
-		// make this safe to do unconditionally.
-		chutil := float64(stats.GetChannelUtilization())
-		telemetry.Utilization.ChUtil = &chutil
-		airutiltx := float64(stats.GetAirUtilTx())
-		telemetry.Utilization.AirUtilTx = &airutiltx
-		uptime := stats.GetUptimeSeconds()
-		telemetry.Device.UptimeSeconds = &uptime
-	}
+	// LocalStats is intentionally NOT decoded.
+	//
+	// meshmap-lite is a passive MQTT observer (no self-node, no
+	// local-radio path), so we should not treat LocalStats as a
+	// fallback for normal node metrics. Meshtastic firmware produces
+	// LocalStats via sendLocalStatsToPhone() and only sends it to the
+	// locally-connected client via sendToPhone(); the routine mesh
+	// telemetry path is sendTelemetry() -> sendToMesh(), which carries
+	// DeviceMetrics. LocalStats may appear over the mesh only as a
+	// reply to an explicit `local_stats` telemetry request — that is a
+	// requested local diagnostic, not passive node state, and folding
+	// it into the snapshot would mix the two semantics.
+	//
+	// If a future need ever arises (e.g. an explicit local_stats
+	// request endpoint), re-enable the branch below; the field set is
+	// the same as DeviceMetrics and writes into the same Utilization
+	// / Device sections.
+	//
+	// if stats := tel.GetLocalStats(); stats != nil {
+	// 	chutil := float64(stats.GetChannelUtilization())
+	// 	telemetry.Utilization.ChUtil = &chutil
+	// 	airutiltx := float64(stats.GetAirUtilTx())
+	// 	telemetry.Utilization.AirUtilTx = &airutiltx
+	// 	uptime := stats.GetUptimeSeconds()
+	// 	telemetry.Device.UptimeSeconds = &uptime
+	// }
 
 	return telemetry, nil
 }

@@ -108,13 +108,15 @@ type TelemetryPayload struct {
 		IAQ  *float64 `json:"iaq"`
 	} `json:"air_quality"`
 	// Utilization carries radio load metrics (channel / air-time utilization).
-	// Source: Meshtastic DeviceMetrics and LocalStats.
+	// Source: Meshtastic DeviceMetrics. (LocalStats carries the same fields
+	// but is intentionally not decoded — see decodeTelemetryPayload.)
 	Utilization struct {
 		ChUtil    *float64 `json:"ch_util"`
 		AirUtilTx *float64 `json:"air_util_tx"`
 	} `json:"utilization"`
 	// Device carries device-level runtime metrics.
-	// Source: Meshtastic DeviceMetrics and LocalStats (UptimeSeconds).
+	// Source: Meshtastic DeviceMetrics.UptimeSeconds. (LocalStats is not
+	// decoded — see decodeTelemetryPayload.)
 	Device struct {
 		UptimeSeconds *uint32 `json:"uptime_seconds"`
 	} `json:"device"`
