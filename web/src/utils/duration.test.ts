@@ -1,4 +1,5 @@
 import {describe, expect, it} from 'vitest'
+
 import {formatDurationSeconds} from './duration'
 
 describe('formatDurationSeconds', () => {
