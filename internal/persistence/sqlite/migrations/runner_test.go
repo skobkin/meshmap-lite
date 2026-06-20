@@ -1000,8 +1000,8 @@ INSERT INTO log_events(id, observed_at, node_id, event_kind, encrypted, channel_
 	if err := db.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
-	if version != 18 {
-		t.Fatalf("expected user_version=18, got %d", version)
+	if version != 19 {
+		t.Fatalf("expected user_version=19, got %d", version)
 	}
 
 	var eventKind int
@@ -1114,8 +1114,8 @@ INSERT INTO log_events(id, observed_at, node_id, event_kind, encrypted, channel_
 	if err := db.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
-	if version != 18 {
-		t.Fatalf("expected user_version=18, got %d", version)
+	if version != 19 {
+		t.Fatalf("expected user_version=19, got %d", version)
 	}
 
 	// Row 1: kind 8 with portnum_name=STORE_FORWARD_APP — promoted

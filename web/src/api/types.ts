@@ -171,6 +171,13 @@ export interface NodeTelemetry {
     co2?: number
     iaq?: number
   }
+  utilization?: {
+    ch_util?: number
+    air_util_tx?: number
+  }
+  device?: {
+    uptime_seconds?: number
+  }
   source_channel?: string
   mqtt_uploader_node_id?: string
   mqtt_uploader_display_name?: string

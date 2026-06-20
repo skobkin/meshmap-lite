@@ -164,6 +164,18 @@ func decodeTelemetryPayload(payload []byte) (*TelemetryPayload, error) {
 			batteryLevel := float64(metrics.GetBatteryLevel())
 			telemetry.Power.BatteryLevel = &batteryLevel
 		}
+		if metrics.ChannelUtilization != nil {
+			chutil := float64(metrics.GetChannelUtilization())
+			telemetry.Utilization.ChUtil = &chutil
+		}
+		if metrics.AirUtilTx != nil {
+			airutiltx := float64(metrics.GetAirUtilTx())
+			telemetry.Utilization.AirUtilTx = &airutiltx
+		}
+		if metrics.UptimeSeconds != nil {
+			uptime := metrics.GetUptimeSeconds()
+			telemetry.Device.UptimeSeconds = &uptime
+		}
 	}
 	if metrics := tel.GetEnvironmentMetrics(); metrics != nil {
 		if metrics.Temperature != nil {

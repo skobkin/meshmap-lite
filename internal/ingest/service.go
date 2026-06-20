@@ -1228,6 +1228,9 @@ func (s *Service) handleTelemetry(ctx context.Context, evt meshtastic.ParsedEven
 	t.AirQuality.PM10 = in.AirQuality.PM10
 	t.AirQuality.CO2 = in.AirQuality.CO2
 	t.AirQuality.IAQ = in.AirQuality.IAQ
+	t.Utilization.ChUtil = in.Utilization.ChUtil
+	t.Utilization.AirUtilTx = in.Utilization.AirUtilTx
+	t.Device.UptimeSeconds = in.Device.UptimeSeconds
 	merged, err := s.store.MergeTelemetry(ctx, t)
 	if err != nil {
 		s.log.Error("merge telemetry failed", "node_id", evt.NodeID, "err", err)

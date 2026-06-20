@@ -13,6 +13,9 @@ func MergeTelemetry(current NodeTelemetrySnapshot, incoming NodeTelemetrySnapsho
 	mergeFloat(&merged.AirQuality.PM10, incoming.AirQuality.PM10)
 	mergeFloat(&merged.AirQuality.CO2, incoming.AirQuality.CO2)
 	mergeFloat(&merged.AirQuality.IAQ, incoming.AirQuality.IAQ)
+	mergeFloat(&merged.Utilization.ChUtil, incoming.Utilization.ChUtil)
+	mergeFloat(&merged.Utilization.AirUtilTx, incoming.Utilization.AirUtilTx)
+	mergeUint32(&merged.Device.UptimeSeconds, incoming.Device.UptimeSeconds)
 	if incoming.SourceChannel != "" {
 		merged.SourceChannel = incoming.SourceChannel
 	}
@@ -36,6 +39,14 @@ func MergeTelemetry(current NodeTelemetrySnapshot, incoming NodeTelemetrySnapsho
 }
 
 func mergeFloat(dst **float64, src *float64) {
+	if src == nil {
+		return
+	}
+	v := *src
+	*dst = &v
+}
+
+func mergeUint32(dst **uint32, src *uint32) {
 	if src == nil {
 		return
 	}

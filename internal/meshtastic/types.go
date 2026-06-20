@@ -106,6 +106,17 @@ type TelemetryPayload struct {
 		CO2  *float64 `json:"co2"`
 		IAQ  *float64 `json:"iaq"`
 	} `json:"air_quality"`
+	// Utilization carries radio load metrics (channel / air-time utilization).
+	// Source: Meshtastic DeviceMetrics and LocalStats.
+	Utilization struct {
+		ChUtil    *float64 `json:"ch_util"`
+		AirUtilTx *float64 `json:"air_util_tx"`
+	} `json:"utilization"`
+	// Device carries device-level runtime metrics.
+	// Source: Meshtastic DeviceMetrics and LocalStats (UptimeSeconds).
+	Device struct {
+		UptimeSeconds *uint32 `json:"uptime_seconds"`
+	} `json:"device"`
 }
 
 // MapReportPayload contains decoded map report content.

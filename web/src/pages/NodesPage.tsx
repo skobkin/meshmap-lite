@@ -4,6 +4,7 @@ import { LogEventList } from '../components/LogEventList'
 import { ResolvedNodeData } from '../components/ResolvedNodeData'
 import { defaultMarkerDataUrl } from '../maps/markerIcons'
 import { formatBattery } from '../utils/battery'
+import { formatDurationSeconds } from '../utils/duration'
 import { relativeTime } from '../utils/time'
 import { neighborTimeLabel, sortedNeighbors, topologyEvidenceLabel, topologySignalLabel } from '../utils/topology'
 
@@ -168,7 +169,10 @@ function detailSections(details: NodeDetails): DetailSection[] {
         row('PM2.5', displayValue(details.telemetry?.air_quality.pm25)),
         row('PM10', displayValue(details.telemetry?.air_quality.pm10)),
         row('CO2', displayValue(details.telemetry?.air_quality.co2)),
-        row('IAQ', displayValue(details.telemetry?.air_quality.iaq))
+        row('IAQ', displayValue(details.telemetry?.air_quality.iaq)),
+        row('Channel utilization (%)', displayValue(details.telemetry?.utilization?.ch_util)),
+        row('AirUtil TX (%)', displayValue(details.telemetry?.utilization?.air_util_tx)),
+        row('Uptime', formatDurationSeconds(details.telemetry?.device?.uptime_seconds) ?? '—')
       ])
     },
     {

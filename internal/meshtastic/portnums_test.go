@@ -38,6 +38,52 @@ func TestDecodeTelemetryPayloadPreservesExplicitZeroValues(t *testing.T) {
 			},
 		},
 		{
+			name: "device metrics extended",
+			msg: &generated.Telemetry{
+				Variant: &generated.Telemetry_DeviceMetrics{
+					DeviceMetrics: &generated.DeviceMetrics{
+						ChannelUtilization: &zeroFloat,
+						AirUtilTx:          &zeroFloat,
+						UptimeSeconds:      &zeroUint,
+					},
+				},
+			},
+			assert: func(t *testing.T, telemetry *TelemetryPayload) {
+				if telemetry.Utilization.ChUtil == nil || *telemetry.Utilization.ChUtil != 0 {
+					t.Fatalf("expected ch_util pointer with zero value, got %#v", telemetry.Utilization.ChUtil)
+				}
+				if telemetry.Utilization.AirUtilTx == nil || *telemetry.Utilization.AirUtilTx != 0 {
+					t.Fatalf("expected air_util_tx pointer with zero value, got %#v", telemetry.Utilization.AirUtilTx)
+				}
+				if telemetry.Device.UptimeSeconds == nil || *telemetry.Device.UptimeSeconds != 0 {
+					t.Fatalf("expected uptime_seconds pointer with zero value, got %#v", telemetry.Device.UptimeSeconds)
+				}
+			},
+		},
+		{
+			name: "device metrics extended non-zero",
+			msg: &generated.Telemetry{
+				Variant: &generated.Telemetry_DeviceMetrics{
+					DeviceMetrics: &generated.DeviceMetrics{
+						ChannelUtilization: func() *float32 { v := float32(12.5); return &v }(),
+						AirUtilTx:          func() *float32 { v := float32(2.5); return &v }(),
+						UptimeSeconds:      func() *uint32 { v := uint32(86400); return &v }(),
+					},
+				},
+			},
+			assert: func(t *testing.T, telemetry *TelemetryPayload) {
+				if telemetry.Utilization.ChUtil == nil || *telemetry.Utilization.ChUtil != 12.5 {
+					t.Fatalf("expected ch_util=12.5, got %#v", telemetry.Utilization.ChUtil)
+				}
+				if telemetry.Utilization.AirUtilTx == nil || *telemetry.Utilization.AirUtilTx != 2.5 {
+					t.Fatalf("expected air_util_tx=2.5, got %#v", telemetry.Utilization.AirUtilTx)
+				}
+				if telemetry.Device.UptimeSeconds == nil || *telemetry.Device.UptimeSeconds != 86400 {
+					t.Fatalf("expected uptime_seconds=86400, got %#v", telemetry.Device.UptimeSeconds)
+				}
+			},
+		},
+		{
 			name: "environment metrics",
 			msg: &generated.Telemetry{
 				Variant: &generated.Telemetry_EnvironmentMetrics{

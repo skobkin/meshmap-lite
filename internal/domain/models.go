@@ -74,12 +74,29 @@ type TelemetrySectionAirQuality struct {
 	IAQ  *float64 `json:"iaq,omitempty"`
 }
 
+// TelemetrySectionUtilization stores radio channel utilization metrics.
+// These come from Meshtastic DeviceMetrics and LocalStats (channel/air utilization
+// as percentages, where 0 means "idle" and is valid).
+type TelemetrySectionUtilization struct {
+	ChUtil    *float64 `json:"ch_util,omitempty"`
+	AirUtilTx *float64 `json:"air_util_tx,omitempty"`
+}
+
+// TelemetrySectionDevice stores device-level runtime metrics.
+// UptimeSeconds comes from Meshtastic DeviceMetrics and LocalStats; 0 is valid
+// (means "just booted").
+type TelemetrySectionDevice struct {
+	UptimeSeconds *uint32 `json:"uptime_seconds,omitempty"`
+}
+
 // NodeTelemetrySnapshot stores merged telemetry readings for a node.
 type NodeTelemetrySnapshot struct {
 	NodeID                  string                      `json:"node_id"`
 	Power                   TelemetrySectionPower       `json:"power"`
 	Environment             TelemetrySectionEnvironment `json:"environment"`
 	AirQuality              TelemetrySectionAirQuality  `json:"air_quality"`
+	Utilization             TelemetrySectionUtilization `json:"utilization"`
+	Device                  TelemetrySectionDevice      `json:"device"`
 	SourceChannel           string                      `json:"source_channel,omitempty"`
 	MQTTUploaderNodeID      string                      `json:"mqtt_uploader_node_id,omitempty"`
 	MQTTUploaderDisplayName string                      `json:"mqtt_uploader_display_name,omitempty"`

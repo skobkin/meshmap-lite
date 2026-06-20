@@ -1091,6 +1091,10 @@ components:
           $ref: '#/components/schemas/TelemetryEnvironment'
         air_quality:
           $ref: '#/components/schemas/TelemetryAirQuality'
+        utilization:
+          $ref: '#/components/schemas/TelemetryUtilization'
+        device:
+          $ref: '#/components/schemas/TelemetryDevice'
         source_channel:
           type: string
         mqtt_uploader_node_id:
@@ -1134,6 +1138,22 @@ components:
           type: number
         iaq:
           type: number
+    TelemetryUtilization:
+      type: object
+      properties:
+        ch_util:
+          type: number
+          description: Channel utilization percentage (0-100).
+        air_util_tx:
+          type: number
+          description: Airtime used for transmission percentage (0-100).
+    TelemetryDevice:
+      type: object
+      properties:
+        uptime_seconds:
+          type: integer
+          format: int64
+          description: Seconds since the device last rebooted.
     NodeNeighbor:
       type: object
       required: [node_id, display_name, has_position, evidence_kind, last_observed_at, updated_at]
