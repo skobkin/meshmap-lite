@@ -156,6 +156,17 @@ type LogConfig struct {
 // StatsConfig controls charts and aggregate activity APIs.
 type StatsConfig struct {
 	Activity StatsActivityConfig `koanf:"activity"`
+	Software StatsSoftwareConfig `koanf:"software"`
+}
+
+// StatsSoftwareConfig configures the "Software" section on StatsPage:
+// firmware snapshot + history charts. Future sections (e.g. "Hardware"
+// for issue #109) follow the same shape with their own config block.
+type StatsSoftwareConfig struct {
+	SnapshotCacheTTL time.Duration `koanf:"snapshot_cache_ttl"` // default 1h
+	HistoryCacheTTL  time.Duration `koanf:"history_cache_ttl"`  // default 24h
+	HistoryWeeks     int           `koanf:"history_weeks"`      // default 54
+	TopVersions      int           `koanf:"top_versions"`       // default 15
 }
 
 // StatsActivityConfig configures fixed activity chart periods.

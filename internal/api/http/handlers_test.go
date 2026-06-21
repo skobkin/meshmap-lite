@@ -663,3 +663,294 @@ func TestNodeByIDReturnsNodeDetails(t *testing.T) {
 		t.Fatalf("unexpected previous names payload: %#v", item.PreviousNames)
 	}
 }
+
+// firmwareSoftwareConfig is the test-side default StatsSoftwareConfig.
+// Tests that don't need to vary a field use this verbatim; tests that
+// do override individual fields on the returned struct. The TTLs mirror
+// production defaults — their effect on the cache is tested directly in
+// cache_test.go.
+var firmwareSoftwareConfig = config.StatsSoftwareConfig{
+	SnapshotCacheTTL: time.Hour,
+	HistoryCacheTTL:  24 * time.Hour,
+	HistoryWeeks:     54,
+	TopVersions:      15,
+}
+
+func TestFirmwareSnapshotHandler_ReturnsVersionsAndTotal(t *testing.T) {
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	store := &testkit.FakeStore{
+		FirmwareVersionSnapshotFn: func(_ context.Context) ([]repo.FirmwareVersionCount, error) {
+			return []repo.FirmwareVersionCount{
+				{Version: "2.7.15", Count: 3, LastSeenAt: now.Add(-1 * time.Hour)},
+				{Version: "2.7.10", Count: 2, LastSeenAt: now.Add(-2 * time.Hour)},
+				{Version: "2.6.5", Count: 1, LastSeenAt: now.Add(-24 * time.Hour)},
+			}, nil
+		},
+	}
+	srv := New(Config{Web: config.WebConfig{Stats: config.StatsConfig{Software: firmwareSoftwareConfig}}},
+		store, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil, nil)
+	srv.now = func() time.Time { return now }
+	srv.firmwareCache.now = func() time.Time { return now }
+	srv.firmwareCache.now = func() time.Time { return now }
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/stats/firmware", nil)
+	rec := httptest.NewRecorder()
+	srv.firmwareSnapshot(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	var payload firmwareSnapshotPayload
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload.TotalNodesWithVersion != 6 {
+		t.Errorf("expected total_nodes_with_version 6, got %d", payload.TotalNodesWithVersion)
+	}
+	if len(payload.Versions) != 3 {
+		t.Fatalf("expected 3 versions, got %d", len(payload.Versions))
+	}
+	if payload.Versions[0].Version != "2.7.15" || payload.Versions[0].Count != 3 {
+		t.Errorf("expected first version 2.7.15 count 3, got %+v", payload.Versions[0])
+	}
+	if !payload.GeneratedAt.Equal(now) {
+		t.Errorf("expected generated_at %s, got %s", now, payload.GeneratedAt)
+	}
+}
+
+func TestFirmwareSnapshotHandler_ReusesCacheUntilTTL(t *testing.T) {
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	calls := 0
+	store := &testkit.FakeStore{
+		FirmwareVersionSnapshotFn: func(_ context.Context) ([]repo.FirmwareVersionCount, error) {
+			calls++
+
+			return []repo.FirmwareVersionCount{{Version: "2.7.15", Count: calls, LastSeenAt: now}}, nil
+		},
+	}
+	srv := New(Config{Web: config.WebConfig{Stats: config.StatsConfig{Software: firmwareSoftwareConfig}}},
+		store, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil, nil)
+	srv.now = func() time.Time { return now }
+	srv.firmwareCache.now = func() time.Time { return now }
+	srv.firmwareCache.now = func() time.Time { return now }
+	srv.firmwareCache.now = func() time.Time { return now }
+
+	hit := func() firmwareSnapshotPayload {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/stats/firmware", nil)
+		rec := httptest.NewRecorder()
+		srv.firmwareSnapshot(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("unexpected status: %d", rec.Code)
+		}
+		var payload firmwareSnapshotPayload
+		if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+
+		return payload
+	}
+
+	first := hit()
+	if first.Versions[0].Count != 1 {
+		t.Fatalf("expected count 1, got %d", first.Versions[0].Count)
+	}
+
+	second := hit()
+	if calls != 1 {
+		t.Fatalf("expected cache reuse (one store call), got %d", calls)
+	}
+	if second.Versions[0].Count != 1 {
+		t.Fatalf("expected cached count 1, got %d", second.Versions[0].Count)
+	}
+
+	// Advance past the snapshot TTL — next request must recompute.
+	advanced := now.Add(2 * time.Hour)
+	srv.now = func() time.Time { return advanced }
+	srv.firmwareCache.now = func() time.Time { return advanced }
+	third := hit()
+	if calls != 2 {
+		t.Fatalf("expected cache expiry to trigger store call, got %d calls", calls)
+	}
+	if third.Versions[0].Count != 2 {
+		t.Fatalf("expected fresh count 2 after expiry, got %d", third.Versions[0].Count)
+	}
+}
+
+func TestFirmwareSnapshotHandler_InvalidateBustsCache(t *testing.T) {
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	calls := 0
+	store := &testkit.FakeStore{
+		FirmwareVersionSnapshotFn: func(_ context.Context) ([]repo.FirmwareVersionCount, error) {
+			calls++
+
+			return []repo.FirmwareVersionCount{{Version: "2.7.15", Count: calls, LastSeenAt: now}}, nil
+		},
+	}
+	srv := New(Config{Web: config.WebConfig{Stats: config.StatsConfig{Software: firmwareSoftwareConfig}}},
+		store, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil, nil)
+	srv.now = func() time.Time { return now }
+	srv.firmwareCache.now = func() time.Time { return now }
+	srv.firmwareCache.now = func() time.Time { return now }
+	srv.firmwareCache.now = func() time.Time { return now }
+
+	hit := func() {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/stats/firmware", nil)
+		rec := httptest.NewRecorder()
+		srv.firmwareSnapshot(rec, req)
+	}
+
+	hit()
+	hit()
+	if calls != 1 {
+		t.Fatalf("expected cache reuse before invalidation, got %d calls", calls)
+	}
+
+	// Scheduled-job callback hits the cache.
+	srv.InvalidateFirmwareCaches()
+
+	hit()
+	if calls != 2 {
+		t.Fatalf("expected invalidation to trigger a store call, got %d calls", calls)
+	}
+}
+
+func TestFirmwareHistoryHandler_RespectsQueryParams(t *testing.T) {
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC) // Sunday — start of week is 2026-06-15 (Mon)
+	store := &testkit.FakeStore{
+		FirmwareVersionHistoryFn: func(_ context.Context, since time.Time, topN, totalWeeks int) (repo.FirmwareHistoryResult, error) {
+			// Handler does naive `now - 7*weeks` (the store snaps to
+			// Monday 00:00 UTC internally); the fake gets the raw value.
+			wantSince := now.AddDate(0, 0, -7*8)
+			if !since.Equal(wantSince) {
+				t.Errorf("unexpected since: got %s, want %s", since, wantSince)
+			}
+			if topN != 5 {
+				t.Errorf("expected top=5, got %d", topN)
+			}
+			if totalWeeks != 8 {
+				t.Errorf("expected weeks=8, got %d", totalWeeks)
+			}
+
+			return repo.FirmwareHistoryResult{
+				Weeks: totalWeeks,
+				TopN:  topN,
+				Versions: []string{
+					"2.7.15", "2.7.10", "2.6.5", "2.5.0", "2.4.0",
+				},
+				VersionsByWeek: [][]int{
+					{1, 1, 1, 1, 0, 0, 1, 1},
+					{0, 0, 1, 1, 1, 1, 0, 0},
+					{2, 2, 1, 0, 0, 0, 0, 0},
+					{0, 0, 0, 0, 0, 0, 1, 1},
+					{0, 0, 0, 0, 0, 0, 0, 0},
+				},
+			}, nil
+		},
+	}
+	srv := New(Config{Web: config.WebConfig{Stats: config.StatsConfig{Software: firmwareSoftwareConfig}}},
+		store, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil, nil)
+	srv.now = func() time.Time { return now }
+	srv.firmwareCache.now = func() time.Time { return now }
+	srv.firmwareCache.now = func() time.Time { return now }
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/stats/firmware/history?weeks=8&top=5", nil)
+	rec := httptest.NewRecorder()
+	srv.firmwareHistory(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	var payload firmwareHistoryPayload
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload.Weeks != 8 || payload.Top != 5 {
+		t.Fatalf("unexpected payload metadata: %+v", payload)
+	}
+	if len(payload.Versions) != 5 {
+		t.Fatalf("expected 5 versions, got %d", len(payload.Versions))
+	}
+	if len(payload.VersionsByWeek) != 5 || len(payload.VersionsByWeek[0]) != 8 {
+		t.Fatalf("unexpected versions_by_week shape: %d series x %d weeks",
+			len(payload.VersionsByWeek), len(payload.VersionsByWeek[0]))
+	}
+}
+
+func TestFirmwareHistoryHandler_AppliesDefaultsWhenNoQuery(t *testing.T) {
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	store := &testkit.FakeStore{
+		FirmwareVersionHistoryFn: func(_ context.Context, since time.Time, topN, totalWeeks int) (repo.FirmwareHistoryResult, error) {
+			if topN != 15 {
+				t.Errorf("expected default top=15, got %d", topN)
+			}
+			if totalWeeks != 54 {
+				t.Errorf("expected default weeks=54, got %d", totalWeeks)
+			}
+
+			return repo.FirmwareHistoryResult{Weeks: totalWeeks, TopN: topN, Versions: []string{"2.7.15"}, VersionsByWeek: [][]int{make([]int, totalWeeks)}}, nil
+		},
+	}
+	srv := New(Config{Web: config.WebConfig{Stats: config.StatsConfig{Software: firmwareSoftwareConfig}}},
+		store, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil, nil)
+	srv.now = func() time.Time { return now }
+	srv.firmwareCache.now = func() time.Time { return now }
+	srv.firmwareCache.now = func() time.Time { return now }
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/stats/firmware/history", nil)
+	rec := httptest.NewRecorder()
+	srv.firmwareHistory(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+}
+
+func TestFirmwareHistoryHandler_HistoryCacheIsSeparateFromSnapshot(t *testing.T) {
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	snapCalls, histCalls := 0, 0
+	store := &testkit.FakeStore{
+		FirmwareVersionSnapshotFn: func(_ context.Context) ([]repo.FirmwareVersionCount, error) {
+			snapCalls++
+
+			return []repo.FirmwareVersionCount{{Version: "2.7.15", Count: 1, LastSeenAt: now}}, nil
+		},
+		FirmwareVersionHistoryFn: func(_ context.Context, _ time.Time, _, _ int) (repo.FirmwareHistoryResult, error) {
+			histCalls++
+
+			return repo.FirmwareHistoryResult{
+				Weeks:          1,
+				TopN:           1,
+				Versions:       []string{"2.7.15"},
+				VersionsByWeek: [][]int{{1}},
+			}, nil
+		},
+	}
+	srv := New(Config{Web: config.WebConfig{Stats: config.StatsConfig{Software: firmwareSoftwareConfig}}},
+		store, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil, nil)
+	srv.now = func() time.Time { return now }
+	srv.firmwareCache.now = func() time.Time { return now }
+	srv.firmwareCache.now = func() time.Time { return now }
+
+	hit := func(path string) {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		rec := httptest.NewRecorder()
+		switch path {
+		case "/api/v1/stats/firmware":
+			srv.firmwareSnapshot(rec, req)
+		case "/api/v1/stats/firmware/history":
+			srv.firmwareHistory(rec, req)
+		}
+	}
+
+	hit("/api/v1/stats/firmware")
+	hit("/api/v1/stats/firmware")
+	hit("/api/v1/stats/firmware/history")
+	hit("/api/v1/stats/firmware/history")
+
+	if snapCalls != 1 {
+		t.Errorf("expected snapshot cache reuse (1 call), got %d", snapCalls)
+	}
+	if histCalls != 1 {
+		t.Errorf("expected history cache reuse (1 call), got %d", histCalls)
+	}
+}

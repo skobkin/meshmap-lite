@@ -117,6 +117,12 @@ func defaultConfig() Config {
 						Bucket: defaultStatsWeeklyBucket,
 					},
 				},
+				Software: StatsSoftwareConfig{
+					SnapshotCacheTTL: time.Hour,
+					HistoryCacheTTL:  24 * time.Hour,
+					HistoryWeeks:     54,
+					TopVersions:      15,
+				},
 			},
 		},
 		Logging: LoggingConfig{Level: defaultLoggingLevel},

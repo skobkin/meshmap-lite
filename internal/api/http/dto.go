@@ -127,3 +127,31 @@ type activityBucketPayload struct {
 	RangeTest    int       `json:"range_test"`
 	Traceroute   int       `json:"traceroute"`
 }
+
+// firmwareSnapshotPayload is the response body of
+// GET /api/v1/stats/firmware.
+type firmwareSnapshotPayload struct {
+	GeneratedAt           time.Time                `json:"generated_at"`
+	TotalNodesWithVersion int                      `json:"total_nodes_with_version"`
+	Versions              []firmwareVersionPayload `json:"versions"`
+}
+
+type firmwareVersionPayload struct {
+	Version    string    `json:"version"`
+	Count      int       `json:"count"`
+	LastSeenAt time.Time `json:"last_seen_at,omitempty"`
+}
+
+// firmwareHistoryPayload is the response body of
+// GET /api/v1/stats/firmware/history.
+//
+// VersionsByWeek[i][j] is the count of devices on Versions[i] at week
+// index j (j=0 is the oldest week, j=Weeks-1 is the newest). Missing
+// weeks are zero-filled so the chart's x-axis stays contiguous.
+type firmwareHistoryPayload struct {
+	GeneratedAt    time.Time `json:"generated_at"`
+	Weeks          int       `json:"weeks"`
+	Top            int       `json:"top"`
+	Versions       []string  `json:"versions"`
+	VersionsByWeek [][]int   `json:"versions_by_week"`
+}

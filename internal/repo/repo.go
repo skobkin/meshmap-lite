@@ -16,6 +16,9 @@ type WriteStore interface {
 	InsertChatEvent(ctx context.Context, event domain.ChatEvent) (int64, error)
 	InsertLogEvent(ctx context.Context, event domain.LogEvent) (int64, error)
 	ResolveNodeDisplay(ctx context.Context, nodeID string) (string, error)
+	UpsertFirmwareVersion(ctx context.Context, version string, observedAt time.Time) (int64, error)
+	UpdateNodeFirmwareVersion(ctx context.Context, nodeID string, versionID int64, observedAt time.Time) error
+	RecordFirmwareHistoryWeek(ctx context.Context, weekStart time.Time, observedAt time.Time) (int64, error)
 }
 
 // ReadStore defines query operations used by HTTP and other read APIs.
@@ -28,6 +31,9 @@ type ReadStore interface {
 	ListLogEvents(ctx context.Context, q domain.LogEventQuery) ([]domain.LogEventView, error)
 	ActivityBuckets(ctx context.Context, q domain.ActivityQuery) ([]domain.ActivityBucket, error)
 	Stats(ctx context.Context, disconnectedThreshold time.Duration) (domain.Stats, error)
+	FirmwareVersionSnapshot(ctx context.Context) ([]FirmwareVersionCount, error)
+	FirmwareVersionHistory(ctx context.Context, since time.Time, topN int, totalWeeks int) (FirmwareHistoryResult, error)
+	LastFirmwareHistoryWeek(ctx context.Context) (time.Time, error)
 }
 
 // MapNodeQuery defines map snapshot visibility cutoffs.
@@ -133,4 +139,23 @@ type TopologyEdgeQuery struct {
 	// callers). Adapters that support limiting should treat positive values as
 	// an exclusive bound and negative values as "no cap".
 	Limit int
+}
+
+// FirmwareVersionCount is one row of the firmware snapshot distribution.
+type FirmwareVersionCount struct {
+	Version    string    `json:"version"`
+	Count      int       `json:"count"`
+	LastSeenAt time.Time `json:"last_seen_at"`
+}
+
+// FirmwareHistoryResult is the dense, zero-padded shape served by the API.
+//
+// VersionsByWeek[i][j] is the count of devices on Versions[i] at week index j
+// (j=0 is the oldest week, j=Weeks-1 is the newest). Missing weeks are padded
+// with zeros so the chart's x-axis stays contiguous.
+type FirmwareHistoryResult struct {
+	Weeks          int
+	TopN           int
+	Versions       []string
+	VersionsByWeek [][]int
 }

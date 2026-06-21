@@ -83,6 +83,11 @@ web:
         bucket: 5m
       weekly:
         bucket: 1h
+    software:
+      snapshot_cache_ttl: 1h    # how long the current-fleet distribution is reused
+      history_cache_ttl: 24h    # how long the per-week history chart is reused
+      history_weeks: 54         # default 1 year at weekly precision
+      top_versions: 15          # versions rendered individually; rest go into "(other)"
 
 logging:
   level: info

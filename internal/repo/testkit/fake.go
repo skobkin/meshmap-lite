@@ -10,22 +10,28 @@ import (
 
 // FakeStore is a lightweight configurable fake for repository-facing tests.
 type FakeStore struct {
-	UpsertNodeFn          func(context.Context, domain.Node) (bool, error)
-	UpsertPositionFn      func(context.Context, domain.NodePosition) error
-	MergeTelemetryFn      func(context.Context, domain.NodeTelemetrySnapshot) (domain.NodeTelemetrySnapshot, error)
-	UpsertTopologyEdgesFn func(context.Context, []domain.TopologyEdge) error
-	InsertChatEventFn     func(context.Context, domain.ChatEvent) (int64, error)
-	InsertLogEventFn      func(context.Context, domain.LogEvent) (int64, error)
-	ResolveNodeDisplayFn  func(context.Context, string) (string, error)
+	UpsertNodeFn                func(context.Context, domain.Node) (bool, error)
+	UpsertPositionFn            func(context.Context, domain.NodePosition) error
+	MergeTelemetryFn            func(context.Context, domain.NodeTelemetrySnapshot) (domain.NodeTelemetrySnapshot, error)
+	UpsertTopologyEdgesFn       func(context.Context, []domain.TopologyEdge) error
+	InsertChatEventFn           func(context.Context, domain.ChatEvent) (int64, error)
+	InsertLogEventFn            func(context.Context, domain.LogEvent) (int64, error)
+	ResolveNodeDisplayFn        func(context.Context, string) (string, error)
+	UpsertFirmwareVersionFn     func(context.Context, string, time.Time) (int64, error)
+	UpdateNodeFirmwareVersionFn func(context.Context, string, int64, time.Time) error
+	RecordFirmwareHistoryWeekFn func(context.Context, time.Time, time.Time) (int64, error)
 
-	GetMapNodesFn       func(context.Context, repo.MapNodeQuery) ([]repo.MapNode, error)
-	ListNodesFn         func(context.Context, repo.NodeListQuery) ([]repo.NodeSummary, error)
-	GetNodeDetailsFn    func(context.Context, repo.NodeDetailsQuery) (repo.NodeDetails, error)
-	ListTopologyEdgesFn func(context.Context, repo.TopologyEdgeQuery) ([]domain.TopologyEdge, error)
-	ListChatEventsFn    func(context.Context, repo.ChatEventQuery) ([]domain.ChatEvent, error)
-	ListLogEventsFn     func(context.Context, domain.LogEventQuery) ([]domain.LogEventView, error)
-	ActivityBucketsFn   func(context.Context, domain.ActivityQuery) ([]domain.ActivityBucket, error)
-	StatsFn             func(context.Context, time.Duration) (domain.Stats, error)
+	GetMapNodesFn             func(context.Context, repo.MapNodeQuery) ([]repo.MapNode, error)
+	ListNodesFn               func(context.Context, repo.NodeListQuery) ([]repo.NodeSummary, error)
+	GetNodeDetailsFn          func(context.Context, repo.NodeDetailsQuery) (repo.NodeDetails, error)
+	ListTopologyEdgesFn       func(context.Context, repo.TopologyEdgeQuery) ([]domain.TopologyEdge, error)
+	ListChatEventsFn          func(context.Context, repo.ChatEventQuery) ([]domain.ChatEvent, error)
+	ListLogEventsFn           func(context.Context, domain.LogEventQuery) ([]domain.LogEventView, error)
+	ActivityBucketsFn         func(context.Context, domain.ActivityQuery) ([]domain.ActivityBucket, error)
+	StatsFn                   func(context.Context, time.Duration) (domain.Stats, error)
+	FirmwareVersionSnapshotFn func(context.Context) ([]repo.FirmwareVersionCount, error)
+	FirmwareVersionHistoryFn  func(context.Context, time.Time, int, int) (repo.FirmwareHistoryResult, error)
+	LastFirmwareHistoryWeekFn func(context.Context) (time.Time, error)
 }
 
 // UpsertNode implements repo.WriteStore.
@@ -89,6 +95,33 @@ func (f *FakeStore) ResolveNodeDisplay(ctx context.Context, nodeID string) (stri
 	}
 
 	return nodeID, nil
+}
+
+// UpsertFirmwareVersion implements repo.WriteStore.
+func (f *FakeStore) UpsertFirmwareVersion(ctx context.Context, version string, observedAt time.Time) (int64, error) {
+	if f.UpsertFirmwareVersionFn != nil {
+		return f.UpsertFirmwareVersionFn(ctx, version, observedAt)
+	}
+
+	return 0, nil
+}
+
+// UpdateNodeFirmwareVersion implements repo.WriteStore.
+func (f *FakeStore) UpdateNodeFirmwareVersion(ctx context.Context, nodeID string, versionID int64, observedAt time.Time) error {
+	if f.UpdateNodeFirmwareVersionFn != nil {
+		return f.UpdateNodeFirmwareVersionFn(ctx, nodeID, versionID, observedAt)
+	}
+
+	return nil
+}
+
+// RecordFirmwareHistoryWeek implements repo.WriteStore.
+func (f *FakeStore) RecordFirmwareHistoryWeek(ctx context.Context, weekStart time.Time, observedAt time.Time) (int64, error) {
+	if f.RecordFirmwareHistoryWeekFn != nil {
+		return f.RecordFirmwareHistoryWeekFn(ctx, weekStart, observedAt)
+	}
+
+	return 0, nil
 }
 
 // GetMapNodes implements repo.ReadStore.
@@ -161,4 +194,31 @@ func (f *FakeStore) Stats(ctx context.Context, threshold time.Duration) (domain.
 	}
 
 	return domain.Stats{}, nil
+}
+
+// FirmwareVersionSnapshot implements repo.ReadStore.
+func (f *FakeStore) FirmwareVersionSnapshot(ctx context.Context) ([]repo.FirmwareVersionCount, error) {
+	if f.FirmwareVersionSnapshotFn != nil {
+		return f.FirmwareVersionSnapshotFn(ctx)
+	}
+
+	return nil, nil
+}
+
+// FirmwareVersionHistory implements repo.ReadStore.
+func (f *FakeStore) FirmwareVersionHistory(ctx context.Context, since time.Time, topN int, totalWeeks int) (repo.FirmwareHistoryResult, error) {
+	if f.FirmwareVersionHistoryFn != nil {
+		return f.FirmwareVersionHistoryFn(ctx, since, topN, totalWeeks)
+	}
+
+	return repo.FirmwareHistoryResult{}, nil
+}
+
+// LastFirmwareHistoryWeek implements repo.ReadStore.
+func (f *FakeStore) LastFirmwareHistoryWeek(ctx context.Context) (time.Time, error) {
+	if f.LastFirmwareHistoryWeekFn != nil {
+		return f.LastFirmwareHistoryWeekFn(ctx)
+	}
+
+	return time.Time{}, nil
 }

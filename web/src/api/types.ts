@@ -281,6 +281,29 @@ export interface ActivityStats {
   periods: ActivityPeriod[]
 }
 
+export interface FirmwareVersionCount {
+  version: string
+  count: number
+  last_seen_at: string
+}
+
+export interface FirmwareSnapshot {
+  generated_at: string
+  total_nodes_with_version: number
+  versions: FirmwareVersionCount[]
+}
+
+export interface FirmwareHistory {
+  generated_at: string
+  weeks: number
+  top: number
+  // The last entry is "(other)" when there are versions outside the top-N.
+  versions: string[]
+  // versions_by_week[i][j] is the count of nodes on versions[i] at week j,
+  // j=0 is the oldest week, j=weeks-1 is the newest.
+  versions_by_week: number[][]
+}
+
 export interface LogEvent {
   id: number
   observed_at: string

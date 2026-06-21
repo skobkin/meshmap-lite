@@ -1180,6 +1180,19 @@ func (s *Service) handleNodeInfo(ctx context.Context, evt meshtastic.ParsedEvent
 
 		return false
 	}
+	// Firmware version is normalized into firmware_versions (lookup) +
+	// nodes.firmware_version_id (FK). UpsertNode no longer writes the TEXT
+	// column, so we update the FK here. Only fires when the packet carries a
+	// version string (empty stays NULL on the FK).
+	if in.FirmwareVersion != "" {
+		versionID, err := s.store.UpsertFirmwareVersion(ctx, in.FirmwareVersion, now)
+		if err != nil {
+			s.log.Error("upsert firmware version failed", "node_id", evt.NodeID, "err", err)
+			// Non-fatal: the node row is already persisted; just skip the FK update.
+		} else if err := s.store.UpdateNodeFirmwareVersion(ctx, evt.NodeID, versionID, now); err != nil {
+			s.log.Error("update node firmware version failed", "node_id", evt.NodeID, "err", err)
+		}
+	}
 	s.emitter.Emit(domain.RealtimeEvent{Type: "node.upsert", TS: now, Payload: n})
 
 	return true

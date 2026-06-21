@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { StatsPage, nextBoundaryDelay, parseDurationMillis } from './StatsPage'
 
-import type { ActivityStats } from '../api/types'
+import type { ActivityStats, FirmwareHistory, FirmwareSnapshot } from '../api/types'
 
 type MockAxisValues = (plot: unknown, ticks: number[], axisIndex: number, foundSpace: number, foundIncr: number) => (number | string | null)[]
 type MockAxisSplits = (plot: unknown, axisIndex: number, scaleMin: number, scaleMax: number, foundIncr: number, foundSpace: number) => number[]
@@ -19,12 +19,21 @@ interface MockPlot {
 interface MockAxis {
   border?: { stroke?: string }
   grid?: { stroke?: string }
+  rotate?: number
   size?: number
   space?: number
   splits?: MockAxisSplits
   stroke?: string
   ticks?: { stroke?: string }
   values?: MockAxisValues
+}
+
+interface MockSeries {
+  fill?: string
+  label?: string
+  paths?: unknown
+  stroke?: string
+  width?: number
 }
 
 interface MockOptions {
@@ -39,12 +48,10 @@ interface MockOptions {
       setCursor?: MockSetCursorHook
     }
   }[]
-  series?: {
-    fill?: string
-    label?: string
-    stroke?: string
-    width?: number
-  }[]
+  scales?: {
+    x?: { distr?: number; time?: boolean }
+  }
+  series?: MockSeries[]
 }
 
 const uplotMock = vi.hoisted(() => ({
@@ -58,6 +65,10 @@ const uplotMock = vi.hoisted(() => ({
 
 vi.mock('uplot', () => ({
   default: class UPlotMock {
+    public static paths = {
+      bars: vi.fn(() => (): unknown[] => [])
+    }
+
     public constructor(options: MockOptions, data: number[][]) {
       uplotMock.options.push(options)
       uplotMock.data.push(data)
@@ -79,7 +90,9 @@ vi.mock('uplot', () => ({
 }))
 
 const apiMock = vi.hoisted(() => ({
-  statsActivity: vi.fn()
+  statsActivity: vi.fn(),
+  firmwareSnapshot: vi.fn(),
+  firmwareHistory: vi.fn()
 }))
 
 vi.mock('../api/client', () => ({
@@ -121,6 +134,35 @@ function stats(): ActivityStats {
   }
 }
 
+function firmwareSnapshot(): FirmwareSnapshot {
+  return {
+    generated_at: '2026-05-04T12:00:00Z',
+    total_nodes_with_version: 12,
+    versions: [
+      { version: '2.6.5', count: 7, last_seen_at: '2026-05-04T11:00:00Z' },
+      { version: '2.7.10', count: 3, last_seen_at: '2026-05-04T11:30:00Z' },
+      { version: '2.7.15', count: 2, last_seen_at: '2026-05-04T11:45:00Z' }
+    ]
+  }
+}
+
+function firmwareHistory(): FirmwareHistory {
+  // 8 weeks, 3 top versions + "(other)". Pad zeros explicitly so the
+  // chart has visible non-zero values at known indices.
+  return {
+    generated_at: '2026-05-04T12:00:00Z',
+    weeks: 8,
+    top: 3,
+    versions: ['2.6.5', '2.7.10', '2.7.15', '(other)'],
+    versions_by_week: [
+      [10, 12, 15, 8, 5, 3, 2, 18],
+      [12, 13, 8, 5, 1, 3, 18, 2],
+      [12, 13, 8, 4, 4, 2, 12, 8],
+      [0, 0, 0, 0, 0, 0, 0, 1]
+    ]
+  }
+}
+
 describe('StatsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -129,6 +171,8 @@ describe('StatsPage', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-05-04T12:01:00Z'))
     apiMock.statsActivity.mockResolvedValue(stats())
+    apiMock.firmwareSnapshot.mockResolvedValue(firmwareSnapshot())
+    apiMock.firmwareHistory.mockResolvedValue(firmwareHistory())
   })
 
   it('parses durations and calculates next bucket boundaries', () => {
@@ -143,7 +187,7 @@ describe('StatsPage', () => {
   })
 
   it('renders both activity sections and four charts per section in display order', async () => {
-    render(<StatsPage initialStats={stats()} />)
+    render(<StatsPage initialStats={stats()} initialFirmwareSnapshot={firmwareSnapshot()} initialFirmwareHistory={firmwareHistory()} />)
 
     await act(async () => {
       await Promise.resolve()
@@ -160,7 +204,9 @@ describe('StatsPage', () => {
       'Text messages',
       'NodeInfo',
       'PKI',
-      'Others'
+      'Others',
+      'Firmware versions',
+      'Firmware adoption over time'
     ])
     expect(uplotMock.data[3]?.[1]).toEqual([3])
     expect(uplotMock.data[3]?.[2]).toEqual([0])
@@ -232,5 +278,171 @@ describe('StatsPage', () => {
     })
 
     expect(screen.getByText(/2 packets$/)).toBeTruthy()
+  })
+})
+
+describe('StatsPage Software section', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    uplotMock.data = []
+    uplotMock.options = []
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-05-04T12:01:00Z'))
+    apiMock.statsActivity.mockResolvedValue(stats())
+    apiMock.firmwareSnapshot.mockResolvedValue(firmwareSnapshot())
+    apiMock.firmwareHistory.mockResolvedValue(firmwareHistory())
+  })
+
+  it('fetches firmwareSnapshot and firmwareHistory on mount', async () => {
+    render(<StatsPage />)
+
+    await waitFor(() => {
+      expect(apiMock.firmwareSnapshot).toHaveBeenCalledTimes(1)
+    })
+    await waitFor(() => {
+      expect(apiMock.firmwareHistory).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('renders the snapshot bar chart and history area chart with cursor sync key', async () => {
+    render(<StatsPage initialFirmwareSnapshot={firmwareSnapshot()} initialFirmwareHistory={firmwareHistory()} />)
+
+    await screen.findByRole('heading', { name: 'Software' })
+    expect(screen.getByLabelText('Firmware version distribution')).toBeTruthy()
+    expect(screen.getByLabelText('Firmware version history')).toBeTruthy()
+
+    // The last two uPlot instances are the firmware charts (in order:
+    // snapshot, then history).
+    const chartsCount = uplotMock.options.length
+    const snapshot = uplotMock.options[chartsCount - 2]
+    const history = uplotMock.options[chartsCount - 1]
+
+    // Snapshot: ordinal x axis (distr=4), bars path builder, sync key.
+    expect(snapshot?.scales?.x?.distr).toBe(4)
+    expect(snapshot?.scales?.x?.time).toBe(false)
+    expect(snapshot?.cursor?.sync?.key).toBe('stats-firmware')
+    expect(snapshot?.series?.[1]?.paths).toBeDefined()
+    expect(snapshot?.axes?.[0]?.rotate).toBeGreaterThan(0)
+    // X axis label callback renders the firmware version strings.
+    const snapshotXValues = snapshot?.axes?.[0]?.values?.({}, [0, 1, 2], 0, 0, 0) ?? []
+    expect(snapshotXValues.map(String)).toEqual(['2.6.5', '2.7.10', '2.7.15'])
+    // Data shape: [x_indices..., count_series...]
+    expect(snapshot && uplotMock.data[chartsCount - 2]?.[0]).toEqual([0, 1, 2])
+    expect(uplotMock.data[chartsCount - 2]?.[1]).toEqual([7, 3, 2])
+
+    // History: index-based x, multi-series, four columns + x.
+    expect(history?.cursor?.sync?.key).toBe('stats-firmware')
+    expect(history?.series?.slice(1).map((series) => series.label)).toEqual(['2.6.5', '2.7.10', '2.7.15', '(other)'])
+    expect(history && uplotMock.data[chartsCount - 1]?.[0]).toEqual([0, 1, 2, 3, 4, 5, 6, 7])
+    expect(uplotMock.data[chartsCount - 1]?.[1]).toEqual([10, 12, 15, 8, 5, 3, 2, 18])
+    // Bottom series carries the area fill so the stacked effect is readable.
+    expect(history?.series?.[1]?.fill).toBe('rgb(51 154 240 / 10%)')
+    expect(history?.series?.[2]?.fill).toBeUndefined()
+  })
+
+  it('shows empty-state placeholder when snapshot has no versions', async () => {
+    const emptySnapshot: FirmwareSnapshot = {
+      generated_at: '2026-05-04T12:00:00Z',
+      total_nodes_with_version: 0,
+      versions: []
+    }
+    // The component re-loads on mount — match the mock to the empty
+    // fixture so the polling effect can't overwrite it with the default.
+    apiMock.firmwareSnapshot.mockResolvedValue(emptySnapshot)
+    const before = uplotMock.options.length
+
+    render(<StatsPage initialFirmwareSnapshot={emptySnapshot} initialFirmwareHistory={firmwareHistory()} />)
+
+    await screen.findByRole('heading', { name: 'Software' })
+    expect(screen.getByText('No nodes have reported a firmware version yet.')).toBeTruthy()
+    // The snapshot chart must NOT instantiate uPlot when there are no
+    // versions — only the history chart adds a new plot.
+    expect(uplotMock.options.length).toBe(before + 1)
+  })
+
+  it('shows empty-state placeholder when history has no versions', async () => {
+    const emptyHistory: FirmwareHistory = {
+      generated_at: '2026-05-04T12:00:00Z',
+      weeks: 8,
+      top: 3,
+      versions: [],
+      versions_by_week: []
+    }
+    apiMock.firmwareHistory.mockResolvedValue(emptyHistory)
+    const before = uplotMock.options.length
+
+    render(<StatsPage initialFirmwareSnapshot={firmwareSnapshot()} initialFirmwareHistory={emptyHistory} />)
+
+    await screen.findByRole('heading', { name: 'Software' })
+    expect(screen.getByText('No firmware history recorded yet.')).toBeTruthy()
+    expect(uplotMock.options.length).toBe(before + 1)
+  })
+
+  it('refreshes the firmware snapshot every hour', async () => {
+    render(<StatsPage />)
+
+    await waitFor(() => {
+      expect(apiMock.firmwareSnapshot).toHaveBeenCalledTimes(1)
+    })
+
+    // Just before 1h — no refresh.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60 * 60 * 1000 - 1)
+    })
+    expect(apiMock.firmwareSnapshot).toHaveBeenCalledTimes(1)
+
+    // Past 1h — refresh fires.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000)
+    })
+    await waitFor(() => {
+      expect(apiMock.firmwareSnapshot).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  it('refreshes the firmware history every 24h', async () => {
+    render(<StatsPage />)
+
+    await waitFor(() => {
+      expect(apiMock.firmwareHistory).toHaveBeenCalledTimes(1)
+    })
+
+    // Past 24h — refresh fires.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000 + 1_000)
+    })
+    await waitFor(() => {
+      expect(apiMock.firmwareHistory).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  it('renders the "(other)" series last in the legend', async () => {
+    render(<StatsPage initialFirmwareSnapshot={firmwareSnapshot()} initialFirmwareHistory={firmwareHistory()} />)
+
+    await screen.findByRole('heading', { name: 'Software' })
+    const legendItems = screen.getAllByText(/^2\.|\(other\)$/)
+    const labels = legendItems.map((el) => el.textContent)
+
+    expect(labels).toContain('(other)')
+    // The legend is rendered in the order the server returned.
+    expect(labels).toEqual(['2.6.5', '2.7.10', '2.7.15', '(other)'])
+  })
+
+  it('shows the hovered firmware snapshot count', async () => {
+    render(<StatsPage initialFirmwareSnapshot={firmwareSnapshot()} initialFirmwareHistory={firmwareHistory()} />)
+
+    await screen.findByRole('heading', { name: 'Software' })
+
+    const chartsCount = uplotMock.options.length
+    const snapshot = uplotMock.options[chartsCount - 2]
+
+    await act(async () => {
+      snapshot?.plugins?.[0]?.hooks?.setCursor?.({
+        cursor: { idx: 1 },
+        data: [[0, 1, 2], [7, 3, 2]]
+      })
+    })
+
+    expect(screen.getByText(/2\.7\.10 · 3 nodes$/)).toBeTruthy()
   })
 })

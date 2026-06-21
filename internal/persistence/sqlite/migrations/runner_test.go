@@ -1000,8 +1000,8 @@ INSERT INTO log_events(id, observed_at, node_id, event_kind, encrypted, channel_
 	if err := db.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
-	if version != 20 {
-		t.Fatalf("expected user_version=20, got %d", version)
+	if version != 21 {
+		t.Fatalf("expected user_version=21, got %d", version)
 	}
 
 	var eventKind int
@@ -1114,8 +1114,8 @@ INSERT INTO log_events(id, observed_at, node_id, event_kind, encrypted, channel_
 	if err := db.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
-	if version != 20 {
-		t.Fatalf("expected user_version=20, got %d", version)
+	if version != 21 {
+		t.Fatalf("expected user_version=21, got %d", version)
 	}
 
 	// Row 1: kind 8 with portnum_name=STORE_FORWARD_APP — promoted
@@ -1448,4 +1448,219 @@ func marshalCanonical(t *testing.T, v any) string {
 	}
 
 	return string(b)
+}
+
+// TestApply_NormalizesFirmwareVersions exercises the V21 data migration:
+// nodes.firmware_version TEXT is replaced by nodes.firmware_version_id INTEGER
+// FK pointing at the new normalized firmware_versions lookup table. The
+// backfill must produce one row per distinct version string with first_seen
+// / last_seen aggregated from the source nodes, and every node that
+// previously carried a firmware_version text value must end up with a
+// non-NULL firmware_version_id pointing at the right row.
+//
+// node_firmware_history is intentionally NOT backfilled — the next
+// scheduled weekly snapshot is the first writer. The migration leaves the
+// table empty so the migration's surface is small and predictable.
+func TestApply_NormalizesFirmwareVersions(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite", "file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	// Seed a v20-stamped schema with five nodes carrying three distinct
+	// firmware versions and one node with a NULL firmware_version (must
+	// not appear in firmware_versions after backfill).
+	_, err = db.ExecContext(ctx, `
+PRAGMA user_version = 20;
+CREATE TABLE nodes (
+  node_id TEXT PRIMARY KEY,
+  node_num INTEGER,
+  long_name TEXT,
+  short_name TEXT,
+  role TEXT,
+  board_model TEXT,
+  firmware_version TEXT,
+  lora_region TEXT,
+  lora_frequency_desc TEXT,
+  modem_preset TEXT,
+  has_default_channel INTEGER,
+  has_opted_report_location INTEGER,
+  neighbor_nodes_count INTEGER,
+  mqtt_gateway_capable INTEGER,
+  first_seen_at TEXT NOT NULL,
+  last_seen_any_event_at TEXT NOT NULL,
+  last_seen_mqtt_gateway_at TEXT,
+  last_mqtt_uploader_node_id TEXT,
+  last_mqtt_uploader_at TEXT,
+  last_seen_position_at TEXT,
+  updated_at TEXT NOT NULL
+);
+INSERT INTO nodes(node_id,long_name,firmware_version,first_seen_at,last_seen_any_event_at,updated_at)
+VALUES
+  ('!ver10001','Alpha',   '2.6.5',  '2026-05-01T00:00:00Z','2026-05-10T00:00:00Z','2026-05-10T00:00:00Z'),
+  ('!ver10002','Bravo',   '2.6.5',  '2026-05-02T00:00:00Z','2026-05-11T00:00:00Z','2026-05-11T00:00:00Z'),
+  ('!ver10003','Charlie', '2.7.10', '2026-05-03T00:00:00Z','2026-05-12T00:00:00Z','2026-05-12T00:00:00Z'),
+  ('!ver10004','Delta',   '2.7.10', '2026-05-04T00:00:00Z','2026-05-13T00:00:00Z','2026-05-13T00:00:00Z'),
+  ('!ver10005','Echo',    '2.7.15', '2026-05-05T00:00:00Z','2026-05-14T00:00:00Z','2026-05-14T00:00:00Z'),
+  ('!ver10006','Foxtrot', NULL,     '2026-05-06T00:00:00Z','2026-05-15T00:00:00Z','2026-05-15T00:00:00Z');
+`)
+	if err != nil {
+		t.Fatalf("seed schema: %v", err)
+	}
+
+	if err := Apply(ctx, db, nil); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	var version int
+	if err := db.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
+		t.Fatalf("read user_version: %v", err)
+	}
+	if version != 21 {
+		t.Fatalf("expected user_version=21, got %d", version)
+	}
+
+	// firmware_versions: three distinct strings, one row each.
+	type fwRow struct {
+		Version   string
+		FirstSeen string
+		LastSeen  string
+	}
+	rows, err := db.QueryContext(ctx, `SELECT version_string, first_seen_at, last_seen_at FROM firmware_versions ORDER BY version_string`)
+	if err != nil {
+		t.Fatalf("query firmware_versions: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var gotFirmware []fwRow
+	for rows.Next() {
+		var r fwRow
+		if err := rows.Scan(&r.Version, &r.FirstSeen, &r.LastSeen); err != nil {
+			t.Fatalf("scan firmware_versions: %v", err)
+		}
+		gotFirmware = append(gotFirmware, r)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate firmware_versions: %v", err)
+	}
+
+	wantFirmware := map[string]fwRow{
+		"2.6.5":  {Version: "2.6.5", FirstSeen: "2026-05-01T00:00:00Z", LastSeen: "2026-05-11T00:00:00Z"},
+		"2.7.10": {Version: "2.7.10", FirstSeen: "2026-05-03T00:00:00Z", LastSeen: "2026-05-13T00:00:00Z"},
+		"2.7.15": {Version: "2.7.15", FirstSeen: "2026-05-05T00:00:00Z", LastSeen: "2026-05-14T00:00:00Z"},
+	}
+	if len(gotFirmware) != len(wantFirmware) {
+		t.Fatalf("expected %d firmware_versions rows, got %d: %+v", len(wantFirmware), len(gotFirmware), gotFirmware)
+	}
+	for _, got := range gotFirmware {
+		want, ok := wantFirmware[got.Version]
+		if !ok {
+			t.Errorf("unexpected firmware_version row %q", got.Version)
+
+			continue
+		}
+		if got.FirstSeen != want.FirstSeen {
+			t.Errorf("firmware_version %q: expected first_seen_at %q, got %q", got.Version, want.FirstSeen, got.FirstSeen)
+		}
+		if got.LastSeen != want.LastSeen {
+			t.Errorf("firmware_version %q: expected last_seen_at %q, got %q", got.Version, want.LastSeen, got.LastSeen)
+		}
+	}
+
+	// nodes.firmware_version column is gone.
+	hasTextCol, err := tableHasColumn(ctx, db, "nodes", "firmware_version")
+	if err != nil {
+		t.Fatalf("check nodes.firmware_version column: %v", err)
+	}
+	if hasTextCol {
+		t.Fatalf("nodes.firmware_version TEXT column should be dropped")
+	}
+
+	// nodes.firmware_version_id column exists and is populated by the
+	// string-matching backfill for every node that previously had a
+	// non-NULL firmware_version.
+	hasIDCol, err := tableHasColumn(ctx, db, "nodes", "firmware_version_id")
+	if err != nil {
+		t.Fatalf("check nodes.firmware_version_id column: %v", err)
+	}
+	if !hasIDCol {
+		t.Fatalf("nodes.firmware_version_id column should exist")
+	}
+
+	// Every node with a version must now have a non-NULL FK pointing at
+	// the matching firmware_versions row.
+	rows2, err := db.QueryContext(ctx, `
+SELECT n.node_id, n.firmware_version_id, fv.version_string
+FROM nodes n
+LEFT JOIN firmware_versions fv ON fv.id = n.firmware_version_id
+ORDER BY n.node_id`)
+	if err != nil {
+		t.Fatalf("query nodes JOIN firmware_versions: %v", err)
+	}
+	defer func() { _ = rows2.Close() }()
+
+	wantNodeVersion := map[string]string{
+		"!ver10001": "2.6.5",
+		"!ver10002": "2.6.5",
+		"!ver10003": "2.7.10",
+		"!ver10004": "2.7.10",
+		"!ver10005": "2.7.15",
+		"!ver10006": "", // NULL firmware_version → NULL FK after backfill
+	}
+	for rows2.Next() {
+		var nodeID string
+		var versionID sql.NullInt64
+		var versionString sql.NullString
+		if err := rows2.Scan(&nodeID, &versionID, &versionString); err != nil {
+			t.Fatalf("scan nodes JOIN: %v", err)
+		}
+		want, ok := wantNodeVersion[nodeID]
+		if !ok {
+			t.Errorf("unexpected node %q", nodeID)
+
+			continue
+		}
+		if want == "" {
+			if versionID.Valid {
+				t.Errorf("node %q: expected NULL firmware_version_id, got %d", nodeID, versionID.Int64)
+			}
+
+			continue
+		}
+		if !versionID.Valid {
+			t.Errorf("node %q: expected firmware_version_id to be set, got NULL", nodeID)
+
+			continue
+		}
+		if !versionString.Valid || versionString.String != want {
+			t.Errorf("node %q: expected joined version_string %q, got %q", nodeID, want, versionString.String)
+		}
+	}
+	if err := rows2.Err(); err != nil {
+		t.Fatalf("iterate nodes JOIN: %v", err)
+	}
+
+	// node_firmware_history is intentionally NOT backfilled by the
+	// migration — the next Monday's scheduled job is the first writer.
+	var historyCount int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM node_firmware_history`).Scan(&historyCount); err != nil {
+		t.Fatalf("count node_firmware_history: %v", err)
+	}
+	if historyCount != 0 {
+		t.Fatalf("node_firmware_history should be empty after migration, got %d rows", historyCount)
+	}
+
+	// firmware_versions UNIQUE constraint is enforced.
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO firmware_versions(version_string,first_seen_at,last_seen_at,created_at) VALUES (?,?,?,?)`,
+		"2.6.5", "2026-06-01T00:00:00Z", "2026-06-01T00:00:00Z", "2026-06-01T00:00:00Z"); err == nil {
+		t.Fatalf("expected UNIQUE constraint on firmware_versions.version_string to reject duplicate")
+	}
+
+	// Re-applying migrations on an already-V21 schema is a no-op.
+	if err := Apply(ctx, db, nil); err != nil {
+		t.Fatalf("re-apply migrations on V21 schema: %v", err)
+	}
 }

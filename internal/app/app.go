@@ -23,6 +23,7 @@ import (
 	"meshmap-lite/internal/mqttclient"
 	"meshmap-lite/internal/persistence/sqlite"
 	"meshmap-lite/internal/siteinfo"
+	"meshmap-lite/internal/stats"
 )
 
 const missingFrontendBuildHint = "frontend assets are not built; run `cd web && npm run build`"
@@ -127,6 +128,15 @@ func Run(configPath string) error {
 		Info:     info,
 		Updates:  buildUpdateCheckManager(ctx, cfg.UpdateCheck, logMgr.Logger("internal/updatecheck")),
 	}, store, logMgr.Logger("internal/api/http"), mqttReady.Load, hub.ClientCount, mqtt.ConnectionStatus)
+
+	firmwareSnapshotJob := stats.NewFirmwareSnapshotJob(stats.FirmwareSnapshotOptions{
+		Store:  store,
+		Logger: logMgr.Logger("internal/stats"),
+		OnSnapshot: func() {
+			api.InvalidateFirmwareCaches()
+		},
+	})
+	go firmwareSnapshotJob.Start(ctx)
 	apiMux := api.Routes(hub, apidocs.Handler(apidocs.Options{
 		SpecURL: "/api/openapi.yaml",
 		Title:   buildinfo.AppName + " API",

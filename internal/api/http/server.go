@@ -26,6 +26,7 @@ type Server struct {
 	activityCache map[string]activityPeriodCache
 	topologyMu    sync.Mutex
 	topologyCache topologyEdgesCache
+	firmwareCache *ttlCache
 	now           func() time.Time
 	updateMgr     *updatecheck.Manager
 }
@@ -44,6 +45,8 @@ type Config struct {
 
 // New creates an HTTP API server with configured dependencies.
 func New(cfg Config, store repo.ReadStore, log *slog.Logger, ready func() bool, wsClient func() int, mqttStatus func() mqttclient.ConnectionStatus) *Server {
+	now := time.Now
+
 	return &Server{
 		cfg:           cfg,
 		store:         store,
@@ -52,9 +55,21 @@ func New(cfg Config, store repo.ReadStore, log *slog.Logger, ready func() bool, 
 		wsClient:      wsClient,
 		mqttStatus:    mqttStatus,
 		activityCache: make(map[string]activityPeriodCache),
-		now:           time.Now,
+		firmwareCache: newTTLCache(now),
+		now:           now,
 		updateMgr:     cfg.Updates,
 	}
+}
+
+// InvalidateFirmwareCaches clears the firmware snapshot/history caches.
+// Called from the scheduled weekly snapshot job after a successful
+// INSERT OR IGNORE so the freshly-written week is visible on the next
+// request without waiting for the TTL.
+func (s *Server) InvalidateFirmwareCaches() {
+	if s.firmwareCache == nil {
+		return
+	}
+	s.firmwareCache.Invalidate()
 }
 
 // StartStatsTicker periodically emits runtime stats events.

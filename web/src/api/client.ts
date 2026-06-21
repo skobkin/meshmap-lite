@@ -1,4 +1,4 @@
-import type { ActivityStats, ChannelItem, ChatEvent, InfoFormat, InfoResponse, LogEvent, MapNode, Meta, NodeDetails, NodeSummary, TopologyEdge, TopologyEdgesResponse, UpdatesResponse } from './types'
+import type { ActivityStats, ChannelItem, ChatEvent, FirmwareHistory, FirmwareSnapshot, InfoFormat, InfoResponse, LogEvent, MapNode, Meta, NodeDetails, NodeSummary, TopologyEdge, TopologyEdgesResponse, UpdatesResponse } from './types'
 
 interface RequestOptions {
   signal?: AbortSignal
@@ -71,6 +71,15 @@ export const api = {
     return request<TopologyEdgesResponse>(`/api/v1/topology/edges${suffix ? `?${suffix}` : ''}`, options)
   },
   statsActivity: (options?: RequestOptions) => request<ActivityStats>('/api/v1/stats/activity', options),
+  firmwareSnapshot: (options?: RequestOptions) => request<FirmwareSnapshot>('/api/v1/stats/firmware', options),
+  firmwareHistory: (params: { weeks?: number; top?: number } = {}, options?: RequestOptions) => {
+    const q = new URLSearchParams()
+    if (typeof params.weeks === 'number' && params.weeks > 0) {q.set('weeks', String(params.weeks))}
+    if (typeof params.top === 'number' && params.top > 0) {q.set('top', String(params.top))}
+    const suffix = q.toString()
+
+    return request<FirmwareHistory>(`/api/v1/stats/firmware/history${suffix ? `?${suffix}` : ''}`, options)
+  },
   nodes: (options?: RequestOptions) => request<NodeSummary[]>('/api/v1/nodes', options),
   node: (id: string, options?: RequestOptions) => request<NodeDetails>(`/api/v1/nodes/${encodeURIComponent(id)}`, options)
 }

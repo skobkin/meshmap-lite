@@ -361,6 +361,64 @@ paths:
                 $ref: '#/components/schemas/ActivityStats'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/v1/stats/firmware:
+    get:
+      tags: [Stats]
+      summary: Fetch the firmware version snapshot
+      operationId: getStatsFirmware
+      responses:
+        '200':
+          description: |
+            Current fleet distribution of firmware versions. Servers cache the
+            response for `web.stats.software.snapshot_cache_ttl` (default 1h)
+            and invalidate it when the scheduled weekly snapshot job writes a
+            new week.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FirmwareSnapshot'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/stats/firmware/history:
+    get:
+      tags: [Stats]
+      summary: Fetch the weekly firmware version history
+      operationId: getStatsFirmwareHistory
+      parameters:
+        - name: weeks
+          in: query
+          required: false
+          description: |
+            Number of trailing weeks to return. Defaults to
+            `web.stats.software.history_weeks` (default 54).
+          schema:
+            type: integer
+            minimum: 1
+        - name: top
+          in: query
+          required: false
+          description: |
+            Top-N versions to surface individually. Versions outside the top-N
+            are aggregated into a trailing `(other)` series. Defaults to
+            `web.stats.software.top_versions` (default 15).
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: |
+            Compact matrix of `versions_by_week[i][j]` counts, where `i` is the
+            version index (matching the `versions` array) and `j` is the week
+            index (`0` = oldest, `weeks-1` = newest). Missing weeks (for
+            example when the service was down) are padded with zero rows so
+            the chart x-axis stays contiguous. Cached for
+            `web.stats.software.history_cache_ttl` (default 24h).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FirmwareHistory'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/v1/topology/edges:
     get:
       tags: [Topology]
@@ -1310,6 +1368,71 @@ components:
         traceroute:
           type: integer
           minimum: 0
+    FirmwareSnapshot:
+      type: object
+      required: [generated_at, total_nodes_with_version, versions]
+      properties:
+        generated_at:
+          type: string
+          format: date-time
+        total_nodes_with_version:
+          type: integer
+          minimum: 0
+        versions:
+          type: array
+          items:
+            $ref: '#/components/schemas/FirmwareVersionCount'
+    FirmwareVersionCount:
+      type: object
+      required: [version, count, last_seen_at]
+      properties:
+        version:
+          type: string
+        count:
+          type: integer
+          minimum: 0
+        last_seen_at:
+          type: string
+          format: date-time
+    FirmwareHistory:
+      type: object
+      required: [generated_at, weeks, top, versions, versions_by_week]
+      properties:
+        generated_at:
+          type: string
+          format: date-time
+        weeks:
+          type: integer
+          minimum: 1
+          description: |
+            Number of weeks covered by `versions_by_week`. Echoes the resolved
+            value (querystring override or server-side default).
+        top:
+          type: integer
+          minimum: 1
+          description: |
+            Top-N versions surfaced individually. Versions outside this top-N
+            are aggregated into a trailing `(other)` series.
+        versions:
+          type: array
+          description: |
+            Version strings in column order, matching the outer index of
+            `versions_by_week`. The last entry is `"(other)"` when the server
+            reports versions outside the top-N.
+          items:
+            type: string
+        versions_by_week:
+          type: array
+          description: |
+            Per-version, per-week node counts. Outer index is the version
+            index (matching `versions`); inner index is the week index
+            (`0` = oldest week, `weeks-1` = newest). Missing weeks are
+            zero-padded so the x-axis is contiguous.
+          items:
+            type: array
+            items:
+              type: integer
+              minimum: 0
     RealtimeEvent:
       type: object
       required: [type, ts, payload]

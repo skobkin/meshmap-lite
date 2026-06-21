@@ -59,12 +59,13 @@ func scanMapNode(rows *sql.Rows) (domain.Node, *domain.NodePosition, error) {
 	var hasOptedReportLoc sql.NullInt64
 	var neighbor sql.NullInt64
 	var gw sql.NullInt64
+	var firmwareVersionID sql.NullInt64
 	var longName, shortName, role, boardModel, firmwareVersion, loraRegion, loraFrequencyDesc, modemPreset sql.NullString
 	var firstSeen, lastAny, lastMQTT, lastUploaderID, lastUploaderLong, lastUploaderShort, lastUploaderAt, lastPos, updated sql.NullString
 	var pLat, pLon, pAlt sql.NullFloat64
 	var pPrec sql.NullInt64
 	var pKind, pChannel, pUploaderID, pUploaderLong, pUploaderShort, pReported, pObserved, pUpdated sql.NullString
-	err := rows.Scan(&n.NodeID, &nodeNum, &longName, &shortName, &role, &boardModel, &firmwareVersion, &loraRegion, &loraFrequencyDesc,
+	err := rows.Scan(&n.NodeID, &nodeNum, &longName, &shortName, &role, &boardModel, &firmwareVersionID, &firmwareVersion, &loraRegion, &loraFrequencyDesc,
 		&modemPreset, &hasDefaultCh, &hasOptedReportLoc, &neighbor, &gw, &firstSeen, &lastAny, &lastMQTT,
 		&lastUploaderID, &lastUploaderLong, &lastUploaderShort, &lastUploaderAt, &lastPos, &updated,
 		&pLat, &pLon, &pAlt, &pPrec, &pKind, &pChannel, &pUploaderID, &pUploaderLong, &pUploaderShort, &pReported, &pObserved, &pUpdated)
@@ -132,6 +133,7 @@ func scanMapNodeWithTelemetry(rows *sql.Rows) (domain.Node, *domain.NodePosition
 	var hasOptedReportLoc sql.NullInt64
 	var neighbor sql.NullInt64
 	var gw sql.NullInt64
+	var firmwareVersionID sql.NullInt64
 	var longName, shortName, role, boardModel, firmwareVersion, loraRegion, loraFrequencyDesc, modemPreset sql.NullString
 	var firstSeen, lastAny, lastMQTT, lastUploaderID, lastUploaderLong, lastUploaderShort, lastUploaderAt, lastPos, updated sql.NullString
 	var pLat, pLon, pAlt sql.NullFloat64
@@ -143,7 +145,7 @@ func scanMapNodeWithTelemetry(rows *sql.Rows) (domain.Node, *domain.NodePosition
 	var tDevUptime sql.NullInt64
 	var tSource, tUploaderID, tUploaderLong, tUploaderShort, tReported, tObserved, tUpdated sql.NullString
 
-	err := rows.Scan(&n.NodeID, &nodeNum, &longName, &shortName, &role, &boardModel, &firmwareVersion, &loraRegion, &loraFrequencyDesc,
+	err := rows.Scan(&n.NodeID, &nodeNum, &longName, &shortName, &role, &boardModel, &firmwareVersionID, &firmwareVersion, &loraRegion, &loraFrequencyDesc,
 		&modemPreset, &hasDefaultCh, &hasOptedReportLoc, &neighbor, &gw, &firstSeen, &lastAny, &lastMQTT,
 		&lastUploaderID, &lastUploaderLong, &lastUploaderShort, &lastUploaderAt, &lastPos, &updated,
 		&pLat, &pLon, &pAlt, &pPrec, &pKind, &pChannel, &pUploaderID, &pUploaderLong, &pUploaderShort, &pReported, &pObserved, &pUpdated,
