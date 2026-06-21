@@ -25,6 +25,13 @@ type fakeStore struct {
 	// methods when set; nil otherwise.
 	recordError error
 	lastError   error
+
+	// insertZero forces RecordFirmwareHistoryWeek to return 0 rows.
+	// Set this to simulate the empty-fleet / all-stale-fleet case
+	// where the SQL store's INSERT OR IGNORE matches zero rows. The
+	// default (false) keeps the historical "always inserted one row"
+	// behaviour so existing tests don't need to change.
+	insertZero bool
 }
 
 type recordedCall struct {
@@ -41,6 +48,9 @@ func (f *fakeStore) RecordFirmwareHistoryWeek(_ context.Context, weekStart, obse
 	}
 	f.recorded = append(f.recorded, recordedCall{WeekStart: weekStart, ObservedAt: observedAt, MaxAge: maxAge})
 	f.lastWeek = weekStart
+	if f.insertZero {
+		return 0, nil
+	}
 
 	return 1, nil
 }
@@ -206,6 +216,29 @@ func TestRunOnce_CallbackOnlyFiresOnSuccessfulWrite(t *testing.T) {
 	}
 	if *cb {
 		t.Errorf("expected OnSnapshot NOT to fire when store returns error")
+	}
+}
+
+// TestRunOnce_NoCallbackWhenZeroRowsInserted pins the all-stale-fleet
+// branch: when RecordFirmwareHistoryWeek succeeds but matches zero
+// rows (empty fleet or every node filtered out by the staleness
+// window), the OnSnapshot callback must NOT fire and the "snapshot
+// written" log line must NOT be emitted at info level. The cache
+// invalidation is a no-op when the underlying data didn't change.
+func TestRunOnce_NoCallbackWhenZeroRowsInserted(t *testing.T) {
+	ctx := context.Background()
+	store := &fakeStore{insertZero: true}
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	job, _, cb := newTestJob(t, store, func() time.Time { return now })
+
+	if err := job.runOnce(ctx); err != nil {
+		t.Fatalf("runOnce: %v", err)
+	}
+	if *cb {
+		t.Errorf("expected OnSnapshot NOT to fire when zero rows were inserted")
+	}
+	if len(store.recorded) != 1 {
+		t.Errorf("expected the record call to still happen (the writer itself is cheap), got %d", len(store.recorded))
 	}
 }
 

@@ -161,6 +161,22 @@ func (j *FirmwareSnapshotJob) runOnce(ctx context.Context) error {
 		return err
 	}
 
+	// Only announce the write and invalidate caches when a row was
+	// actually inserted. With an empty or all-stale fleet the INSERT
+	// OR IGNORE matches zero rows: the "written" log line would be
+	// misleading and the OnSnapshot callback (which clears the
+	// firmware response caches) would be a no-op since the data on
+	// disk didn't change. Demoted to Debug so the absence of rows is
+	// still observable for ops triage.
+	if inserted == 0 {
+		j.logger.Debug("firmware snapshot skipped: no active nodes",
+			"week_start", currentWeek.Format("2006-01-02"),
+			"max_age", j.maxAge,
+		)
+
+		return nil
+	}
+
 	j.logger.Info("firmware snapshot written",
 		"week_start", currentWeek.Format("2006-01-02"),
 		"inserted_rows", inserted,
