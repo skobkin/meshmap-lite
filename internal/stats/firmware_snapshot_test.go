@@ -237,6 +237,49 @@ func TestRunOnce_PassesMaxAgeToWriter(t *testing.T) {
 	}
 }
 
+// TestNewFirmwareSnapshotJob_AppliesDefaultMaxAgeWhenUnset pins the
+// canonical fallback for MapReportMaxAge. A non-positive value in the
+// options (e.g. an operator writing `map_report_max_age: 0` in YAML)
+// must be normalized to 14d at job-construction time, otherwise the
+// SQL cutoff in RecordFirmwareHistoryWeek collapses to "now" and the
+// weekly writer silently stops recording rows. Regression test for
+// the CodeX review of PR #111.
+func TestNewFirmwareSnapshotJob_AppliesDefaultMaxAgeWhenUnset(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+
+	cases := []struct {
+		name   string
+		maxAge time.Duration
+		want   time.Duration
+	}{
+		{name: "zero", maxAge: 0, want: 14 * 24 * time.Hour},
+		{name: "negative", maxAge: -5 * time.Hour, want: 14 * 24 * time.Hour},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &fakeStore{}
+			job := NewFirmwareSnapshotJob(FirmwareSnapshotOptions{
+				Store:  store,
+				Now:    func() time.Time { return now },
+				MaxAge: tc.maxAge,
+			})
+
+			if err := job.runOnce(ctx); err != nil {
+				t.Fatalf("runOnce: %v", err)
+			}
+
+			if len(store.recorded) != 1 {
+				t.Fatalf("expected one record call, got %d", len(store.recorded))
+			}
+			if store.recorded[0].MaxAge != tc.want {
+				t.Errorf("expected MaxAge=%s, got %s", tc.want, store.recorded[0].MaxAge)
+			}
+		})
+	}
+}
+
 // TestStart_CatchesUpAndRespectsContextCancel verifies Start performs
 // the catch-up immediately and exits cleanly when the context is
 // cancelled. We use a clock pinned to a far-future Monday so the inner

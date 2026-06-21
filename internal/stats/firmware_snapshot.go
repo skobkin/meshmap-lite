@@ -47,6 +47,15 @@ type FirmwareWriter interface {
 	LastFirmwareHistoryWeek(ctx context.Context) (time.Time, error)
 }
 
+// defaultFirmwareMaxAge is the canonical fallback for the staleness
+// window applied to nodes.last_map_report_at when no explicit value is
+// supplied. Matches web.stats.software.map_report_max_age's config
+// default (see internal/config/defaults.go). The HTTP layer applies
+// the same fallback in firmwareSnapshot; both sites must agree or
+// the snapshot endpoint and the weekly writer will silently disagree
+// about which nodes are "active" — see CodeX review of PR #111.
+const defaultFirmwareMaxAge = 14 * 24 * time.Hour
+
 // FirmwareSnapshotJob runs the weekly INSERT OR IGNORE snapshot for the
 // node_firmware_history table. It catches up on the current week on
 // startup (if the most recent row in the table is older than the current
@@ -64,6 +73,11 @@ type FirmwareSnapshotJob struct {
 }
 
 // NewFirmwareSnapshotJob constructs a job. store is required.
+// A non-positive MaxAge is replaced with defaultFirmwareMaxAge so a
+// config-driven 0 (e.g. an explicit `map_report_max_age: 0` in YAML)
+// does not collapse the SQL cutoff to "now" and silently stop
+// recording history rows. The HTTP layer applies the same fallback
+// in firmwareSnapshot; this constructor is the canonical default.
 func NewFirmwareSnapshotJob(opts FirmwareSnapshotOptions) *FirmwareSnapshotJob {
 	logger := opts.Logger
 	if logger == nil {
@@ -74,12 +88,17 @@ func NewFirmwareSnapshotJob(opts FirmwareSnapshotOptions) *FirmwareSnapshotJob {
 		now = func() time.Time { return time.Now().UTC() }
 	}
 
+	maxAge := opts.MaxAge
+	if maxAge <= 0 {
+		maxAge = defaultFirmwareMaxAge
+	}
+
 	return &FirmwareSnapshotJob{
 		store:      opts.Store,
 		logger:     logger,
 		now:        now,
 		onSnapshot: opts.OnSnapshot,
-		maxAge:     opts.MaxAge,
+		maxAge:     maxAge,
 	}
 }
 

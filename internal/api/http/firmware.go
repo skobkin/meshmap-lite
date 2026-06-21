@@ -20,7 +20,9 @@ func (s *Server) firmwareSnapshot(w http.ResponseWriter, r *http.Request) {
 	}
 	// MapReportMaxAge is the staleness window applied to
 	// nodes.last_map_report_at: a node that hasn't sent a MapReport in
-	// this duration is excluded from "today's distribution." Default 14d.
+	// this duration is excluded from "today's distribution." Default 14d
+	// (mirrors stats.defaultFirmwareMaxAge so the snapshot endpoint and
+	// the weekly job agree; see NewFirmwareSnapshotJob).
 	maxAge := cfg.MapReportMaxAge
 	if maxAge <= 0 {
 		maxAge = 14 * 24 * time.Hour
