@@ -705,6 +705,30 @@ export function App(): JSX.Element {
     }, 'push')
   }, [channel, chatPanel, mapView, setSelectedId, updateURL])
 
+  const openNodeLog = useCallback((id: string): void => {
+    // Flip the rendered page to 'log' before pushing the URL fragment — otherwise
+    // only the hash changes and the Nodes page stays visible (URL and rendered
+    // page must agree). Mirrors openNodeOnMap's setPage('map') above.
+    setPage('log')
+    setSelectedId(id)
+    setMapFocusNodeId(undefined)
+    setSelectedLogEventID(undefined)
+    const nextFilters: typeof logFilters = {
+      ...defaultLogFilters,
+      nodeID: id
+    }
+    setLogFilters(nextFilters)
+    updateURL({
+      page: 'log',
+      log: {
+        eventKinds: nextFilters.eventKinds,
+        channel: nextFilters.channel,
+        nodeID: nextFilters.nodeID,
+        hopRange: nextFilters.hopRange
+      }
+    }, 'push')
+  }, [setLogFilters, setPage, setSelectedId, updateURL])
+
   const selectMapNode = useCallback((id?: string): void => {
     setSelectedId(id)
     updateURL({
@@ -1024,6 +1048,7 @@ export function App(): JSX.Element {
           recentEventsError={nodeLogError}
           onOpenMap={openNodeOnMap}
           onOpenNodeDetails={openNodeDetails}
+          onOpenLog={openNodeLog}
           onFilter={changeNodesFilter}
           onSelect={selectNodeOnNodesPage}
         />

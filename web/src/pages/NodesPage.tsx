@@ -24,6 +24,7 @@ interface Props {
   recentEventsError?: string
   onOpenMap: (id: string) => void
   onOpenNodeDetails?: (id: string) => void
+  onOpenLog?: (id: string) => void
   onFilter?: (filter: string) => void
   onSelect: (id: string) => void
 }
@@ -213,6 +214,7 @@ export function NodesPage({
   recentEventsError,
   onOpenMap,
   onOpenNodeDetails = () => undefined,
+  onOpenLog,
   onFilter = () => undefined,
   onSelect
 }: Props): JSX.Element {
@@ -324,7 +326,32 @@ export function NodesPage({
               )}
             </section>
             <section className="node-recent-events">
-              <h4>Recent events</h4>
+              <div className="node-section-heading">
+                <h4>Recent events</h4>
+                <button
+                  type="button"
+                  className="node-section-log-link"
+                  aria-label="Open node log"
+                  title="Open node log"
+                  onClick={() => onOpenLog?.(details.node.node_id)}
+                >
+                  <svg
+                    className="node-section-log-icon"
+                    aria-hidden="true"
+                    viewBox="0 0 16 16"
+                    focusable="false"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M11 13H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h4" />
+                    <path d="M10 2h4v4" />
+                    <line x1="14" y1="2" x2="7" y2="9" />
+                  </svg>
+                </button>
+              </div>
               {recentEventsLoading ? (
                 <p className="node-list-empty">Loading recent events...</p>
               ) : recentEventsError ? (

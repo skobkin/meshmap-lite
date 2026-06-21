@@ -1094,7 +1094,8 @@ body {
   line-height: 1.2;
 }
 
-.node-section-map-link {
+.node-section-map-link,
+.node-section-log-link {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1110,14 +1111,17 @@ body {
   vertical-align: top;
 }
 
-.node-section-map-icon {
+.node-section-map-icon,
+.node-section-log-icon {
   display: block;
   width: 100%;
   height: 100%;
 }
 
 .node-section-map-link:hover .node-section-map-icon,
-.node-section-map-link:focus-visible .node-section-map-icon {
+.node-section-map-link:focus-visible .node-section-map-icon,
+.node-section-log-link:hover .node-section-log-icon,
+.node-section-log-link:focus-visible .node-section-log-icon {
   filter: drop-shadow(0 0 2px rgb(31 106 229 / 35%));
 }
 

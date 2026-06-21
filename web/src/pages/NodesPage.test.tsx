@@ -343,6 +343,7 @@ describe('NodesPage', () => {
     expect(screen.getByRole('columnheader', { name: 'Gateway' })).toBeTruthy()
     expect(screen.getByRole('columnheader', { name: 'Details' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'View details for Telemetry' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Open node log' })).toBeTruthy()
   })
 
   it('renders recent event loading, error, and empty states', () => {
@@ -381,5 +382,64 @@ describe('NodesPage', () => {
       />
     )
     expect(screen.getByText('No recent events.')).toBeTruthy()
+  })
+
+  it('exposes an open-log button that calls onOpenLog with the current node id', () => {
+    const openLog = vi.fn()
+
+    render(
+      <NodesPage
+        items={[summary('!zero', { display_name: 'Zero Node' })]}
+        selected="!zero"
+        details={details()}
+        recentEvents={[logEvent(1)]}
+        onOpenMap={() => undefined}
+        onOpenLog={openLog}
+        onSelect={() => undefined}
+      />
+    )
+
+    const button = screen.getByRole('button', { name: 'Open node log' })
+    expect(button).toBeTruthy()
+    fireEvent.click(button)
+    expect(openLog).toHaveBeenCalledTimes(1)
+    expect(openLog).toHaveBeenCalledWith('!zero')
+  })
+
+  it('keeps the open-log button visible while recent events are loading, erroring, or empty', () => {
+    const { rerender } = render(
+      <NodesPage
+        items={[summary('!zero', { display_name: 'Zero Node' })]}
+        selected="!zero"
+        details={details()}
+        recentEventsLoading
+        onOpenMap={() => undefined}
+        onSelect={() => undefined}
+      />
+    )
+    expect(screen.getByRole('button', { name: 'Open node log' })).toBeTruthy()
+
+    rerender(
+      <NodesPage
+        items={[summary('!zero', { display_name: 'Zero Node' })]}
+        selected="!zero"
+        details={details()}
+        recentEventsError="boom"
+        onOpenMap={() => undefined}
+        onSelect={() => undefined}
+      />
+    )
+    expect(screen.getByRole('button', { name: 'Open node log' })).toBeTruthy()
+
+    rerender(
+      <NodesPage
+        items={[summary('!zero', { display_name: 'Zero Node' })]}
+        selected="!zero"
+        details={details()}
+        onOpenMap={() => undefined}
+        onSelect={() => undefined}
+      />
+    )
+    expect(screen.getByRole('button', { name: 'Open node log' })).toBeTruthy()
   })
 })
