@@ -201,6 +201,25 @@ function integerSplits(max: number): number[] {
   return splits
 }
 
+// shortVersionLabel formats a firmware version string for the snapshot
+// chart's x axis. Modern Meshtastic releases append a commit hash to the
+// semver-ish prefix ("2.7.23.b246bcd", "2.7.10.abcdef0"); the prefix
+// alone is enough to tell versions apart on the chart, and the full
+// string is still available on hover via the tooltip. Caps length as a
+// safety net for older or non-standard release strings so even the
+// "7.16.a35972230"-style legacy format stays readable when tilted.
+export function shortVersionLabel(version: string | undefined): string {
+  if (!version) {return ''}
+  const noHash = version.replace(/\.[0-9a-f]{7,}$/i, '')
+  if (noHash.length <= 12) {return noHash}
+
+  // Trim a trailing "." so the ellipsis attaches to the last digit
+  // rather than dangling after a separator.
+  const truncated = noHash.slice(0, 12).replace(/\.$/, '')
+
+  return `${truncated}…`
+}
+
 function ActivityChart({ buckets, metric, periodKey }: { buckets: ActivityBucket[]; metric: ActivityMetric; periodKey: string }): JSX.Element {
   const rootRef = useRef<HTMLDivElement>(null)
   const plotRef = useRef<uPlot>()
@@ -424,7 +443,13 @@ function FirmwareSnapshotChart({ versions }: { versions: FirmwareVersionCount[] 
         // distr: 4 is the ordinal x scale in uPlot — bars sit on integer
         // x indices instead of a continuous time axis.
         x: { distr: 4, time: false },
-        y: { range: (_plot, _min, max) => [0, Math.max(1, Math.ceil(max))] }
+        // uPlot calls the range callback on first render with `max`
+        // undefined (the auto-fit pass hasn't run yet). Math.ceil on
+        // undefined is NaN, which uPlot then interprets as "no upper
+        // bound" and silently pads — making the data bars look
+        // squashed. Floor to 1 when max is non-finite so the chart
+        // starts as a 1-tick placeholder and rescales once data is in.
+        y: { range: (_plot, _min, max) => [0, Number.isFinite(max) ? Math.max(1, Math.ceil(max)) : 1] }
       },
       axes: [
         {
@@ -432,11 +457,16 @@ function FirmwareSnapshotChart({ versions }: { versions: FirmwareVersionCount[] 
           grid: { stroke: colors.grid, width: 1 },
           ticks: { stroke: colors.grid, width: 1 },
           border: { stroke: colors.grid, width: 1 },
-          size: 64,
-          // Tilted labels keep long firmware version strings readable
-          // when there are many of them.
-          values: (_plot, ticks) => ticks.map((tick) => versions[tick]?.version ?? ''),
-          rotate: 35
+          // Horizontal labels work because shortVersionLabel caps the
+          // string at ~12 chars; rotation was the source of clipped /
+          // dropped labels for the rightmost bars in production data.
+          size: 28,
+          space: 60,
+          // Truncate to a short form (drop the trailing commit hash
+          // that modern Meshtastic releases include) and cap length
+          // so even legacy strings don't overflow; the tooltip still
+          // shows the full version.
+          values: (_plot, ticks) => ticks.map((tick) => shortVersionLabel(versions[tick]?.version))
         },
         {
           stroke: colors.axis,
@@ -463,10 +493,16 @@ function FirmwareSnapshotChart({ versions }: { versions: FirmwareVersionCount[] 
           // it optional — optional-chain so the call typechecks, and the
           // resulting `undefined` is a legal `paths` value (uPlot falls
           // back to its linear default).
+          //
+          // Default align (0 = centered on the ordinal x index) keeps
+          // the leftmost bar inside the plot area; align: -1 shifted
+          // each bar entirely to the left of its index, which on the
+          // first slot produced a degenerate path that bled into the
+          // y-axis as a 1-px stroke. The default gap (gapFactor =
+          // 1 - size[0] = 0.4 * colWid) is enough on its own — an
+          // extra px-based gap pushed barWid ≤ 0 on narrow charts.
           paths: uPlot.paths.bars?.({
-            size: [0.6, Infinity, 1],
-            gap: 8,
-            align: -1
+            size: [0.6, Infinity, 1]
           })
         }
       ],

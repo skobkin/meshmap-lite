@@ -3,7 +3,7 @@
 import { act, render, screen, waitFor } from '@testing-library/preact'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { StatsPage, nextBoundaryDelay, parseDurationMillis } from './StatsPage'
+import { StatsPage, nextBoundaryDelay, parseDurationMillis, shortVersionLabel } from './StatsPage'
 
 import type { ActivityStats, FirmwareHistory, FirmwareSnapshot } from '../api/types'
 
@@ -303,6 +303,35 @@ describe('StatsPage', () => {
   })
 })
 
+describe('shortVersionLabel', () => {
+  it('returns short versions unchanged', () => {
+    expect(shortVersionLabel('2.6.5')).toBe('2.6.5')
+    expect(shortVersionLabel('2.7.10')).toBe('2.7.10')
+    expect(shortVersionLabel('2.7.15')).toBe('2.7.15')
+  })
+
+  it('strips the trailing commit hash from modern Meshtastic versions', () => {
+    expect(shortVersionLabel('2.7.23.b246bcd')).toBe('2.7.23')
+    expect(shortVersionLabel('2.7.10.abcdef0')).toBe('2.7.10')
+    expect(shortVersionLabel('2.6.5.deadbeef')).toBe('2.6.5')
+  })
+
+  it('truncates and ellipsizes legacy or unusually long versions', () => {
+    // Hash-stripped prefixes that are still too long get ellipsized.
+    expect(shortVersionLabel('1.2.3.4.5.6.7.8.9.0')).toBe('1.2.3.4.5.6…')
+    // Trailing separators get trimmed so the ellipsis attaches to the
+    // last digit, not dangle after a dot.
+    expect(shortVersionLabel('1.2.3.4.5.6.7')).toBe('1.2.3.4.5.6…')
+    // "7.16.a35972230" hash-strips to "7.16" — short enough to keep as-is.
+    expect(shortVersionLabel('7.16.a35972230')).toBe('7.16')
+  })
+
+  it('returns an empty string for missing input', () => {
+    expect(shortVersionLabel(undefined)).toBe('')
+    expect(shortVersionLabel('')).toBe('')
+  })
+})
+
 describe('StatsPage Software section', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -344,7 +373,12 @@ describe('StatsPage Software section', () => {
     expect(snapshot?.scales?.x?.time).toBe(false)
     expect(snapshot?.cursor?.sync?.key).toBe('stats-firmware')
     expect(snapshot?.series?.[1]?.paths).toBeDefined()
-    expect(snapshot?.axes?.[0]?.rotate).toBeGreaterThan(0)
+    // No rotation: shortVersionLabel caps labels at ~12 chars, so they
+    // fit horizontally and rotation was causing the rightmost labels
+    // to drop / render off-canvas in production.
+    expect(snapshot?.axes?.[0]?.rotate ?? 0).toBe(0)
+    // Compact x axis row (horizontal labels only need ~28 px).
+    expect(snapshot?.axes?.[0]?.size).toBeLessThanOrEqual(32)
     // X axis label callback renders the firmware version strings.
     const snapshotXValues = snapshot?.axes?.[0]?.values?.({}, [0, 1, 2], 0, 0, 0) ?? []
     expect(snapshotXValues.map(String)).toEqual(['2.6.5', '2.7.10', '2.7.15'])
@@ -360,6 +394,49 @@ describe('StatsPage Software section', () => {
     // Bottom series carries the area fill so the stacked effect is readable.
     expect(history?.series?.[1]?.fill).toBe('rgb(51 154 240 / 10%)')
     expect(history?.series?.[2]?.fill).toBeUndefined()
+  })
+
+  it('renders every version label and a sane y range for production-shape data (4 versions with hash suffixes)', async () => {
+    // Mirrors the live fleet shape the screenshot regression came from:
+    // 4 versions, two of them carrying modern Meshtastic commit hashes.
+    const productionSnapshot: FirmwareSnapshot = {
+      generated_at: '2026-05-04T12:00:00Z',
+      cache_ttl_seconds: 3600,
+      total_nodes_with_version: 6,
+      versions: [
+        { version: '2.7.16.abcdef0', count: 2, last_seen_at: '2026-05-04T11:00:00Z' },
+        { version: '2.7.23.b246bcd', count: 2, last_seen_at: '2026-05-04T11:30:00Z' },
+        { version: '2.7.10.deadbee', count: 1, last_seen_at: '2026-05-04T11:45:00Z' },
+        { version: '2.7.05.1234567', count: 1, last_seen_at: '2026-05-04T11:50:00Z' }
+      ]
+    }
+
+    render(<StatsPage initialFirmwareSnapshot={productionSnapshot} initialFirmwareHistory={firmwareHistory()} />)
+
+    await screen.findByRole('heading', { name: 'Software' })
+
+    const chartsCount = uplotMock.options.length
+    const snapshot = uplotMock.options[chartsCount - 2]
+    const snapshotData = uplotMock.data[chartsCount - 2]
+    const snapshotXLabels = snapshot?.axes?.[0]?.values?.({}, [0, 1, 2, 3], 0, 0, 0) ?? []
+
+    // All 4 versions must produce a label (the screenshot regression was
+    // that bars 3 and 4 had no visible axis label under them).
+    expect(snapshotXLabels.map(String)).toEqual(['2.7.16', '2.7.23', '2.7.10', '2.7.05'])
+    // Data indices reach the last bar.
+    expect(snapshotData?.[0]).toEqual([0, 1, 2, 3])
+    expect(snapshotData?.[1]).toEqual([2, 2, 1, 1])
+    // y range: max data is 2, so the upper bound should be exactly 2 —
+    // not 3+ (which would mean the chart is silently squashing the bars
+    // because Math.ceil(undefined) leaked through on first render).
+    const yRange = snapshot?.scales?.y?.range?.({}, 0, 2) ?? []
+    expect(yRange).toEqual([0, 2])
+    // And on the first-render call where max is undefined, the chart
+    // must NOT return NaN (which uPlot would interpret as no upper
+    // bound and silently pad the data).
+    const firstRenderRange = snapshot?.scales?.y?.range?.({}, 0, undefined) ?? []
+    expect(Number.isFinite(firstRenderRange[1])).toBe(true)
+    expect(firstRenderRange[1]).toBeGreaterThanOrEqual(1)
   })
 
   it('shows empty-state placeholder when snapshot has no versions', async () => {
