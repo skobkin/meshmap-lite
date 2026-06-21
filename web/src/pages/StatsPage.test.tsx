@@ -50,6 +50,11 @@ interface MockOptions {
   }[]
   scales?: {
     x?: { distr?: number; time?: boolean }
+    // y is only declared in the snapshot chart; the area chart uses the
+    // uPlot auto-fit default. We only need the bits the tests assert on.
+    y?: {
+      range?: (plot: unknown, min: number, max: number | undefined) => [number, number]
+    }
   }
   series?: MockSeries[]
 }
