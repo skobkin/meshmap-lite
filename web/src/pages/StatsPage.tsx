@@ -542,11 +542,19 @@ function FirmwareHistoryChart({ history }: { history: FirmwareHistory }): JSX.El
           return
         }
 
-        // The x axis is week index (0 = oldest). Convert to a coarse
-        // date label so the tooltip stays meaningful without hauling a
-        // separate weeks array through the API.
-        const oldestMonday = Date.now() - (history.weeks - 1 - x) * 7 * 24 * 60 * 60 * 1000
-        const weekLabel = new Date(oldestMonday).toLocaleDateString(undefined, {
+        // The x axis is week index (0 = oldest). Use the server-supplied
+        // week_starts so the label is consistent with the SQL store's
+        // Monday math and survives cache drift across the week boundary
+        // (a cached response from Saturday stays valid through Monday —
+        // the browser's clock would mislabel the new week as the
+        // previous one). Falls back to the old computation only if a
+        // rolled-back API version is mid-deploy and didn't ship
+        // week_starts; same end result for the user.
+        const weekStart = history.week_starts[x]
+        const weekDate = typeof weekStart === 'string'
+          ? new Date(weekStart)
+          : new Date(Date.now() - (history.weeks - 1 - x) * 7 * 24 * 60 * 60 * 1000)
+        const weekLabel = weekDate.toLocaleDateString(undefined, {
           month: 'short',
           day: 'numeric',
           year: 'numeric'
@@ -675,7 +683,7 @@ function SoftwareSection({ snapshot, history }: { snapshot?: FirmwareSnapshot; h
       </div>
       <div className="firmware-grid">
         <FirmwareSnapshotChart versions={snapshot?.versions ?? []} />
-        <FirmwareHistoryChart history={history ?? { generated_at: '', weeks: 0, top: 0, versions: [], versions_by_week: [] }} />
+        <FirmwareHistoryChart history={history ?? { generated_at: '', weeks: 0, top: 0, versions: [], versions_by_week: [], week_starts: [] }} />
       </div>
     </section>
   )

@@ -148,7 +148,22 @@ function firmwareSnapshot(): FirmwareSnapshot {
 
 function firmwareHistory(): FirmwareHistory {
   // 8 weeks, 3 top versions + "(other)". Pad zeros explicitly so the
-  // chart has visible non-zero values at known indices.
+  // chart has visible non-zero values at known indices. week_starts
+  // mirrors the inner versions_by_week axis in oldest-first order —
+  // Monday-anchored RFC3339Nano strings so the chart's tooltip label
+  // source matches what a real server would emit. Last entry is the
+  // week containing 2026-05-04 (Mon 2026-04-27 → Sun 2026-05-03).
+  const weekStarts = [
+    '2026-04-06T00:00:00Z',
+    '2026-04-13T00:00:00Z',
+    '2026-04-20T00:00:00Z',
+    '2026-04-27T00:00:00Z',
+    '2026-05-04T00:00:00Z',
+    '2026-05-11T00:00:00Z',
+    '2026-05-18T00:00:00Z',
+    '2026-05-25T00:00:00Z'
+  ]
+
   return {
     generated_at: '2026-05-04T12:00:00Z',
     weeks: 8,
@@ -159,7 +174,8 @@ function firmwareHistory(): FirmwareHistory {
       [12, 13, 8, 5, 1, 3, 18, 2],
       [12, 13, 8, 4, 4, 2, 12, 8],
       [0, 0, 0, 0, 0, 0, 0, 1]
-    ]
+    ],
+    week_starts: weekStarts
   }
 }
 
@@ -366,7 +382,8 @@ describe('StatsPage Software section', () => {
       weeks: 8,
       top: 3,
       versions: [],
-      versions_by_week: []
+      versions_by_week: [],
+      week_starts: []
     }
     apiMock.firmwareHistory.mockResolvedValue(emptyHistory)
     const before = uplotMock.options.length

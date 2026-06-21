@@ -178,6 +178,15 @@ func (s *Store) FirmwareVersionHistory(ctx context.Context, since time.Time, top
 		Weeks: totalWeeks,
 		TopN:  topN,
 	}
+	// Resolve the column week starts up front so callers (the HTTP
+	// handler, the front-end chart) have a single source of truth for
+	// display math. startOfWeek normalizes the caller's `since` to the
+	// enclosing Monday, so this slice always aligns with the inner
+	// VersionsByWeek axis even when the caller passed a mid-week day.
+	result.WeekStarts = make([]time.Time, totalWeeks)
+	for i := 0; i < totalWeeks; i++ {
+		result.WeekStarts[i] = sinceWeek.AddDate(0, 0, 7*i)
+	}
 
 	if len(topIDs) == 0 {
 		return result, nil

@@ -148,10 +148,20 @@ type firmwareVersionPayload struct {
 // VersionsByWeek[i][j] is the count of devices on Versions[i] at week
 // index j (j=0 is the oldest week, j=Weeks-1 is the newest). Missing
 // weeks are zero-filled so the chart's x-axis stays contiguous.
+//
+// WeekStarts is the same length as VersionsByWeek's inner axis. Each
+// entry is the Monday 00:00 UTC of that column, RFC3339-encoded, in
+// oldest-first order. The server resolves these from its own week
+// boundary math; the client MUST use them for week-aligned display
+// (tooltip labels, axis ticks) instead of re-deriving from
+// `generated_at` and `weeks` — re-derivation drifts across week
+// boundaries when the response is cached and the browser's clock has
+// crossed a Monday.
 type firmwareHistoryPayload struct {
-	GeneratedAt    time.Time `json:"generated_at"`
-	Weeks          int       `json:"weeks"`
-	Top            int       `json:"top"`
-	Versions       []string  `json:"versions"`
-	VersionsByWeek [][]int   `json:"versions_by_week"`
+	GeneratedAt    time.Time   `json:"generated_at"`
+	Weeks          int         `json:"weeks"`
+	Top            int         `json:"top"`
+	Versions       []string    `json:"versions"`
+	VersionsByWeek [][]int     `json:"versions_by_week"`
+	WeekStarts     []time.Time `json:"week_starts"`
 }

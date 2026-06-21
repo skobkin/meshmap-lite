@@ -100,12 +100,26 @@ func (s *Server) firmwareHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Defensive: if the store didn't populate WeekStarts (shouldn't —
+	// the SQL store has done so since PR #111), reconstruct it here so
+	// the chart label math is correct even with a rolled-back or
+	// third-party ReadStore implementation. Matches the store's own
+	// startOfWeek math byte-for-byte.
+	weekStarts := result.WeekStarts
+	if len(weekStarts) == 0 {
+		weekStarts = make([]time.Time, result.Weeks)
+		for i := 0; i < result.Weeks; i++ {
+			weekStarts[i] = since.AddDate(0, 0, 7*i)
+		}
+	}
+
 	payload := firmwareHistoryPayload{
 		GeneratedAt:    now,
 		Weeks:          result.Weeks,
 		Top:            result.TopN,
 		Versions:       result.Versions,
 		VersionsByWeek: result.VersionsByWeek,
+		WeekStarts:     weekStarts,
 	}
 	s.firmwareCache.Set(cacheKey, payload, ttl)
 	writeJSON(w, http.StatusOK, payload)

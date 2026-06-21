@@ -154,9 +154,18 @@ type FirmwareVersionCount struct {
 // VersionsByWeek[i][j] is the count of devices on Versions[i] at week index j
 // (j=0 is the oldest week, j=Weeks-1 is the newest). Missing weeks are padded
 // with zeros so the chart's x-axis stays contiguous.
+//
+// WeekStarts lists the resolved Monday 00:00 UTC of each column in the
+// same order as the inner VersionsByWeek axis (oldest first). The store
+// normalizes `since` to its own week boundary internally, so the slice
+// may start slightly earlier than the caller's input — callers MUST
+// use WeekStarts for week-aligned display math instead of re-deriving
+// from `since` (re-derivation drifts across week boundaries and breaks
+// cached responses on rollover days).
 type FirmwareHistoryResult struct {
 	Weeks          int
 	TopN           int
 	Versions       []string
 	VersionsByWeek [][]int
+	WeekStarts     []time.Time
 }

@@ -302,6 +302,11 @@ export interface FirmwareHistory {
   // versions_by_week[i][j] is the count of nodes on versions[i] at week j,
   // j=0 is the oldest week, j=weeks-1 is the newest.
   versions_by_week: number[][]
+  // Resolved Monday 00:00 UTC of each column (RFC3339Nano), in oldest-first
+  // order. The chart anchors tooltip labels to this slice instead of
+  // re-deriving week starts from the browser's clock, which would drift
+  // across the week boundary when a cached response outlives a Monday.
+  week_starts: string[]
 }
 
 export interface LogEvent {

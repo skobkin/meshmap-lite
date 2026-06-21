@@ -1053,6 +1053,116 @@ func TestFirmwareHistoryHandler_IgnoresQueryParams(t *testing.T) {
 	}
 }
 
+// TestFirmwareHistoryHandler_EchoesWeekStarts pins the new
+// week_starts contract: the handler must surface the store's
+// resolved week starts (oldest-first) in the payload so the
+// front-end chart labels buckets with the server's Monday
+// math instead of re-deriving from the browser's clock. The
+// response is verified after a JSON round-trip so the wire
+// format (RFC3339) is exercised end-to-end.
+func TestFirmwareHistoryHandler_EchoesWeekStarts(t *testing.T) {
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC) // Sunday
+	// currentWeek = 2026-06-15 (Monday). For weeks=4 the slice is
+	// [2025-12-22, 2025-12-29, 2026-01-05, 2026-01-12] — wait, that's
+	// a typo. Correct math: currentWeek - 3*7d = 2026-06-15 - 21d =
+	// 2026-05-25, then [25, +7, +14, +21] = [05-25, 06-01, 06-08, 06-15].
+	wantStarts := []time.Time{
+		time.Date(2026, 5, 25, 0, 0, 0, 0, time.UTC),
+		time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2026, 6, 8, 0, 0, 0, 0, time.UTC),
+		time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC),
+	}
+	store := &testkit.FakeStore{
+		FirmwareVersionHistoryFn: func(_ context.Context, _ time.Time, _, totalWeeks int) (repo.FirmwareHistoryResult, error) {
+			return repo.FirmwareHistoryResult{
+				Weeks:          totalWeeks,
+				TopN:           1,
+				Versions:       []string{"2.7.15"},
+				VersionsByWeek: [][]int{make([]int, totalWeeks)},
+				WeekStarts:     wantStarts,
+			}, nil
+		},
+	}
+	srv := New(Config{Web: config.WebConfig{Stats: config.StatsConfig{Software: firmwareSoftwareConfig}}},
+		store, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil, nil)
+	srv.now = func() time.Time { return now }
+	srv.firmwareCache.now = func() time.Time { return now }
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/stats/firmware/history", nil)
+	rec := httptest.NewRecorder()
+	srv.firmwareHistory(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	// Round-trip through JSON to pin the wire format.
+	var raw struct {
+		WeekStarts []string `json:"week_starts"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &raw); err != nil {
+		t.Fatalf("decode week_starts: %v", err)
+	}
+	if len(raw.WeekStarts) != len(wantStarts) {
+		t.Fatalf("expected %d week_starts, got %d", len(wantStarts), len(raw.WeekStarts))
+	}
+	for i, want := range wantStarts {
+		got, err := time.Parse(time.RFC3339Nano, raw.WeekStarts[i])
+		if err != nil {
+			t.Fatalf("week_starts[%d]=%q is not RFC3339: %v", i, raw.WeekStarts[i], err)
+		}
+		if !got.Equal(want) {
+			t.Errorf("week_starts[%d]=%s, want %s", i, got, want)
+		}
+	}
+}
+
+// TestFirmwareHistoryHandler_FallsBackToDerivedWeekStarts pins the
+// defensive path: if a third-party or rolled-back ReadStore
+// implementation doesn't populate WeekStarts, the handler must
+// reconstruct it from `since` (Monday of the current week minus
+// (weeks-1)*7d) so the chart still labels buckets correctly.
+func TestFirmwareHistoryHandler_FallsBackToDerivedWeekStarts(t *testing.T) {
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC) // Sunday → currentWeek 2026-06-15
+	store := &testkit.FakeStore{
+		FirmwareVersionHistoryFn: func(_ context.Context, _ time.Time, _, totalWeeks int) (repo.FirmwareHistoryResult, error) {
+			return repo.FirmwareHistoryResult{
+				Weeks:          totalWeeks,
+				TopN:           1,
+				Versions:       []string{"2.7.15"},
+				VersionsByWeek: [][]int{make([]int, totalWeeks)},
+				// WeekStarts deliberately omitted.
+			}, nil
+		},
+	}
+	srv := New(Config{Web: config.WebConfig{Stats: config.StatsConfig{Software: firmwareSoftwareConfig}}},
+		store, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil, nil)
+	srv.now = func() time.Time { return now }
+	srv.firmwareCache.now = func() time.Time { return now }
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/stats/firmware/history", nil)
+	rec := httptest.NewRecorder()
+	srv.firmwareHistory(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	var payload firmwareHistoryPayload
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(payload.WeekStarts) != payload.Weeks {
+		t.Fatalf("expected fallback to populate %d week_starts, got %d", payload.Weeks, len(payload.WeekStarts))
+	}
+	// Last entry must be the current Monday — that's the value the
+	// chart most often displays and the value most affected by the
+	// original bug (browser vs server week boundary).
+	last := payload.WeekStarts[len(payload.WeekStarts)-1]
+	wantLast := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
+	if !last.Equal(wantLast) {
+		t.Errorf("fallback last week_start=%s, want %s", last, wantLast)
+	}
+}
+
 // TestFirmwareSnapshotHandler_PassesMapReportMaxAgeToStore verifies that
 // the snapshot handler threads web.stats.software.map_report_max_age
 // straight through to the store as the staleness cutoff for the live
