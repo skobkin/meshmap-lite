@@ -88,8 +88,17 @@ func (s *Server) firmwareHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The store allocates exactly `historyWeeks` columns starting at
+	// startOfWeek(since). To include the current week as the last column
+	// instead of dropping it off the end, compute since as the Monday of
+	// the current week minus (weeks-1) weeks — that gives exactly
+	// `weeks` columns ending at the current week. The previous
+	// formulation (since = now - 7*weeks) anchored to a mid-week day,
+	// which pushed the current week past the end of the window and
+	// pulled in an extra older week.
 	now := s.now().UTC()
-	since := now.AddDate(0, 0, -7*historyWeeks)
+	currentWeek := mondayOfWeek(now)
+	since := currentWeek.AddDate(0, 0, -7*(historyWeeks-1))
 	result, err := s.store.FirmwareVersionHistory(r.Context(), since, topN, historyWeeks)
 	if err != nil {
 		s.log.Error("firmware history query failed", "err", err)
@@ -107,6 +116,20 @@ func (s *Server) firmwareHistory(w http.ResponseWriter, r *http.Request) {
 	}
 	s.firmwareCache.Set(cacheKey, payload, ttl)
 	writeJSON(w, http.StatusOK, payload)
+}
+
+// mondayOfWeek returns the Monday 00:00 UTC of the week containing t.
+// Duplicates the sqlite store's internal helper because the handler
+// package can't import unexported symbols from internal/persistence/sqlite;
+// the two implementations are pinned to the same behaviour by
+// TestFirmwareHistoryHandler_IncludesCurrentWeek.
+func mondayOfWeek(t time.Time) time.Time {
+	t = t.UTC()
+	// time.Weekday: Sunday=0, Monday=1, ..., Saturday=6.
+	// offset is the number of days to subtract to reach Monday.
+	offset := (int(t.Weekday()) + 6) % 7
+
+	return time.Date(t.Year(), t.Month(), t.Day()-offset, 0, 0, 0, 0, time.UTC)
 }
 
 func buildFirmwareSnapshotPayload(generatedAt time.Time, counts []repo.FirmwareVersionCount) firmwareSnapshotPayload {

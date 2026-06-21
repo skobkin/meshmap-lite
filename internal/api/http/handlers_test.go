@@ -819,9 +819,12 @@ func TestFirmwareHistoryHandler_RespectsQueryParams(t *testing.T) {
 	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC) // Sunday — start of week is 2026-06-15 (Mon)
 	store := &testkit.FakeStore{
 		FirmwareVersionHistoryFn: func(_ context.Context, since time.Time, topN, totalWeeks int) (repo.FirmwareHistoryResult, error) {
-			// Handler does naive `now - 7*weeks` (the store snaps to
-			// Monday 00:00 UTC internally); the fake gets the raw value.
-			wantSince := now.AddDate(0, 0, -7*8)
+			// Handler computes `since` as the Monday of the current
+			// week minus (weeks-1)*7 days so the current week lands
+			// at the last column instead of falling off the end. For
+			// now = 2026-06-21 (Sunday), current week is 2026-06-15
+			// (Mon), so weeks=8 → since = 2026-04-27 (Mon).
+			wantSince := time.Date(2026, 4, 27, 0, 0, 0, 0, time.UTC)
 			if !since.Equal(wantSince) {
 				t.Errorf("unexpected since: got %s, want %s", since, wantSince)
 			}
@@ -953,6 +956,77 @@ func TestFirmwareHistoryHandler_HistoryCacheIsSeparateFromSnapshot(t *testing.T)
 	}
 	if histCalls != 1 {
 		t.Errorf("expected history cache reuse (1 call), got %d", histCalls)
+	}
+}
+
+// TestFirmwareHistoryHandler_IncludesCurrentWeek pins the window math
+// in firmwareHistory: the current week must land at the LAST column,
+// not fall off the end. The previous formulation computed
+// `since = now - 7*weeks` (anchored to a mid-week day), which pushed
+// the current week past the allocated `weeks` columns AND pulled in
+// an extra older week. The fix anchors `since` to the Monday of the
+// current week minus (weeks-1) weeks.
+//
+// The test exercises multiple `now` positions (Sun, Mon, Wed, Sat)
+// because the bug only manifested when `now` was mid-week.
+func TestFirmwareHistoryHandler_IncludesCurrentWeek(t *testing.T) {
+	cases := []struct {
+		name string
+		now  time.Time
+	}{
+		// 2026-06-15 is a Monday.
+		{"Monday of current week", time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)},
+		{"Wednesday of current week", time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)},
+		{"Sunday of current week", time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)},
+		{"Saturday of current week", time.Date(2026, 6, 20, 23, 59, 59, 0, time.UTC)},
+	}
+	const weeks = 4
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			now := tc.now
+			store := &testkit.FakeStore{
+				FirmwareVersionHistoryFn: func(_ context.Context, since time.Time, topN, totalWeeks int) (repo.FirmwareHistoryResult, error) {
+					if totalWeeks != weeks {
+						t.Errorf("expected weeks=%d, got %d", weeks, totalWeeks)
+					}
+					// The Monday of `now`'s week, regardless of where in
+					// the week `now` sits.
+					wantCurrentWeek := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
+					wantSince := wantCurrentWeek.AddDate(0, 0, -7*(weeks-1))
+					if !since.Equal(wantSince) {
+						t.Errorf("since=%s, want %s (currentWeek - %d weeks)", since, wantSince, weeks-1)
+					}
+
+					return repo.FirmwareHistoryResult{
+						Weeks:          weeks,
+						TopN:           1,
+						Versions:       []string{"2.7.15"},
+						VersionsByWeek: [][]int{{1, 1, 1, 1}}, // weeks=4 columns, current week included
+					}, nil
+				},
+			}
+			srv := New(Config{Web: config.WebConfig{Stats: config.StatsConfig{Software: firmwareSoftwareConfig}}},
+				store, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil, nil)
+			srv.now = func() time.Time { return now }
+			srv.firmwareCache.now = func() time.Time { return now }
+			srv.firmwareCache.now = func() time.Time { return now }
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/stats/firmware/history?weeks=4", nil)
+			rec := httptest.NewRecorder()
+			srv.firmwareHistory(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("unexpected status: %d body=%s", rec.Code, rec.Body.String())
+			}
+			var payload firmwareHistoryPayload
+			if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			if len(payload.VersionsByWeek) != 1 || len(payload.VersionsByWeek[0]) != weeks {
+				t.Fatalf("unexpected payload shape: %d series x %d weeks (want 1 x %d)",
+					len(payload.VersionsByWeek), len(payload.VersionsByWeek[0]), weeks)
+			}
+		})
 	}
 }
 
