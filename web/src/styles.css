@@ -2296,10 +2296,28 @@ body {
   font-size: 0.85rem;
   line-height: 1.2;
   white-space: nowrap;
+  position: relative;
 }
 
 .app-modal-tab[aria-selected="true"] {
   font-weight: 600;
+}
+
+.app-modal-tab-dot {
+  position: absolute;
+  top: -0.1rem;
+  right: -0.1rem;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: var(--pico-del-color);
+  box-shadow: 0 0 0 2px var(--surface-bg);
+}
+
+@media (prefers-color-scheme: dark) {
+  .app-modal-tab-dot {
+    background: color-mix(in srgb, var(--pico-del-color) 92%, white 8%);
+  }
 }
 
 /* Unread count badge on the header info button */

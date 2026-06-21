@@ -913,7 +913,19 @@ export function App(): JSX.Element {
     modalTabs.push({ id: informationTabID, label: 'Information', isInformation: true })
   }
   for (const source of updateSources) {
-    modalTabs.push({ id: source.name, label: source.label, source })
+    const dismissedAt = updatesDismissedAt[source.name]
+    let hasUnread = source.releases.length > 0
+    if (dismissedAt) {
+      const dismissed = new Date(dismissedAt).getTime()
+      if (!Number.isNaN(dismissed)) {
+        hasUnread = source.releases.some((release) => {
+          const published = new Date(release.published_at).getTime()
+
+          return !Number.isNaN(published) && published > dismissed
+        })
+      }
+    }
+    modalTabs.push({ id: source.name, label: source.label, source, hasUnread })
   }
   const updatesUnread = updateSources.reduce((sum, source) => {
     const dismissedAt = updatesDismissedAt[source.name]

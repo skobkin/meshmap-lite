@@ -319,4 +319,102 @@ describe('AppModal', () => {
 
     expect(onDismiss).toHaveBeenCalledTimes(1)
   })
+
+  it('renders the update dot on a source tab when hasUnread is true', () => {
+    render(
+      <AppModal
+        activeTabID="info"
+        infoContent=""
+        infoError=""
+        infoLoading={false}
+        infoShowUpdatedNotice={false}
+        tabs={[
+          { id: 'info', label: 'Information', isInformation: true },
+          { id: 'source:meshmap-lite', label: 'MeshMap Lite', source: buildSource(), hasUnread: true }
+        ]}
+        updatesDismissedAt={{}}
+        onClose={() => undefined}
+        onDismiss={() => undefined}
+        onDismissUpdates={() => undefined}
+        onSelectTab={() => undefined}
+      />
+    )
+
+    const sourceTab = screen.getByRole('tab', { name: 'MeshMap Lite' })
+
+    expect(sourceTab.querySelector('.app-modal-tab-dot')).toBeTruthy()
+  })
+
+  it('does not render the update dot on a source tab when hasUnread is false or absent', () => {
+    render(
+      <AppModal
+        activeTabID="info"
+        infoContent=""
+        infoError=""
+        infoLoading={false}
+        infoShowUpdatedNotice={false}
+        tabs={[
+          { id: 'info', label: 'Information', isInformation: true },
+          { id: 'source:a', label: 'Source A', source: buildSource({ name: 'a', label: 'Source A' }), hasUnread: false },
+          { id: 'source:b', label: 'Source B', source: buildSource({ name: 'b', label: 'Source B' }) }
+        ]}
+        updatesDismissedAt={{}}
+        onClose={() => undefined}
+        onDismiss={() => undefined}
+        onDismissUpdates={() => undefined}
+        onSelectTab={() => undefined}
+      />
+    )
+
+    expect(screen.getByRole('tab', { name: 'Source A' }).querySelector('.app-modal-tab-dot')).toBeNull()
+    expect(screen.getByRole('tab', { name: 'Source B' }).querySelector('.app-modal-tab-dot')).toBeNull()
+  })
+
+  it('never renders the update dot on the information tab even if hasUnread is set', () => {
+    render(
+      <AppModal
+        activeTabID="info"
+        infoContent=""
+        infoError=""
+        infoLoading={false}
+        infoShowUpdatedNotice={false}
+        tabs={[
+          { id: 'info', label: 'Information', isInformation: true, hasUnread: true }
+        ]}
+        updatesDismissedAt={{}}
+        onClose={() => undefined}
+        onDismiss={() => undefined}
+        onDismissUpdates={() => undefined}
+        onSelectTab={() => undefined}
+      />
+    )
+
+    expect(screen.getByRole('tab', { name: 'Information' }).querySelector('.app-modal-tab-dot')).toBeNull()
+  })
+
+  it('renders the update dot on the selected source tab as well as unselected ones', () => {
+    render(
+      <AppModal
+        activeTabID="source:meshmap-lite"
+        infoContent=""
+        infoError=""
+        infoLoading={false}
+        infoShowUpdatedNotice={false}
+        tabs={[
+          { id: 'info', label: 'Information', isInformation: true },
+          { id: 'source:meshmap-lite', label: 'MeshMap Lite', source: buildSource(), hasUnread: true }
+        ]}
+        updatesDismissedAt={{}}
+        onClose={() => undefined}
+        onDismiss={() => undefined}
+        onDismissUpdates={() => undefined}
+        onSelectTab={() => undefined}
+      />
+    )
+
+    const selectedTab = screen.getByRole('tab', { name: 'MeshMap Lite' })
+
+    expect(selectedTab.getAttribute('aria-selected')).toBe('true')
+    expect(selectedTab.querySelector('.app-modal-tab-dot')).toBeTruthy()
+  })
 })

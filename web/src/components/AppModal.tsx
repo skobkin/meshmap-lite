@@ -9,6 +9,7 @@ export interface AppModalTab {
   label: string
   isInformation?: boolean
   source?: SourceSummary
+  hasUnread?: boolean
 }
 
 interface Props {
@@ -57,6 +58,9 @@ export function AppModal({
             onClick={() => onSelectTab(tab.id)}
           >
             {tab.label}
+            {!tab.isInformation && tab.hasUnread && (
+              <span aria-hidden="true" className="app-modal-tab-dot" />
+            )}
           </button>
         )
       })}
