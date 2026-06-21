@@ -717,6 +717,11 @@ func TestFirmwareSnapshotHandler_ReturnsVersionsAndTotal(t *testing.T) {
 	if !payload.GeneratedAt.Equal(now) {
 		t.Errorf("expected generated_at %s, got %s", now, payload.GeneratedAt)
 	}
+	// The handler echoes the resolved TTL so the client can poll on
+	// the operator's cadence rather than a hardcoded 1h.
+	if payload.CacheTtlSeconds != 3600 {
+		t.Errorf("expected cache_ttl_seconds 3600 (1h default), got %d", payload.CacheTtlSeconds)
+	}
 }
 
 func TestFirmwareSnapshotHandler_ReusesCacheUntilTTL(t *testing.T) {
@@ -879,6 +884,11 @@ func TestFirmwareHistoryHandler_RespectsConfig(t *testing.T) {
 	if len(payload.VersionsByWeek) != 5 || len(payload.VersionsByWeek[0]) != 54 {
 		t.Fatalf("unexpected versions_by_week shape: %d series x %d weeks",
 			len(payload.VersionsByWeek), len(payload.VersionsByWeek[0]))
+	}
+	// The handler echoes the resolved TTL so the client can poll on
+	// the operator's cadence rather than a hardcoded 24h.
+	if payload.CacheTtlSeconds != 86400 {
+		t.Errorf("expected cache_ttl_seconds 86400 (24h default), got %d", payload.CacheTtlSeconds)
 	}
 }
 
@@ -1160,6 +1170,80 @@ func TestFirmwareHistoryHandler_FallsBackToDerivedWeekStarts(t *testing.T) {
 	wantLast := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
 	if !last.Equal(wantLast) {
 		t.Errorf("fallback last week_start=%s, want %s", last, wantLast)
+	}
+}
+
+// TestFirmwareSnapshotHandler_EchoesResolvedTTL pins that the
+// snapshot endpoint echoes the operator's resolved TTL (not a
+// hardcoded default) so the UI can poll on the operator's cadence.
+// Regression for the CodeX review of PR #111.
+func TestFirmwareSnapshotHandler_EchoesResolvedTTL(t *testing.T) {
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	cfg := firmwareSoftwareConfig
+	cfg.SnapshotCacheTTL = 5 * time.Minute // short, to prove the echo isn't just the default
+	store := &testkit.FakeStore{
+		FirmwareVersionSnapshotFn: func(_ context.Context, _ time.Duration) ([]repo.FirmwareVersionCount, error) {
+			return []repo.FirmwareVersionCount{{Version: "2.7.15", Count: 1, LastSeenAt: now}}, nil
+		},
+	}
+	srv := New(Config{Web: config.WebConfig{Stats: config.StatsConfig{Software: cfg}}},
+		store, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil, nil)
+	srv.now = func() time.Time { return now }
+	srv.firmwareCache.now = func() time.Time { return now }
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/stats/firmware", nil)
+	rec := httptest.NewRecorder()
+	srv.firmwareSnapshot(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	var payload firmwareSnapshotPayload
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload.CacheTtlSeconds != 300 {
+		t.Errorf("expected cache_ttl_seconds 300 (5m resolved), got %d", payload.CacheTtlSeconds)
+	}
+}
+
+// TestFirmwareHistoryHandler_EchoesResolvedTTL is the history
+// counterpart to TestFirmwareSnapshotHandler_EchoesResolvedTTL.
+// Together they prove the client poll cadence tracks the operator's
+// configured TTL on both firmware endpoints.
+func TestFirmwareHistoryHandler_EchoesResolvedTTL(t *testing.T) {
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	cfg := firmwareSoftwareConfig
+	cfg.HistoryCacheTTL = 90 * time.Minute
+	store := &testkit.FakeStore{
+		FirmwareVersionHistoryFn: func(_ context.Context, _ time.Time, _, totalWeeks int) (repo.FirmwareHistoryResult, error) {
+			return repo.FirmwareHistoryResult{
+				Weeks:          totalWeeks,
+				TopN:           1,
+				Versions:       []string{"2.7.15"},
+				VersionsByWeek: [][]int{make([]int, totalWeeks)},
+				WeekStarts:     make([]time.Time, totalWeeks),
+			}, nil
+		},
+	}
+	srv := New(Config{Web: config.WebConfig{Stats: config.StatsConfig{Software: cfg}}},
+		store, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil, nil)
+	srv.now = func() time.Time { return now }
+	srv.firmwareCache.now = func() time.Time { return now }
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/stats/firmware/history", nil)
+	rec := httptest.NewRecorder()
+	srv.firmwareHistory(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	var payload firmwareHistoryPayload
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload.CacheTtlSeconds != 5400 {
+		t.Errorf("expected cache_ttl_seconds 5400 (90m resolved), got %d", payload.CacheTtlSeconds)
 	}
 }
 

@@ -43,7 +43,7 @@ func (s *Server) firmwareSnapshot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload := buildFirmwareSnapshotPayload(s.now(), counts)
+	payload := buildFirmwareSnapshotPayload(s.now(), counts, ttl)
 	s.firmwareCache.Set(cacheKey, payload, ttl)
 	writeJSON(w, http.StatusOK, payload)
 }
@@ -114,12 +114,13 @@ func (s *Server) firmwareHistory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	payload := firmwareHistoryPayload{
-		GeneratedAt:    now,
-		Weeks:          result.Weeks,
-		Top:            result.TopN,
-		Versions:       result.Versions,
-		VersionsByWeek: result.VersionsByWeek,
-		WeekStarts:     weekStarts,
+		GeneratedAt:     now,
+		CacheTtlSeconds: int(ttl / time.Second),
+		Weeks:           result.Weeks,
+		Top:             result.TopN,
+		Versions:        result.Versions,
+		VersionsByWeek:  result.VersionsByWeek,
+		WeekStarts:      weekStarts,
 	}
 	s.firmwareCache.Set(cacheKey, payload, ttl)
 	writeJSON(w, http.StatusOK, payload)
@@ -139,10 +140,11 @@ func mondayOfWeek(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day()-offset, 0, 0, 0, 0, time.UTC)
 }
 
-func buildFirmwareSnapshotPayload(generatedAt time.Time, counts []repo.FirmwareVersionCount) firmwareSnapshotPayload {
+func buildFirmwareSnapshotPayload(generatedAt time.Time, counts []repo.FirmwareVersionCount, ttl time.Duration) firmwareSnapshotPayload {
 	out := firmwareSnapshotPayload{
-		GeneratedAt: generatedAt,
-		Versions:    make([]firmwareVersionPayload, 0, len(counts)),
+		GeneratedAt:     generatedAt,
+		CacheTtlSeconds: int(ttl / time.Second),
+		Versions:        make([]firmwareVersionPayload, 0, len(counts)),
 	}
 	for _, c := range counts {
 		out.TotalNodesWithVersion += c.Count

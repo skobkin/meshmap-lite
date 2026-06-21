@@ -289,12 +289,20 @@ export interface FirmwareVersionCount {
 
 export interface FirmwareSnapshot {
   generated_at: string
+  // Server's resolved cache TTL for this endpoint, in seconds. Polling
+  // cadence on the client mirrors this so an operator shortening the
+  // configured TTL actually picks up fresher data (instead of the
+  // client staying stale on its hard-coded interval).
+  cache_ttl_seconds: number
   total_nodes_with_version: number
   versions: FirmwareVersionCount[]
 }
 
 export interface FirmwareHistory {
   generated_at: string
+  // Server's resolved cache TTL for this endpoint, in seconds. See
+  // FirmwareSnapshot.cache_ttl_seconds for the rationale.
+  cache_ttl_seconds: number
   weeks: number
   top: number
   // The last entry is "(other)" when there are versions outside the top-N.

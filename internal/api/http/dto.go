@@ -131,7 +131,14 @@ type activityBucketPayload struct {
 // firmwareSnapshotPayload is the response body of
 // GET /api/v1/stats/firmware.
 type firmwareSnapshotPayload struct {
-	GeneratedAt           time.Time                `json:"generated_at"`
+	GeneratedAt time.Time `json:"generated_at"`
+	// CacheTtlSeconds echoes the server's resolved cache TTL for this
+	// endpoint (the configured `web.stats.software.snapshot_cache_ttl`,
+	// normalized to a positive integer). Clients use it as the polling
+	// cadence so an operator shortening the server-side TTL actually
+	// picks up fresher data, instead of the client remaining stale on
+	// its hard-coded interval.
+	CacheTtlSeconds       int                      `json:"cache_ttl_seconds"`
 	TotalNodesWithVersion int                      `json:"total_nodes_with_version"`
 	Versions              []firmwareVersionPayload `json:"versions"`
 }
@@ -158,10 +165,17 @@ type firmwareVersionPayload struct {
 // boundaries when the response is cached and the browser's clock has
 // crossed a Monday.
 type firmwareHistoryPayload struct {
-	GeneratedAt    time.Time   `json:"generated_at"`
-	Weeks          int         `json:"weeks"`
-	Top            int         `json:"top"`
-	Versions       []string    `json:"versions"`
-	VersionsByWeek [][]int     `json:"versions_by_week"`
-	WeekStarts     []time.Time `json:"week_starts"`
+	GeneratedAt time.Time `json:"generated_at"`
+	// CacheTtlSeconds echoes the server's resolved cache TTL for this
+	// endpoint (the configured `web.stats.software.history_cache_ttl`,
+	// normalized to a positive integer). Clients use it as the polling
+	// cadence so an operator shortening the server-side TTL actually
+	// picks up fresher data, instead of the client remaining stale on
+	// its hard-coded interval.
+	CacheTtlSeconds int         `json:"cache_ttl_seconds"`
+	Weeks           int         `json:"weeks"`
+	Top             int         `json:"top"`
+	Versions        []string    `json:"versions"`
+	VersionsByWeek  [][]int     `json:"versions_by_week"`
+	WeekStarts      []time.Time `json:"week_starts"`
 }

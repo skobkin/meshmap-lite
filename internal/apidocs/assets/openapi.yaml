@@ -1357,11 +1357,21 @@ components:
           minimum: 0
     FirmwareSnapshot:
       type: object
-      required: [generated_at, total_nodes_with_version, versions]
+      required: [generated_at, cache_ttl_seconds, total_nodes_with_version, versions]
       properties:
         generated_at:
           type: string
           format: date-time
+        cache_ttl_seconds:
+          type: integer
+          minimum: 1
+          description: |
+            Resolved cache TTL for this endpoint, in seconds. Echoes the
+            configured `web.stats.software.snapshot_cache_ttl` normalized
+            to a positive integer. Clients use it as the polling cadence
+            so an operator shortening the server-side TTL actually picks
+            up fresher data instead of the UI staying stale on a
+            hardcoded 1h interval.
         total_nodes_with_version:
           type: integer
           minimum: 0
@@ -1383,11 +1393,21 @@ components:
           format: date-time
     FirmwareHistory:
       type: object
-      required: [generated_at, weeks, top, versions, versions_by_week, week_starts]
+      required: [generated_at, cache_ttl_seconds, weeks, top, versions, versions_by_week, week_starts]
       properties:
         generated_at:
           type: string
           format: date-time
+        cache_ttl_seconds:
+          type: integer
+          minimum: 1
+          description: |
+            Resolved cache TTL for this endpoint, in seconds. Echoes the
+            configured `web.stats.software.history_cache_ttl` normalized
+            to a positive integer. Clients use it as the polling cadence
+            so an operator shortening the server-side TTL actually picks
+            up fresher data instead of the UI staying stale on a
+            hardcoded 24h interval.
         weeks:
           type: integer
           minimum: 1
