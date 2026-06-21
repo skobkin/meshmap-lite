@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"net/http"
-	"strconv"
 	"time"
 
 	"meshmap-lite/internal/repo"
@@ -49,12 +48,10 @@ func (s *Server) firmwareSnapshot(w http.ResponseWriter, r *http.Request) {
 
 // firmwareHistory serves GET /api/v1/stats/firmware/history. Returns the
 // dense per-week pivot for the top-N versions plus an "(other)" bucket,
-// padded out to StatsConfig.Software.HistoryWeeks columns.
-//
-// Query params (all optional):
-//
-//	weeks=N - render N weeks ending at the current week (default 54)
-//	top=N   - top-N versions in the window (default 15)
+// padded out to StatsConfig.Software.HistoryWeeks columns. The window
+// shape is fully config-driven; the endpoint does not accept query
+// parameters so that a malicious client cannot force oversized
+// allocations and so the response stays cacheable behind a single key.
 //
 // Cached for StatsConfig.Software.HistoryCacheTTL (default 24 h) — the
 // underlying weekly snapshot writes are idempotent and infrequent, so
@@ -73,14 +70,8 @@ func (s *Server) firmwareHistory(w http.ResponseWriter, r *http.Request) {
 	if topN <= 0 {
 		topN = 15
 	}
-	if v, err := strconv.Atoi(r.URL.Query().Get("weeks")); err == nil && v > 0 {
-		historyWeeks = v
-	}
-	if v, err := strconv.Atoi(r.URL.Query().Get("top")); err == nil && v > 0 {
-		topN = v
-	}
 
-	cacheKey := "history:w=" + strconv.Itoa(historyWeeks) + ":t=" + strconv.Itoa(topN)
+	cacheKey := "history"
 
 	if cached, ok := s.firmwareCache.Get(cacheKey, ttl); ok {
 		writeJSON(w, http.StatusOK, cached)

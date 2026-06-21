@@ -72,14 +72,11 @@ export const api = {
   },
   statsActivity: (options?: RequestOptions) => request<ActivityStats>('/api/v1/stats/activity', options),
   firmwareSnapshot: (options?: RequestOptions) => request<FirmwareSnapshot>('/api/v1/stats/firmware', options),
-  firmwareHistory: (params: { weeks?: number; top?: number } = {}, options?: RequestOptions) => {
-    const q = new URLSearchParams()
-    if (typeof params.weeks === 'number' && params.weeks > 0) {q.set('weeks', String(params.weeks))}
-    if (typeof params.top === 'number' && params.top > 0) {q.set('top', String(params.top))}
-    const suffix = q.toString()
-
-    return request<FirmwareHistory>(`/api/v1/stats/firmware/history${suffix ? `?${suffix}` : ''}`, options)
-  },
+  // The server controls the window shape via web.stats.software.history_weeks
+  // and web.stats.software.top_versions; the endpoint does not accept query
+  // parameters. Keeping this client signature parameterless matches that
+  // contract and avoids spreading config-derived values through the API.
+  firmwareHistory: (options?: RequestOptions) => request<FirmwareHistory>('/api/v1/stats/firmware/history', options),
   nodes: (options?: RequestOptions) => request<NodeSummary[]>('/api/v1/nodes', options),
   node: (id: string, options?: RequestOptions) => request<NodeDetails>(`/api/v1/nodes/${encodeURIComponent(id)}`, options)
 }

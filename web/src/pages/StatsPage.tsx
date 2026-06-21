@@ -703,7 +703,7 @@ export function StatsPage({ initialStats, initialFirmwareSnapshot, initialFirmwa
   ), [])
 
   const loadFirmwareHistory = useCallback((signal?: AbortSignal): Promise<void> => (
-    api.firmwareHistory({}, { signal })
+    api.firmwareHistory({ signal })
       .then((next) => {
         setFirmwareHistory(next)
       })

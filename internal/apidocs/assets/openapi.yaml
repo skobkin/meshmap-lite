@@ -384,26 +384,13 @@ paths:
       tags: [Stats]
       summary: Fetch the weekly firmware version history
       operationId: getStatsFirmwareHistory
-      parameters:
-        - name: weeks
-          in: query
-          required: false
-          description: |
-            Number of trailing weeks to return. Defaults to
-            `web.stats.software.history_weeks` (default 54).
-          schema:
-            type: integer
-            minimum: 1
-        - name: top
-          in: query
-          required: false
-          description: |
-            Top-N versions to surface individually. Versions outside the top-N
-            are aggregated into a trailing `(other)` series. Defaults to
-            `web.stats.software.top_versions` (default 15).
-          schema:
-            type: integer
-            minimum: 1
+      description: |
+        Window shape (number of weeks, top-N versions) is fully
+        config-driven via `web.stats.software.history_weeks` (default 54)
+        and `web.stats.software.top_versions` (default 15). The endpoint
+        does not accept query parameters so that the response stays
+        cacheable behind a single key and a malicious client cannot force
+        oversized allocations via a crafted `weeks` value.
       responses:
         '200':
           description: |

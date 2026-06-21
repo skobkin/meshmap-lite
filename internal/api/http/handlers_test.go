@@ -815,24 +815,26 @@ func TestFirmwareSnapshotHandler_InvalidateBustsCache(t *testing.T) {
 	}
 }
 
-func TestFirmwareHistoryHandler_RespectsQueryParams(t *testing.T) {
-	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC) // Sunday — start of week is 2026-06-15 (Mon)
+// TestFirmwareHistoryHandler_RespectsConfig pins the window math
+// from a single source of truth: config. The endpoint no longer
+// accepts ?weeks or ?top overrides (see TestFirmwareHistoryHandler_
+// IgnoresQueryParams), so the values seen by the store are exactly
+// firmwareSoftwareConfig.{HistoryWeeks,TopVersions}. For now = 2026-
+// 06-21 (Sunday) the current week is 2026-06-15 (Mon), so weeks=54
+// → since = 2026-06-15 - 53*7d = 2025-07-21 (Mon).
+func TestFirmwareHistoryHandler_RespectsConfig(t *testing.T) {
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
 	store := &testkit.FakeStore{
 		FirmwareVersionHistoryFn: func(_ context.Context, since time.Time, topN, totalWeeks int) (repo.FirmwareHistoryResult, error) {
-			// Handler computes `since` as the Monday of the current
-			// week minus (weeks-1)*7 days so the current week lands
-			// at the last column instead of falling off the end. For
-			// now = 2026-06-21 (Sunday), current week is 2026-06-15
-			// (Mon), so weeks=8 → since = 2026-04-27 (Mon).
-			wantSince := time.Date(2026, 4, 27, 0, 0, 0, 0, time.UTC)
+			wantSince := time.Date(2025, 6, 9, 0, 0, 0, 0, time.UTC)
 			if !since.Equal(wantSince) {
 				t.Errorf("unexpected since: got %s, want %s", since, wantSince)
 			}
-			if topN != 5 {
-				t.Errorf("expected top=5, got %d", topN)
+			if topN != 15 {
+				t.Errorf("expected top=15 (config default), got %d", topN)
 			}
-			if totalWeeks != 8 {
-				t.Errorf("expected weeks=8, got %d", totalWeeks)
+			if totalWeeks != 54 {
+				t.Errorf("expected weeks=54 (config default), got %d", totalWeeks)
 			}
 
 			return repo.FirmwareHistoryResult{
@@ -842,56 +844,13 @@ func TestFirmwareHistoryHandler_RespectsQueryParams(t *testing.T) {
 					"2.7.15", "2.7.10", "2.6.5", "2.5.0", "2.4.0",
 				},
 				VersionsByWeek: [][]int{
-					{1, 1, 1, 1, 0, 0, 1, 1},
-					{0, 0, 1, 1, 1, 1, 0, 0},
-					{2, 2, 1, 0, 0, 0, 0, 0},
-					{0, 0, 0, 0, 0, 0, 1, 1},
-					{0, 0, 0, 0, 0, 0, 0, 0},
+					make([]int, totalWeeks),
+					make([]int, totalWeeks),
+					make([]int, totalWeeks),
+					make([]int, totalWeeks),
+					make([]int, totalWeeks),
 				},
 			}, nil
-		},
-	}
-	srv := New(Config{Web: config.WebConfig{Stats: config.StatsConfig{Software: firmwareSoftwareConfig}}},
-		store, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil, nil)
-	srv.now = func() time.Time { return now }
-	srv.firmwareCache.now = func() time.Time { return now }
-	srv.firmwareCache.now = func() time.Time { return now }
-
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/stats/firmware/history?weeks=8&top=5", nil)
-	rec := httptest.NewRecorder()
-	srv.firmwareHistory(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("unexpected status: %d", rec.Code)
-	}
-	var payload firmwareHistoryPayload
-	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
-		t.Fatalf("decode response: %v", err)
-	}
-	if payload.Weeks != 8 || payload.Top != 5 {
-		t.Fatalf("unexpected payload metadata: %+v", payload)
-	}
-	if len(payload.Versions) != 5 {
-		t.Fatalf("expected 5 versions, got %d", len(payload.Versions))
-	}
-	if len(payload.VersionsByWeek) != 5 || len(payload.VersionsByWeek[0]) != 8 {
-		t.Fatalf("unexpected versions_by_week shape: %d series x %d weeks",
-			len(payload.VersionsByWeek), len(payload.VersionsByWeek[0]))
-	}
-}
-
-func TestFirmwareHistoryHandler_AppliesDefaultsWhenNoQuery(t *testing.T) {
-	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
-	store := &testkit.FakeStore{
-		FirmwareVersionHistoryFn: func(_ context.Context, since time.Time, topN, totalWeeks int) (repo.FirmwareHistoryResult, error) {
-			if topN != 15 {
-				t.Errorf("expected default top=15, got %d", topN)
-			}
-			if totalWeeks != 54 {
-				t.Errorf("expected default weeks=54, got %d", totalWeeks)
-			}
-
-			return repo.FirmwareHistoryResult{Weeks: totalWeeks, TopN: topN, Versions: []string{"2.7.15"}, VersionsByWeek: [][]int{make([]int, totalWeeks)}}, nil
 		},
 	}
 	srv := New(Config{Web: config.WebConfig{Stats: config.StatsConfig{Software: firmwareSoftwareConfig}}},
@@ -906,6 +865,20 @@ func TestFirmwareHistoryHandler_AppliesDefaultsWhenNoQuery(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	var payload firmwareHistoryPayload
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload.Weeks != 54 || payload.Top != 15 {
+		t.Fatalf("unexpected payload metadata: %+v", payload)
+	}
+	if len(payload.Versions) != 5 {
+		t.Fatalf("expected 5 versions, got %d", len(payload.Versions))
+	}
+	if len(payload.VersionsByWeek) != 5 || len(payload.VersionsByWeek[0]) != 54 {
+		t.Fatalf("unexpected versions_by_week shape: %d series x %d weeks",
+			len(payload.VersionsByWeek), len(payload.VersionsByWeek[0]))
 	}
 }
 
@@ -965,53 +938,62 @@ func TestFirmwareHistoryHandler_HistoryCacheIsSeparateFromSnapshot(t *testing.T)
 // `since = now - 7*weeks` (anchored to a mid-week day), which pushed
 // the current week past the allocated `weeks` columns AND pulled in
 // an extra older week. The fix anchors `since` to the Monday of the
-// current week minus (weeks-1) weeks.
+// current week minus (weeks-1)*7 days.
 //
 // The test exercises multiple `now` positions (Sun, Mon, Wed, Sat)
 // because the bug only manifested when `now` was mid-week.
 func TestFirmwareHistoryHandler_IncludesCurrentWeek(t *testing.T) {
 	cases := []struct {
-		name string
-		now  time.Time
+		name  string
+		now   time.Time
+		weeks int
 	}{
 		// 2026-06-15 is a Monday.
-		{"Monday of current week", time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)},
-		{"Wednesday of current week", time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)},
-		{"Sunday of current week", time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)},
-		{"Saturday of current week", time.Date(2026, 6, 20, 23, 59, 59, 0, time.UTC)},
+		{"Monday of current week, 4 weeks", time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC), 4},
+		{"Wednesday of current week, 4 weeks", time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC), 4},
+		{"Sunday of current week, 4 weeks", time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC), 4},
+		{"Saturday of current week, 4 weeks", time.Date(2026, 6, 20, 23, 59, 59, 0, time.UTC), 4},
+		{"Sunday, 1 week window", time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC), 1},
+		{"Sunday, 54 weeks window", time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC), 54},
 	}
-	const weeks = 4
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			now := tc.now
+			cfg := firmwareSoftwareConfig
+			cfg.HistoryWeeks = tc.weeks
 			store := &testkit.FakeStore{
-				FirmwareVersionHistoryFn: func(_ context.Context, since time.Time, topN, totalWeeks int) (repo.FirmwareHistoryResult, error) {
-					if totalWeeks != weeks {
-						t.Errorf("expected weeks=%d, got %d", weeks, totalWeeks)
+				FirmwareVersionHistoryFn: func(_ context.Context, since time.Time, _, totalWeeks int) (repo.FirmwareHistoryResult, error) {
+					if totalWeeks != tc.weeks {
+						t.Errorf("expected weeks=%d, got %d", tc.weeks, totalWeeks)
 					}
 					// The Monday of `now`'s week, regardless of where in
 					// the week `now` sits.
 					wantCurrentWeek := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
-					wantSince := wantCurrentWeek.AddDate(0, 0, -7*(weeks-1))
+					wantSince := wantCurrentWeek.AddDate(0, 0, -7*(tc.weeks-1))
 					if !since.Equal(wantSince) {
-						t.Errorf("since=%s, want %s (currentWeek - %d weeks)", since, wantSince, weeks-1)
+						t.Errorf("since=%s, want %s (currentWeek - %d weeks)", since, wantSince, tc.weeks-1)
+					}
+
+					versionsByWeek := make([]int, tc.weeks)
+					for i := range versionsByWeek {
+						versionsByWeek[i] = 1
 					}
 
 					return repo.FirmwareHistoryResult{
-						Weeks:          weeks,
+						Weeks:          tc.weeks,
 						TopN:           1,
 						Versions:       []string{"2.7.15"},
-						VersionsByWeek: [][]int{{1, 1, 1, 1}}, // weeks=4 columns, current week included
+						VersionsByWeek: [][]int{versionsByWeek},
 					}, nil
 				},
 			}
-			srv := New(Config{Web: config.WebConfig{Stats: config.StatsConfig{Software: firmwareSoftwareConfig}}},
+			srv := New(Config{Web: config.WebConfig{Stats: config.StatsConfig{Software: cfg}}},
 				store, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil, nil)
 			srv.now = func() time.Time { return now }
 			srv.firmwareCache.now = func() time.Time { return now }
 			srv.firmwareCache.now = func() time.Time { return now }
 
-			req := httptest.NewRequest(http.MethodGet, "/api/v1/stats/firmware/history?weeks=4", nil)
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/stats/firmware/history", nil)
 			rec := httptest.NewRecorder()
 			srv.firmwareHistory(rec, req)
 
@@ -1022,11 +1004,52 @@ func TestFirmwareHistoryHandler_IncludesCurrentWeek(t *testing.T) {
 			if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
 				t.Fatalf("decode response: %v", err)
 			}
-			if len(payload.VersionsByWeek) != 1 || len(payload.VersionsByWeek[0]) != weeks {
+			if len(payload.VersionsByWeek) != 1 || len(payload.VersionsByWeek[0]) != tc.weeks {
 				t.Fatalf("unexpected payload shape: %d series x %d weeks (want 1 x %d)",
-					len(payload.VersionsByWeek), len(payload.VersionsByWeek[0]), weeks)
+					len(payload.VersionsByWeek), len(payload.VersionsByWeek[0]), tc.weeks)
 			}
 		})
+	}
+}
+
+// TestFirmwareHistoryHandler_IgnoresQueryParams pins the
+// config-as-source-of-truth decision: even if a client sends ?weeks
+// or ?top, the handler must use the config values. This closes the
+// unbounded-allocation DoS vector (?weeks=100000000) and keeps the
+// response cacheable behind a single key.
+func TestFirmwareHistoryHandler_IgnoresQueryParams(t *testing.T) {
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	store := &testkit.FakeStore{
+		FirmwareVersionHistoryFn: func(_ context.Context, _ time.Time, topN, totalWeeks int) (repo.FirmwareHistoryResult, error) {
+			if totalWeeks != 54 {
+				t.Errorf("query-param weeks ignored: expected config weeks=54, got %d", totalWeeks)
+			}
+			if topN != 15 {
+				t.Errorf("query-param top ignored: expected config top=15, got %d", topN)
+			}
+
+			return repo.FirmwareHistoryResult{
+				Weeks:          totalWeeks,
+				TopN:           topN,
+				Versions:       []string{"2.7.15"},
+				VersionsByWeek: [][]int{make([]int, totalWeeks)},
+			}, nil
+		},
+	}
+	srv := New(Config{Web: config.WebConfig{Stats: config.StatsConfig{Software: firmwareSoftwareConfig}}},
+		store, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil, nil)
+	srv.now = func() time.Time { return now }
+	srv.firmwareCache.now = func() time.Time { return now }
+
+	// Adversarial query params: massive weeks + top, plus a tiny top
+	// (which would change topN). The handler must use the config
+	// values (54 / 15) for both.
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/stats/firmware/history?weeks=100000000&top=3", nil)
+	rec := httptest.NewRecorder()
+	srv.firmwareHistory(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d body=%s", rec.Code, rec.Body.String())
 	}
 }
 
