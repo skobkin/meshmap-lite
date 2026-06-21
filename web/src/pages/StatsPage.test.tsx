@@ -137,6 +137,7 @@ function stats(): ActivityStats {
 function firmwareSnapshot(): FirmwareSnapshot {
   return {
     generated_at: '2026-05-04T12:00:00Z',
+    cache_ttl_seconds: 3600,
     total_nodes_with_version: 12,
     versions: [
       { version: '2.6.5', count: 7, last_seen_at: '2026-05-04T11:00:00Z' },
@@ -151,8 +152,12 @@ function firmwareHistory(): FirmwareHistory {
   // chart has visible non-zero values at known indices. week_starts
   // mirrors the inner versions_by_week axis in oldest-first order —
   // Monday-anchored RFC3339Nano strings so the chart's tooltip label
-  // source matches what a real server would emit. Last entry is the
-  // week containing 2026-05-04 (Mon 2026-04-27 → Sun 2026-05-03).
+  // source matches what a real server would emit. The last entry
+  // (2026-05-25) is three weeks ahead of the test's frozen clock
+  // (2026-05-04), so the fixture intentionally exercises the case
+  // where the cached response is from a later week than the
+  // browser's wall-clock — the chart must use week_starts, not
+  // Date.now(), to render labels that match the data.
   const weekStarts = [
     '2026-04-06T00:00:00Z',
     '2026-04-13T00:00:00Z',
@@ -166,6 +171,7 @@ function firmwareHistory(): FirmwareHistory {
 
   return {
     generated_at: '2026-05-04T12:00:00Z',
+    cache_ttl_seconds: 86400,
     weeks: 8,
     top: 3,
     versions: ['2.6.5', '2.7.10', '2.7.15', '(other)'],
@@ -359,6 +365,7 @@ describe('StatsPage Software section', () => {
   it('shows empty-state placeholder when snapshot has no versions', async () => {
     const emptySnapshot: FirmwareSnapshot = {
       generated_at: '2026-05-04T12:00:00Z',
+      cache_ttl_seconds: 3600,
       total_nodes_with_version: 0,
       versions: []
     }
@@ -379,6 +386,7 @@ describe('StatsPage Software section', () => {
   it('shows empty-state placeholder when history has no versions', async () => {
     const emptyHistory: FirmwareHistory = {
       generated_at: '2026-05-04T12:00:00Z',
+      cache_ttl_seconds: 86400,
       weeks: 8,
       top: 3,
       versions: [],
@@ -431,6 +439,67 @@ describe('StatsPage Software section', () => {
     await waitFor(() => {
       expect(apiMock.firmwareHistory).toHaveBeenCalledTimes(2)
     })
+  })
+
+  it('honors a custom snapshot cache_ttl_seconds instead of the hardcoded 1h', async () => {
+    // The fixture advertises a 5-minute cache TTL. The polling
+    // cadence must follow the server's resolved value, not the
+    // historical 1h hardcoded interval — that's the CodeX review
+    // point: an operator shortening snapshot_cache_ttl expects the
+    // UI to pick up the change.
+    const shortTtlSnapshot: FirmwareSnapshot = {
+      ...firmwareSnapshot(),
+      cache_ttl_seconds: 300
+    }
+    apiMock.firmwareSnapshot.mockResolvedValue(shortTtlSnapshot)
+
+    render(<StatsPage />)
+
+    await waitFor(() => {
+      expect(apiMock.firmwareSnapshot).toHaveBeenCalledTimes(1)
+    })
+
+    // 4 minutes: still inside the configured 5-minute window, no
+    // refresh yet.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4 * 60 * 1000)
+    })
+    expect(apiMock.firmwareSnapshot).toHaveBeenCalledTimes(1)
+
+    // Past 5 minutes: refresh fires.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(61_000)
+    })
+    await waitFor(() => {
+      expect(apiMock.firmwareSnapshot).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  it('anchors the history x-axis tick labels to week_starts, not the browser clock', async () => {
+    // The frozen browser clock (set in beforeEach) is 2026-05-04, but
+    // the fixture's last week_start is 2026-05-25. The old
+    // `Date.now() - offset*7d` math would label tick 7 (the newest
+    // column) as approximately "Apr 13" — three weeks before the
+    // browser clock. Anchoring to week_starts must label it as a
+    // date near the end of May instead, matching the cursor
+    // tooltip. The exact day depends on the jsdom timezone so we
+    // assert on the month, not the day.
+    render(<StatsPage initialFirmwareSnapshot={firmwareSnapshot()} initialFirmwareHistory={firmwareHistory()} />)
+
+    await screen.findByRole('heading', { name: 'Software' })
+
+    const chartsCount = uplotMock.options.length
+    const history = uplotMock.options[chartsCount - 1]
+    const tickLabels = (history?.axes?.[0]?.values?.({}, [0, 7], 0, 0, 0) ?? []).map(String)
+
+    // Newest tick must be late May (the last week_start), not April
+    // — which is what the old `Date.now() - offset*7d` math would
+    // produce given the frozen 2026-05-04 system time and an 8-week
+    // offset.
+    expect(tickLabels[1]).toContain('May')
+    expect(tickLabels[1]).not.toContain('Apr')
+    // And the oldest tick must still be April (the first week_start).
+    expect(tickLabels[0]).toContain('Apr')
   })
 
   it('renders the "(other)" series last in the legend', async () => {

@@ -23,11 +23,28 @@ interface ChartTooltip {
 
 const chartHeight = 220
 const fallbackChartWidth = 360
-// Cache TTLs must mirror the server-side defaults in
-// internal/config/types.go:StatsSoftwareConfig so the polling cadence stays
-// in lockstep with how often the server publishes fresh data.
-const firmwareSnapshotCacheTTL = 60 * 60 * 1000 // 1h
-const firmwareHistoryCacheTTL = 24 * 60 * 60 * 1000 // 24h
+// Default polling cadences for the firmware endpoints, used when the
+// first response hasn't arrived yet. Once the server replies, its
+// `cache_ttl_seconds` field drives the cadence — that lets an
+// operator shorten the server-side TTL and have the UI honor it
+// without a code change here. Defaults mirror the server's
+// internal/config/defaults.go values for the period before the
+// first poll completes.
+const firmwareSnapshotDefaultTTL = 60 * 60 * 1000 // 1h
+const firmwareHistoryDefaultTTL = 24 * 60 * 60 * 1000 // 24h
+
+function pollDelaySeconds(ttlSeconds: number): number {
+  // Clamp to a sane floor so a misconfigured TTL of 0 doesn't
+  // busy-poll the API. We poll at the cache's exact expiry rather
+  // than slightly before: uPlot's data swap is cheap, and polling
+  // at TTL keeps the cadence in lockstep with whatever the
+  // operator configured without smuggling in a hidden factor.
+  if (!Number.isFinite(ttlSeconds) || ttlSeconds <= 0) {
+    return 60
+  }
+
+  return Math.max(60, Math.floor(ttlSeconds))
+}
 
 const metrics: ActivityMetric[] = [
   { series: [{ key: 'text_messages', label: 'Text messages' }], title: 'Text messages' },
@@ -597,8 +614,18 @@ function FirmwareHistoryChart({ history }: { history: FirmwareHistory }): JSX.El
           space: 64,
           values: (_plot, ticks) => ticks.map((tick) => {
             // Mirror the cursor-plugin date math so tick labels and
-            // tooltip labels agree on what each index means.
-            const date = new Date(Date.now() - (history.weeks - 1 - tick) * 7 * 24 * 60 * 60 * 1000)
+            // tooltip labels agree on what each index means. With a
+            // 24h cache TTL a response generated Monday 00:05 UTC can
+            // still be served Tuesday — week_starts is the only
+            // source of truth that stays in lockstep with the SQL
+            // store's Monday math, so the axis must read from it
+            // (not from Date.now(), which would label the prior
+            // month on a Sunday response of a Monday-generated
+            // cached payload).
+            const weekStart = history.week_starts[tick]
+            const date = typeof weekStart === 'string'
+              ? new Date(weekStart)
+              : new Date(Date.now() - (history.weeks - 1 - tick) * 7 * 24 * 60 * 60 * 1000)
 
             return date.toLocaleDateString(undefined, { month: 'short', year: '2-digit' })
           })
@@ -683,7 +710,7 @@ function SoftwareSection({ snapshot, history }: { snapshot?: FirmwareSnapshot; h
       </div>
       <div className="firmware-grid">
         <FirmwareSnapshotChart versions={snapshot?.versions ?? []} />
-        <FirmwareHistoryChart history={history ?? { generated_at: '', weeks: 0, top: 0, versions: [], versions_by_week: [], week_starts: [] }} />
+        <FirmwareHistoryChart history={history ?? { generated_at: '', cache_ttl_seconds: 0, weeks: 0, top: 0, versions: [], versions_by_week: [], week_starts: [] }} />
       </div>
     </section>
   )
@@ -767,27 +794,39 @@ export function StatsPage({ initialStats, initialFirmwareSnapshot, initialFirmwa
   }, [loadStats, stats])
 
   useEffect(() => {
-    // Snapshot cache TTL on the server is 1h — poll once per hour.
+    // Honour the server's resolved TTL (echoed in `cache_ttl_seconds`)
+    // so an operator shortening web.stats.software.snapshot_cache_ttl
+    // actually picks up fresher data instead of the UI staying stale
+    // on a hard-coded 1h interval. Default to the server's default
+    // for the period before the first response arrives.
+    const ttlMs = firmwareSnapshot && firmwareSnapshot.cache_ttl_seconds > 0
+      ? pollDelaySeconds(firmwareSnapshot.cache_ttl_seconds) * 1000
+      : firmwareSnapshotDefaultTTL
     const timeout = window.setTimeout(() => {
       void loadFirmwareSnapshot()
         .catch((err) => {
           if (isAbortError(err)) {return}
           setLoadError('Failed to refresh firmware snapshot.')
         })
-    }, firmwareSnapshotCacheTTL)
+    }, ttlMs)
 
     return () => window.clearTimeout(timeout)
   }, [firmwareSnapshot, loadFirmwareSnapshot])
 
   useEffect(() => {
-    // History cache TTL on the server is 24h — poll once per day.
+    // Same TTL-driven cadence as the snapshot endpoint — see the
+    // comment above. Operators tune one knob
+    // (web.stats.software.history_cache_ttl) and the UI follows.
+    const ttlMs = firmwareHistory && firmwareHistory.cache_ttl_seconds > 0
+      ? pollDelaySeconds(firmwareHistory.cache_ttl_seconds) * 1000
+      : firmwareHistoryDefaultTTL
     const timeout = window.setTimeout(() => {
       void loadFirmwareHistory()
         .catch((err) => {
           if (isAbortError(err)) {return}
           setLoadError('Failed to refresh firmware history.')
         })
-    }, firmwareHistoryCacheTTL)
+    }, ttlMs)
 
     return () => window.clearTimeout(timeout)
   }, [firmwareHistory, loadFirmwareHistory])
