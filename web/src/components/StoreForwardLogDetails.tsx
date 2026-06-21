@@ -1,5 +1,7 @@
 import { useState } from 'preact/hooks'
 
+import { type RenderedScalar, formatScalar, renderScalar } from '../utils/logValueRender'
+
 import { JsonDetailsView } from './JsonDetailsView'
 import { ResolvedNodeData } from './ResolvedNodeData'
 
@@ -101,19 +103,6 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value as Record<string, unknown>
 }
 
-function scalar(value: unknown): string | undefined {
-  if (typeof value === 'string') {
-    const trimmed = value.trim()
-
-    return trimmed === '' ? undefined : trimmed
-  }
-  if (typeof value === 'number' || typeof value === 'boolean') {
-    return String(value)
-  }
-
-  return undefined
-}
-
 function isBroadcastNodeID(nodeId: string): boolean {
   return nodeId.toLowerCase() === BROADCAST_NODE_ID
 }
@@ -121,13 +110,13 @@ function isBroadcastNodeID(nodeId: string): boolean {
 interface ScalarRow {
   key: typeof scalarKeys[number]
   label: string
-  value: string
+  value: RenderedScalar
 }
 
 function scalarRows(details: Record<string, unknown>): ScalarRow[] {
   const rows: ScalarRow[] = []
   for (const key of scalarKeys) {
-    const value = scalar(details[key])
+    const value = formatScalar(details[key])
     if (!value) {
       continue
     }
@@ -226,7 +215,7 @@ function SubPayloadGrid({
       <h4 id={`store-forward-${title}`}>{title}</h4>
       <dl className="log-details-grid">
         {entries.map(([key, value]) => {
-          const rendered = scalar(value)
+          const rendered = formatScalar(value)
           if (!rendered) {
             return null
           }
@@ -234,7 +223,7 @@ function SubPayloadGrid({
           return (
             <div key={key} className="log-details-row">
               <dt className="log-details-label">{labelForField(key, labels)}</dt>
-              <dd className="log-details-value">{rendered}</dd>
+              <dd className="log-details-value">{renderScalar(rendered)}</dd>
             </div>
           )
         })}
@@ -373,7 +362,7 @@ function StoreForwardLogDetailsView({
               <div key={row.key} className="log-details-row">
                 <dt className="log-details-label">{row.label}</dt>
                 <dd className="log-details-value">
-                  <NodeReferenceOrBroadcast nodeId={row.value} onOpenNodeDetails={onOpenNodeDetails} />
+                  <NodeReferenceOrBroadcast nodeId={row.value as string} onOpenNodeDetails={onOpenNodeDetails} />
                 </dd>
               </div>
             ))}

@@ -1,3 +1,5 @@
+import { type RenderedScalar, formatScalar, renderScalar } from '../utils/logValueRender'
+
 import { JsonDetailsView } from './JsonDetailsView'
 import { ResolvedNodeData } from './ResolvedNodeData'
 
@@ -29,29 +31,16 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value as Record<string, unknown>
 }
 
-function scalar(value: unknown): string | undefined {
-  if (typeof value === 'string') {
-    const trimmed = value.trim()
-
-    return trimmed === '' ? undefined : trimmed
-  }
-  if (typeof value === 'number' || typeof value === 'boolean') {
-    return String(value)
-  }
-
-  return undefined
-}
-
 interface KnownRow {
   key: typeof knownKeys[number]
   label: string
-  value: string
+  value: RenderedScalar
 }
 
 function knownRows(details: Record<string, unknown>): KnownRow[] {
   const rows: KnownRow[] = []
   const add = (label: string, key: typeof knownKeys[number]): void => {
-    const value = scalar(details[key])
+    const value = formatScalar(details[key])
     if (value) {
       rows.push({ key, label, value })
     }
@@ -117,7 +106,7 @@ function PKILogDetailsView({
               <dt className="log-details-label">{row.label}</dt>
               <dd className="log-details-value">
                 {isNodeReferenceKey(row.key) ? (
-                  <ResolvedNodeData nodeId={row.value}>
+                  <ResolvedNodeData nodeId={row.value as string}>
                     {({ label, title, nodeId }) => onOpenNodeDetails
                       ? (
                         <button
@@ -135,7 +124,7 @@ function PKILogDetailsView({
                         </span>
                       )}
                   </ResolvedNodeData>
-                ) : row.value}
+                ) : renderScalar(row.value)}
               </dd>
             </div>
           ))}

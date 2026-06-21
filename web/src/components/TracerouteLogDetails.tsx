@@ -1,5 +1,7 @@
 import { useState } from 'preact/hooks'
 
+import { type RenderedScalar, formatScalar, renderScalar } from '../utils/logValueRender'
+
 import { JsonDetailsView } from './JsonDetailsView'
 import { ResolvedNodeData } from './ResolvedNodeData'
 
@@ -22,27 +24,14 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value as Record<string, unknown>
 }
 
-function scalar(value: unknown): string | undefined {
-  if (typeof value === 'string') {
-    const trimmed = value.trim()
-
-    return trimmed === '' ? undefined : trimmed
-  }
-  if (typeof value === 'number' || typeof value === 'boolean') {
-    return String(value)
-  }
-
-  return undefined
-}
-
 function nodeIdList(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) {
     return undefined
   }
 
   const items = value
-    .map((item) => scalar(item))
-    .filter((item): item is string => Boolean(item))
+    .map((item) => formatScalar(item))
+    .filter((item): item is string => typeof item === 'string' && item.length > 0)
 
   return items.length > 0 ? items : undefined
 }
@@ -53,8 +42,8 @@ function snrList(value: unknown): string[] {
   }
 
   return value
-    .map((item) => scalar(item))
-    .filter((item): item is string => Boolean(item))
+    .map((item) => formatScalar(item))
+    .filter((item): item is string => typeof item === 'string' && item.length > 0)
 }
 
 function formatTime(value: string): string {
@@ -82,7 +71,7 @@ function metadataLabel(key: typeof scalarMetadataKeys[number]): string {
 interface MetadataRow {
   key: typeof scalarMetadataKeys[number]
   label: string
-  value: string
+  value: RenderedScalar
 }
 
 interface RouteSection {
@@ -103,7 +92,7 @@ function metadataRows(details: Record<string, unknown>): MetadataRow[] {
   const rows: MetadataRow[] = []
 
   for (const key of scalarMetadataKeys) {
-    const value = scalar(details[key])
+    const value = formatScalar(details[key])
     if (!value) {
       continue
     }
@@ -155,18 +144,22 @@ function stepRows(details: Record<string, unknown>): StepRow[] {
       return []
     }
 
-    const type = scalar(record.type)
-    if (!type) {
+    const type = formatScalar(record.type)
+    if (typeof type !== 'string' || type.length === 0) {
       return []
     }
 
     return [{
       type,
-      observedAt: scalar(record.observed_at),
-      reportedAt: scalar(record.reported_at),
-      packetId: scalar(record.packet_id)
+      observedAt: optionalString(formatScalar(record.observed_at)),
+      reportedAt: optionalString(formatScalar(record.reported_at)),
+      packetId: optionalString(formatScalar(record.packet_id))
     }]
   })
+}
+
+function optionalString(value: RenderedScalar | undefined): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined
 }
 
 function NodeReference({
@@ -312,8 +305,8 @@ function TracerouteLogDetailsView({
                   <dt className="log-details-label">{row.label}</dt>
                   <dd className="log-details-value">
                     {row.key === 'from' || row.key === 'to'
-                      ? <NodeReference nodeId={row.value} onOpenNodeDetails={onOpenNodeDetails} />
-                      : row.value}
+                      ? <NodeReference nodeId={row.value as string} onOpenNodeDetails={onOpenNodeDetails} />
+                      : renderScalar(row.value)}
                   </dd>
                 </div>
               ))}

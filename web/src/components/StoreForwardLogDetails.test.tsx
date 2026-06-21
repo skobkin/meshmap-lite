@@ -416,6 +416,8 @@ describe('storeForwardLogDetailsRenderer', () => {
     ]))
     // Spot-check a value to make sure the rows are wired up.
     expect(container.textContent).toContain('12')
+    // Booleans render as ✅/❌ rather than the literal `true`/`false`.
+    expect(container.textContent).toContain('✅')
   })
 
   it('renders the history sub-payload grid with human-readable labels', () => {
@@ -468,6 +470,8 @@ describe('storeForwardLogDetailsRenderer', () => {
       'Period (s)',
       'Secondary'
     ]))
+    // Booleans render as ✅/❌ rather than the literal `true`/`false`.
+    expect(container.textContent).toContain('✅')
   })
 
   it('renders both from and to as separate rows when both are populated', () => {

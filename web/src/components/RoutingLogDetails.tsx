@@ -1,3 +1,5 @@
+import { type RenderedScalar, formatScalar, renderScalar } from '../utils/logValueRender'
+
 import { JsonDetailsView } from './JsonDetailsView'
 import { ResolvedNodeData } from './ResolvedNodeData'
 
@@ -25,27 +27,14 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value as Record<string, unknown>
 }
 
-function scalar(value: unknown): string | undefined {
-  if (typeof value === 'string') {
-    const trimmed = value.trim()
-
-    return trimmed === '' ? undefined : trimmed
-  }
-  if (typeof value === 'number' || typeof value === 'boolean') {
-    return String(value)
-  }
-
-  return undefined
-}
-
 function nodeIdList(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) {
     return undefined
   }
 
   const items = value
-    .map((item) => scalar(item))
-    .filter((item): item is string => Boolean(item))
+    .map((item) => formatScalar(item))
+    .filter((item): item is string => typeof item === 'string' && item.length > 0)
 
   return items.length > 0 ? items : undefined
 }
@@ -53,7 +42,7 @@ function nodeIdList(value: unknown): string[] | undefined {
 interface ScalarRow {
   key: typeof knownKeys[number]
   label: string
-  value: string
+  value: RenderedScalar
 }
 
 interface PathRow {
@@ -65,7 +54,7 @@ interface PathRow {
 function scalarRows(details: Record<string, unknown>): ScalarRow[] {
   const rows: ScalarRow[] = []
   const add = (label: string, key: ScalarRow['key']): void => {
-    const value = scalar(details[key])
+    const value = formatScalar(details[key])
     if (value) {
       rows.push({ key, label, value })
     }
@@ -166,8 +155,8 @@ function RoutingLogDetailsView({
               <dt className="log-details-label">{row.label}</dt>
               <dd className="log-details-value">
                 {row.key === 'from' || row.key === 'to'
-                  ? <NodeReference nodeId={row.value} onOpenNodeDetails={onOpenNodeDetails} />
-                  : row.value}
+                  ? <NodeReference nodeId={row.value as string} onOpenNodeDetails={onOpenNodeDetails} />
+                  : renderScalar(row.value)}
               </dd>
             </div>
           ))}
