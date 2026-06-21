@@ -440,9 +440,11 @@ function FirmwareSnapshotChart({ versions }: { versions: FirmwareVersionCount[] 
         sync: { key: 'stats-firmware' }
       },
       scales: {
-        // distr: 4 is the ordinal x scale in uPlot — bars sit on integer
-        // x indices instead of a continuous time axis.
-        x: { distr: 4, time: false },
+        // distr: 2 is the ordinal x scale in uPlot — bars sit on integer
+        // x indices instead of a continuous time axis. Pad by half a
+        // category so centered edge bars do not clip against the plot
+        // border.
+        x: { distr: 2, time: false, range: (_plot, min, max) => [min - 0.5, max + 0.5] },
         // uPlot calls the range callback on first render with `max`
         // undefined (the auto-fit pass hasn't run yet). Math.ceil on
         // undefined is NaN, which uPlot then interprets as "no upper
@@ -462,11 +464,13 @@ function FirmwareSnapshotChart({ versions }: { versions: FirmwareVersionCount[] 
           // dropped labels for the rightmost bars in production data.
           size: 28,
           space: 60,
+          splits: () => versions.map((_version, index) => index),
+          filter: (_plot, splits) => splits,
           // Truncate to a short form (drop the trailing commit hash
           // that modern Meshtastic releases include) and cap length
           // so even legacy strings don't overflow; the tooltip still
           // shows the full version.
-          values: (_plot, ticks) => ticks.map((tick) => shortVersionLabel(versions[tick]?.version))
+          values: (_plot, ticks) => ticks.map((tick) => shortVersionLabel(versions[Math.round(tick)]?.version))
         },
         {
           stroke: colors.axis,

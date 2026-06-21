@@ -9,6 +9,7 @@ import type { ActivityStats, FirmwareHistory, FirmwareSnapshot } from '../api/ty
 
 type MockAxisValues = (plot: unknown, ticks: number[], axisIndex: number, foundSpace: number, foundIncr: number) => (number | string | null)[]
 type MockAxisSplits = (plot: unknown, axisIndex: number, scaleMin: number, scaleMax: number, foundIncr: number, foundSpace: number) => number[]
+type MockAxisFilter = (plot: unknown, ticks: number[], axisIndex: number, foundSpace: number, foundIncr: number) => (number | null)[]
 type MockSetCursorHook = (plot: MockPlot) => void
 
 interface MockPlot {
@@ -18,6 +19,7 @@ interface MockPlot {
 
 interface MockAxis {
   border?: { stroke?: string }
+  filter?: MockAxisFilter
   grid?: { stroke?: string }
   rotate?: number
   size?: number
@@ -49,7 +51,11 @@ interface MockOptions {
     }
   }[]
   scales?: {
-    x?: { distr?: number; time?: boolean }
+    x?: {
+      distr?: number
+      range?: (plot: unknown, min: number, max: number) => [number, number]
+      time?: boolean
+    }
     // y is only declared in the snapshot chart; the area chart uses the
     // uPlot auto-fit default. We only need the bits the tests assert on.
     y?: {
@@ -373,8 +379,10 @@ describe('StatsPage Software section', () => {
     const snapshot = uplotMock.options[chartsCount - 2]
     const history = uplotMock.options[chartsCount - 1]
 
-    // Snapshot: ordinal x axis (distr=4), bars path builder, sync key.
-    expect(snapshot?.scales?.x?.distr).toBe(4)
+    // Snapshot: ordinal x axis (distr=2), bars path builder, sync key.
+    // uPlot uses distr=4 for arcsinh; that warps the version index spacing
+    // and makes bars render as wide, uneven blocks instead of columns.
+    expect(snapshot?.scales?.x?.distr).toBe(2)
     expect(snapshot?.scales?.x?.time).toBe(false)
     expect(snapshot?.cursor?.sync?.key).toBe('stats-firmware')
     expect(snapshot?.series?.[1]?.paths).toBeDefined()
@@ -436,6 +444,13 @@ describe('StatsPage Software section', () => {
     // because Math.ceil(undefined) leaked through on first render).
     const yRange = snapshot?.scales?.y?.range?.({}, 0, 2) ?? []
     expect(yRange).toEqual([0, 2])
+    // x range pads the first and last ordinal slots so centered bars
+    // are fully visible instead of half-clipped by the plot border.
+    const xRange = snapshot?.scales?.x?.range?.({}, 0, 3) ?? []
+    expect(xRange).toEqual([-0.5, 3.5])
+    const xSplits = snapshot?.axes?.[0]?.splits?.({}, 0, -0.5, 3.5, 1, 60) ?? []
+    expect(xSplits).toEqual([0, 1, 2, 3])
+    expect(snapshot?.axes?.[0]?.filter?.({}, xSplits, 0, 60, 1)).toEqual([0, 1, 2, 3])
     // And on the first-render call where max is undefined, the chart
     // must NOT return NaN (which uPlot would interpret as no upper
     // bound and silently pad the data).
