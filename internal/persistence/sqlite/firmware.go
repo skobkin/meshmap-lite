@@ -65,16 +65,25 @@ func (s *Store) UpdateNodeFirmwareVersion(ctx context.Context, nodeID string, ve
 // is canonical, mid-week changes are captured by the next Monday's
 // snapshot.
 //
+// maxAge is the staleness window applied to nodes.last_map_report_at:
+// nodes that haven't sent a MapReport in this duration are excluded
+// from the snapshot. This is a write-time gate — once a row is in
+// node_firmware_history, it stays; the history read path does not
+// re-filter at query time (see internal/api/http/firmware.go).
+//
 // Returns the number of rows newly inserted.
-func (s *Store) RecordFirmwareHistoryWeek(ctx context.Context, weekStart time.Time, observedAt time.Time) (int64, error) {
+func (s *Store) RecordFirmwareHistoryWeek(ctx context.Context, weekStart time.Time, observedAt time.Time, maxAge time.Duration) (int64, error) {
 	weekStartText := weekStart.UTC().Format("2006-01-02")
 	obsText := observedAt.UTC().Format(time.RFC3339Nano)
+	cutoff := time.Now().UTC().Add(-maxAge).Format(time.RFC3339Nano)
 	res, err := s.db.ExecContext(ctx, `
 INSERT OR IGNORE INTO node_firmware_history (node_id, firmware_version_id, week_start, observed_at)
 SELECT n.node_id, n.firmware_version_id, ?, ?
 FROM nodes n
 WHERE n.firmware_version_id IS NOT NULL
-`, weekStartText, obsText)
+  AND n.last_map_report_at IS NOT NULL
+  AND n.last_map_report_at >= ?
+`, weekStartText, obsText, cutoff)
 	if err != nil {
 		return 0, err
 	}
@@ -110,14 +119,21 @@ func (s *Store) LastFirmwareHistoryWeek(ctx context.Context) (time.Time, error) 
 // FirmwareVersionSnapshot returns the current fleet distribution (today's
 // counts per firmware version). Driven by the nodes JOIN firmware_versions
 // denormalization; cheap because the data fits in a small working set.
-func (s *Store) FirmwareVersionSnapshot(ctx context.Context) ([]repo.FirmwareVersionCount, error) {
+//
+// maxAge is the staleness window applied to nodes.last_map_report_at:
+// nodes that haven't sent a MapReport in this duration are excluded
+// from the snapshot. See web.stats.software.map_report_max_age.
+func (s *Store) FirmwareVersionSnapshot(ctx context.Context, maxAge time.Duration) ([]repo.FirmwareVersionCount, error) {
+	cutoff := time.Now().UTC().Add(-maxAge).Format(time.RFC3339Nano)
 	rows, err := s.db.QueryContext(ctx, `
 SELECT fv.version_string, COUNT(*) AS c, MAX(n.last_seen_any_event_at) AS last_seen
 FROM nodes n
 JOIN firmware_versions fv ON fv.id = n.firmware_version_id
+WHERE n.last_map_report_at IS NOT NULL
+  AND n.last_map_report_at >= ?
 GROUP BY fv.id, fv.version_string
 ORDER BY c DESC, fv.version_string ASC
-`)
+`, cutoff)
 	if err != nil {
 		return nil, err
 	}

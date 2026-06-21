@@ -18,7 +18,8 @@ type WriteStore interface {
 	ResolveNodeDisplay(ctx context.Context, nodeID string) (string, error)
 	UpsertFirmwareVersion(ctx context.Context, version string, observedAt time.Time) (int64, error)
 	UpdateNodeFirmwareVersion(ctx context.Context, nodeID string, versionID int64, observedAt time.Time) error
-	RecordFirmwareHistoryWeek(ctx context.Context, weekStart time.Time, observedAt time.Time) (int64, error)
+	UpdateNodeLastMapReportAt(ctx context.Context, nodeID string, observedAt time.Time) error
+	RecordFirmwareHistoryWeek(ctx context.Context, weekStart time.Time, observedAt time.Time, maxAge time.Duration) (int64, error)
 }
 
 // ReadStore defines query operations used by HTTP and other read APIs.
@@ -31,7 +32,7 @@ type ReadStore interface {
 	ListLogEvents(ctx context.Context, q domain.LogEventQuery) ([]domain.LogEventView, error)
 	ActivityBuckets(ctx context.Context, q domain.ActivityQuery) ([]domain.ActivityBucket, error)
 	Stats(ctx context.Context, disconnectedThreshold time.Duration) (domain.Stats, error)
-	FirmwareVersionSnapshot(ctx context.Context) ([]FirmwareVersionCount, error)
+	FirmwareVersionSnapshot(ctx context.Context, maxAge time.Duration) ([]FirmwareVersionCount, error)
 	FirmwareVersionHistory(ctx context.Context, since time.Time, topN int, totalWeeks int) (FirmwareHistoryResult, error)
 	LastFirmwareHistoryWeek(ctx context.Context) (time.Time, error)
 }

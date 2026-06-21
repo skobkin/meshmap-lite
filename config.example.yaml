@@ -88,6 +88,11 @@ web:
       history_cache_ttl: 24h    # how long the per-week history chart is reused
       history_weeks: 54         # default 1 year at weekly precision
       top_versions: 15          # versions rendered individually; rest go into "(other)"
+      # Exclude nodes that haven't sent a MapReport in this window from both
+      # the snapshot bar chart and the weekly history job (write-time gate).
+      # Once a row is in node_firmware_history, it stays — the history area
+      # chart's read path does not re-filter at query time.
+      map_report_max_age: 336h  # 14d
 
 logging:
   level: info

@@ -19,6 +19,13 @@ func (s *Server) firmwareSnapshot(w http.ResponseWriter, r *http.Request) {
 	if ttl <= 0 {
 		ttl = time.Hour
 	}
+	// MapReportMaxAge is the staleness window applied to
+	// nodes.last_map_report_at: a node that hasn't sent a MapReport in
+	// this duration is excluded from "today's distribution." Default 14d.
+	maxAge := cfg.MapReportMaxAge
+	if maxAge <= 0 {
+		maxAge = 14 * 24 * time.Hour
+	}
 	cacheKey := "snapshot"
 
 	if cached, ok := s.firmwareCache.Get(cacheKey, ttl); ok {
@@ -27,7 +34,7 @@ func (s *Server) firmwareSnapshot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	counts, err := s.store.FirmwareVersionSnapshot(r.Context())
+	counts, err := s.store.FirmwareVersionSnapshot(r.Context(), maxAge)
 	if err != nil {
 		s.log.Error("firmware snapshot query failed", "err", err)
 		writeError(w, http.StatusInternalServerError, "firmware snapshot unavailable")

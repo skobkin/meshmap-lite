@@ -135,6 +135,24 @@ ON CONFLICT(node_id) DO UPDATE SET
 	return tx.Commit()
 }
 
+// UpdateNodeLastMapReportAt stamps nodes.last_map_report_at with the
+// timestamp of the most recent MapReport packet for this node. Bumped
+// from handleMapReport (internal/ingest/service.go) — not handleNodeInfo,
+// because the NODEINFO_APP decoder currently hard-codes the firmware
+// string to "" and only MapReport packets populate the firmware FK
+// today. See internal/meshtastic/portnums.go:127 and the V22 migration
+// comment in internal/persistence/sqlite/migrations/2026_06_21__map_report_seen_at.go.
+func (s *Store) UpdateNodeLastMapReportAt(ctx context.Context, nodeID string, observedAt time.Time) error {
+	if nodeID == "" {
+		return nil
+	}
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE nodes SET last_map_report_at = ? WHERE node_id = ?`,
+		observedAt.UTC().Format(time.RFC3339Nano), nodeID)
+
+	return err
+}
+
 // ResolveNodeDisplay returns the best-known user-facing node label.
 func (s *Store) ResolveNodeDisplay(ctx context.Context, nodeID string) (string, error) {
 	if strings.TrimSpace(nodeID) == "" {

@@ -31,13 +31,19 @@ type FirmwareSnapshotOptions struct {
 	Logger     *slog.Logger
 	Now        func() time.Time // optional; defaults to time.Now UTC
 	OnSnapshot OnSnapshotFunc   // optional; fired after a successful write
+	// MaxAge is the staleness window applied to nodes.last_map_report_at.
+	// Nodes that haven't sent a MapReport in this duration are excluded
+	// from node_firmware_history on each weekly snapshot (write-time
+	// gate; the history read path does not re-filter at query time).
+	// See web.stats.software.map_report_max_age.
+	MaxAge time.Duration
 }
 
 // FirmwareWriter is the subset of repo.WriteStore the job needs. Defined
 // here so the job has no hard dependency on internal/repo (or any future
 // storage backend).
 type FirmwareWriter interface {
-	RecordFirmwareHistoryWeek(ctx context.Context, weekStart time.Time, observedAt time.Time) (int64, error)
+	RecordFirmwareHistoryWeek(ctx context.Context, weekStart time.Time, observedAt time.Time, maxAge time.Duration) (int64, error)
 	LastFirmwareHistoryWeek(ctx context.Context) (time.Time, error)
 }
 
@@ -54,6 +60,7 @@ type FirmwareSnapshotJob struct {
 	logger     *slog.Logger
 	now        func() time.Time
 	onSnapshot OnSnapshotFunc
+	maxAge     time.Duration
 }
 
 // NewFirmwareSnapshotJob constructs a job. store is required.
@@ -72,6 +79,7 @@ func NewFirmwareSnapshotJob(opts FirmwareSnapshotOptions) *FirmwareSnapshotJob {
 		logger:     logger,
 		now:        now,
 		onSnapshot: opts.OnSnapshot,
+		maxAge:     opts.MaxAge,
 	}
 }
 
@@ -129,7 +137,7 @@ func (j *FirmwareSnapshotJob) runOnce(ctx context.Context) error {
 	}
 
 	observed := now
-	inserted, err := j.store.RecordFirmwareHistoryWeek(ctx, currentWeek, observed)
+	inserted, err := j.store.RecordFirmwareHistoryWeek(ctx, currentWeek, observed, j.maxAge)
 	if err != nil {
 		return err
 	}

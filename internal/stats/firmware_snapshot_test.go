@@ -30,15 +30,16 @@ type fakeStore struct {
 type recordedCall struct {
 	WeekStart  time.Time
 	ObservedAt time.Time
+	MaxAge     time.Duration
 }
 
-func (f *fakeStore) RecordFirmwareHistoryWeek(_ context.Context, weekStart, observedAt time.Time) (int64, error) {
+func (f *fakeStore) RecordFirmwareHistoryWeek(_ context.Context, weekStart, observedAt time.Time, maxAge time.Duration) (int64, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.recordError != nil {
 		return 0, f.recordError
 	}
-	f.recorded = append(f.recorded, recordedCall{WeekStart: weekStart, ObservedAt: observedAt})
+	f.recorded = append(f.recorded, recordedCall{WeekStart: weekStart, ObservedAt: observedAt, MaxAge: maxAge})
 	f.lastWeek = weekStart
 
 	return 1, nil
@@ -205,6 +206,34 @@ func TestRunOnce_CallbackOnlyFiresOnSuccessfulWrite(t *testing.T) {
 	}
 	if *cb {
 		t.Errorf("expected OnSnapshot NOT to fire when store returns error")
+	}
+}
+
+// TestRunOnce_PassesMaxAgeToWriter pins that the staleness window
+// configured at job-construction time is what runOnce hands to the
+// underlying RecordFirmwareHistoryWeek. This is the write-side gate for
+// the history area chart — the value is locked in at job start so a
+// config-reload half-way through a snapshot can't split a week across
+// two policies.
+func TestRunOnce_PassesMaxAgeToWriter(t *testing.T) {
+	ctx := context.Background()
+	store := &fakeStore{}
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	job := NewFirmwareSnapshotJob(FirmwareSnapshotOptions{
+		Store:  store,
+		Now:    func() time.Time { return now },
+		MaxAge: 7 * 24 * time.Hour,
+	})
+
+	if err := job.runOnce(ctx); err != nil {
+		t.Fatalf("runOnce: %v", err)
+	}
+
+	if len(store.recorded) != 1 {
+		t.Fatalf("expected one record call, got %d", len(store.recorded))
+	}
+	if store.recorded[0].MaxAge != 7*24*time.Hour {
+		t.Errorf("expected MaxAge=7d, got %s", store.recorded[0].MaxAge)
 	}
 }
 

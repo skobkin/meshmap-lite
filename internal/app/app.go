@@ -132,6 +132,7 @@ func Run(configPath string) error {
 	firmwareSnapshotJob := stats.NewFirmwareSnapshotJob(stats.FirmwareSnapshotOptions{
 		Store:  store,
 		Logger: logMgr.Logger("internal/stats"),
+		MaxAge: cfg.Web.Stats.Software.MapReportMaxAge,
 		OnSnapshot: func() {
 			api.InvalidateFirmwareCaches()
 		},

@@ -1157,6 +1157,13 @@ func (s *Service) handleChat(ctx context.Context, evt meshtastic.ParsedEvent, ch
 }
 
 func (s *Service) handleNodeInfo(ctx context.Context, evt meshtastic.ParsedEvent, now time.Time) bool {
+	// Note: nodes.last_map_report_at is bumped in handleMapReport, NOT
+	// here. The NODEINFO_APP decoder currently hard-codes the firmware
+	// string to "" (internal/meshtastic/portnums.go:127), so this path
+	// does not populate the firmware FK today. If NODEINFO firmware
+	// decoding is ever fixed, the natural generalization is a "last
+	// nodeinfo" column bumped here — but the MapReport-specific column
+	// name + bump location match what the stats filters actually use.
 	in := evt.NodeInfo
 	n := domain.Node{
 		NodeID:                 evt.NodeID,
@@ -1275,6 +1282,13 @@ func (s *Service) handleMapReport(ctx context.Context, evt meshtastic.ParsedEven
 		NeighborNodesCount:     evt.MapReport.NeighborNodesCount,
 	}
 	if !s.handleNodeInfo(ctx, ev, now) {
+		ok = false
+	}
+	// MapReport is the only packet type that populates
+	// nodes.firmware_version_id today (see handleNodeInfo comment), so
+	// the staleness signal for the firmware charts lives here.
+	if err := s.store.UpdateNodeLastMapReportAt(ctx, evt.NodeID, now); err != nil {
+		s.log.Error("update last_map_report_at failed", "node_id", evt.NodeID, "err", err)
 		ok = false
 	}
 	if domain.IsValidPosition(evt.MapReport.Latitude, evt.MapReport.Longitude) {

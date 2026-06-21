@@ -47,6 +47,7 @@ const (
 	defaultUpdateCheckInterval             = 12 * time.Hour
 	defaultUpdateCheckTimeout              = 15 * time.Second
 	defaultUpdateCheckLimit                = 15
+	defaultStatsSoftwareMapReportMaxAge    = 14 * 24 * time.Hour
 )
 
 func defaultConfig() Config {
@@ -122,6 +123,7 @@ func defaultConfig() Config {
 					HistoryCacheTTL:  24 * time.Hour,
 					HistoryWeeks:     54,
 					TopVersions:      15,
+					MapReportMaxAge:  defaultStatsSoftwareMapReportMaxAge,
 				},
 			},
 		},

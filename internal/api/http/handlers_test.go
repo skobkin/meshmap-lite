@@ -674,12 +674,13 @@ var firmwareSoftwareConfig = config.StatsSoftwareConfig{
 	HistoryCacheTTL:  24 * time.Hour,
 	HistoryWeeks:     54,
 	TopVersions:      15,
+	MapReportMaxAge:  14 * 24 * time.Hour,
 }
 
 func TestFirmwareSnapshotHandler_ReturnsVersionsAndTotal(t *testing.T) {
 	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
 	store := &testkit.FakeStore{
-		FirmwareVersionSnapshotFn: func(_ context.Context) ([]repo.FirmwareVersionCount, error) {
+		FirmwareVersionSnapshotFn: func(_ context.Context, _ time.Duration) ([]repo.FirmwareVersionCount, error) {
 			return []repo.FirmwareVersionCount{
 				{Version: "2.7.15", Count: 3, LastSeenAt: now.Add(-1 * time.Hour)},
 				{Version: "2.7.10", Count: 2, LastSeenAt: now.Add(-2 * time.Hour)},
@@ -722,7 +723,7 @@ func TestFirmwareSnapshotHandler_ReusesCacheUntilTTL(t *testing.T) {
 	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
 	calls := 0
 	store := &testkit.FakeStore{
-		FirmwareVersionSnapshotFn: func(_ context.Context) ([]repo.FirmwareVersionCount, error) {
+		FirmwareVersionSnapshotFn: func(_ context.Context, _ time.Duration) ([]repo.FirmwareVersionCount, error) {
 			calls++
 
 			return []repo.FirmwareVersionCount{{Version: "2.7.15", Count: calls, LastSeenAt: now}}, nil
@@ -780,7 +781,7 @@ func TestFirmwareSnapshotHandler_InvalidateBustsCache(t *testing.T) {
 	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
 	calls := 0
 	store := &testkit.FakeStore{
-		FirmwareVersionSnapshotFn: func(_ context.Context) ([]repo.FirmwareVersionCount, error) {
+		FirmwareVersionSnapshotFn: func(_ context.Context, _ time.Duration) ([]repo.FirmwareVersionCount, error) {
 			calls++
 
 			return []repo.FirmwareVersionCount{{Version: "2.7.15", Count: calls, LastSeenAt: now}}, nil
@@ -909,7 +910,7 @@ func TestFirmwareHistoryHandler_HistoryCacheIsSeparateFromSnapshot(t *testing.T)
 	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
 	snapCalls, histCalls := 0, 0
 	store := &testkit.FakeStore{
-		FirmwareVersionSnapshotFn: func(_ context.Context) ([]repo.FirmwareVersionCount, error) {
+		FirmwareVersionSnapshotFn: func(_ context.Context, _ time.Duration) ([]repo.FirmwareVersionCount, error) {
 			snapCalls++
 
 			return []repo.FirmwareVersionCount{{Version: "2.7.15", Count: 1, LastSeenAt: now}}, nil
@@ -952,5 +953,72 @@ func TestFirmwareHistoryHandler_HistoryCacheIsSeparateFromSnapshot(t *testing.T)
 	}
 	if histCalls != 1 {
 		t.Errorf("expected history cache reuse (1 call), got %d", histCalls)
+	}
+}
+
+// TestFirmwareSnapshotHandler_PassesMapReportMaxAgeToStore verifies that
+// the snapshot handler threads web.stats.software.map_report_max_age
+// straight through to the store as the staleness cutoff for the live
+// snapshot bar chart.
+func TestFirmwareSnapshotHandler_PassesMapReportMaxAgeToStore(t *testing.T) {
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	var observed time.Duration
+	store := &testkit.FakeStore{
+		FirmwareVersionSnapshotFn: func(_ context.Context, maxAge time.Duration) ([]repo.FirmwareVersionCount, error) {
+			observed = maxAge
+
+			return []repo.FirmwareVersionCount{{Version: "2.7.15", Count: 1, LastSeenAt: now}}, nil
+		},
+	}
+	cfg := firmwareSoftwareConfig
+	cfg.MapReportMaxAge = 7 * 24 * time.Hour
+	srv := New(Config{Web: config.WebConfig{Stats: config.StatsConfig{Software: cfg}}},
+		store, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil, nil)
+	srv.now = func() time.Time { return now }
+	srv.firmwareCache.now = func() time.Time { return now }
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/stats/firmware", nil)
+	rec := httptest.NewRecorder()
+	srv.firmwareSnapshot(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	if observed != 7*24*time.Hour {
+		t.Errorf("expected store to receive 7d maxAge, got %s", observed)
+	}
+}
+
+// TestFirmwareSnapshotHandler_DefaultsMapReportMaxAgeWhenZero pins the
+// fallback: if an operator sets map_report_max_age to 0 (or omits it
+// entirely and config loading produces a zero value), the handler must
+// default to 14d so the firmware stats don't suddenly exclude every
+// node.
+func TestFirmwareSnapshotHandler_DefaultsMapReportMaxAgeWhenZero(t *testing.T) {
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	var observed time.Duration
+	store := &testkit.FakeStore{
+		FirmwareVersionSnapshotFn: func(_ context.Context, maxAge time.Duration) ([]repo.FirmwareVersionCount, error) {
+			observed = maxAge
+
+			return []repo.FirmwareVersionCount{{Version: "2.7.15", Count: 1, LastSeenAt: now}}, nil
+		},
+	}
+	cfg := firmwareSoftwareConfig
+	cfg.MapReportMaxAge = 0
+	srv := New(Config{Web: config.WebConfig{Stats: config.StatsConfig{Software: cfg}}},
+		store, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil, nil)
+	srv.now = func() time.Time { return now }
+	srv.firmwareCache.now = func() time.Time { return now }
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/stats/firmware", nil)
+	rec := httptest.NewRecorder()
+	srv.firmwareSnapshot(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	if observed != 14*24*time.Hour {
+		t.Errorf("expected store to receive 14d default, got %s", observed)
 	}
 }

@@ -167,6 +167,13 @@ type StatsSoftwareConfig struct {
 	HistoryCacheTTL  time.Duration `koanf:"history_cache_ttl"`  // default 24h
 	HistoryWeeks     int           `koanf:"history_weeks"`      // default 54
 	TopVersions      int           `koanf:"top_versions"`       // default 15
+	// MapReportMaxAge is the staleness window applied to nodes.last_map_report_at
+	// in the firmware snapshot bar chart and the weekly history job. A node
+	// that hasn't sent a MapReport in this duration is excluded from both.
+	// The history area chart's read path does NOT re-filter at query time —
+	// once a row is in node_firmware_history, it stays (preserves historical
+	// data for nodes that recently went offline).
+	MapReportMaxAge time.Duration `koanf:"map_report_max_age"` // default 14d
 }
 
 // StatsActivityConfig configures fixed activity chart periods.

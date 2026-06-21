@@ -29,6 +29,14 @@ type testStore struct {
 	lastLogEvent  *domain.LogEvent
 	logEventsSeen []domain.LogEvent
 	topologySeen  []domain.TopologyEdge
+
+	// mapReportCalls records every UpdateNodeLastMapReportAt call.
+	mapReportCalls []mapReportBumpCall
+}
+
+type mapReportBumpCall struct {
+	NodeID     string
+	ObservedAt time.Time
 }
 
 func (s *testStore) UpsertNode(_ context.Context, node domain.Node) (bool, error) {
@@ -79,6 +87,13 @@ func (s *testStore) InsertLogEvent(_ context.Context, e domain.LogEvent) (int64,
 	s.logEventsSeen = append(s.logEventsSeen, ev)
 
 	return int64(len(s.logEventsSeen)), nil
+}
+
+func (s *testStore) UpdateNodeLastMapReportAt(_ context.Context, nodeID string, observedAt time.Time) error {
+	s.ops = append(s.ops, "mapReport:"+nodeID)
+	s.mapReportCalls = append(s.mapReportCalls, mapReportBumpCall{NodeID: nodeID, ObservedAt: observedAt})
+
+	return nil
 }
 
 type testEmitter struct{}
@@ -1663,5 +1678,80 @@ func TestLogEventFromParsedPreservesZeroHopLimit(t *testing.T) {
 	}
 	if *e.HopLimit != 0 {
 		t.Fatalf("expected HopLimit=0 (exhausted), got %d", *e.HopLimit)
+	}
+}
+
+// TestHandleMapReport_BumpsLastMapReportAt pins the design choice: the
+// staleness filter for the firmware version charts is keyed on
+// nodes.last_map_report_at, and that timestamp is bumped on the
+// MapReport dispatch path. Without this bump, the firmware stats would
+// always exclude every node from the snapshot.
+func TestHandleMapReport_BumpsLastMapReportAt(t *testing.T) {
+	store := &testStore{}
+	svc := &Service{
+		store:   store,
+		emitter: testEmitter{},
+		log:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+	now := time.Date(2026, 6, 21, 14, 30, 0, 0, time.UTC)
+	evt := meshtastic.ParsedEvent{
+		NodeID: "!11223344",
+		MapReport: &meshtastic.MapReportPayload{
+			LongName:        "arkh-07",
+			ShortName:       "am07",
+			FirmwareVersion: "2.7.18.fb3bf780",
+			Latitude:        64.5,
+			Longitude:       40.6,
+		},
+	}
+
+	if ok := svc.handleMapReport(context.Background(), evt, "!11223344", now); !ok {
+		t.Fatalf("expected map report to be processed")
+	}
+
+	if len(store.mapReportCalls) != 1 {
+		t.Fatalf("expected exactly one UpdateNodeLastMapReportAt call, got %d: %#v",
+			len(store.mapReportCalls), store.mapReportCalls)
+	}
+	call := store.mapReportCalls[0]
+	if call.NodeID != "!11223344" {
+		t.Errorf("expected node_id !11223344, got %q", call.NodeID)
+	}
+	if !call.ObservedAt.Equal(now) {
+		t.Errorf("expected observed_at %s, got %s", now, call.ObservedAt)
+	}
+}
+
+// TestHandleNodeInfo_DoesNotBumpLastMapReportAt is the negative side of
+// the same contract: a bare NODEINFO_APP dispatch must NOT touch
+// nodes.last_map_report_at, because that column tracks MapReport traffic
+// specifically (the NODEINFO_APP firmware string is hard-coded to "" by
+// the decoder, so NODEINFO_APP doesn't carry firmware today). If a
+// future change ever makes handleNodeInfo bump a "last nodeinfo" column,
+// this test should be updated alongside the comment in handleNodeInfo.
+func TestHandleNodeInfo_DoesNotBumpLastMapReportAt(t *testing.T) {
+	store := &testStore{}
+	svc := &Service{
+		store:   store,
+		emitter: testEmitter{},
+		log:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+	now := time.Date(2026, 6, 21, 14, 30, 0, 0, time.UTC)
+	evt := meshtastic.ParsedEvent{
+		NodeID: "!11223344",
+		NodeInfo: &meshtastic.NodeInfoPayload{
+			LongName:        "arkh-07",
+			ShortName:       "am07",
+			FirmwareVersion: "2.7.18.fb3bf780",
+		},
+	}
+
+	if ok := svc.handleNodeInfo(context.Background(), evt, now); !ok {
+		t.Fatalf("expected nodeinfo to be processed")
+	}
+
+	if len(store.mapReportCalls) != 0 {
+		t.Fatalf("expected no UpdateNodeLastMapReportAt call from NODEINFO_APP, got %#v",
+			store.mapReportCalls)
 	}
 }

@@ -1000,8 +1000,8 @@ INSERT INTO log_events(id, observed_at, node_id, event_kind, encrypted, channel_
 	if err := db.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
-	if version != 21 {
-		t.Fatalf("expected user_version=21, got %d", version)
+	if version != 22 {
+		t.Fatalf("expected user_version=22, got %d", version)
 	}
 
 	var eventKind int
@@ -1114,8 +1114,8 @@ INSERT INTO log_events(id, observed_at, node_id, event_kind, encrypted, channel_
 	if err := db.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
-	if version != 21 {
-		t.Fatalf("expected user_version=21, got %d", version)
+	if version != 22 {
+		t.Fatalf("expected user_version=22, got %d", version)
 	}
 
 	// Row 1: kind 8 with portnum_name=STORE_FORWARD_APP — promoted
@@ -1518,8 +1518,8 @@ VALUES
 	if err := db.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
-	if version != 21 {
-		t.Fatalf("expected user_version=21, got %d", version)
+	if version != 22 {
+		t.Fatalf("expected user_version=22, got %d", version)
 	}
 
 	// firmware_versions: three distinct strings, one row each.
@@ -1662,5 +1662,105 @@ ORDER BY n.node_id`)
 	// Re-applying migrations on an already-V21 schema is a no-op.
 	if err := Apply(ctx, db, nil); err != nil {
 		t.Fatalf("re-apply migrations on V21 schema: %v", err)
+	}
+}
+
+// TestApply_AddsMapReportSeenAtColumn exercises the V22 schema migration:
+// nodes.last_map_report_at is added as a nullable TEXT column with no
+// backfill and no index. Existing nodes have no MapReport on file (they
+// predate the column), and "never reported → not in firmware stats" is the
+// correct semantic for the snapshot/history filters.
+func TestApply_AddsMapReportSeenAtColumn(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite", "file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	_, err = db.ExecContext(ctx, `
+PRAGMA user_version = 21;
+CREATE TABLE nodes (
+  node_id TEXT PRIMARY KEY,
+  long_name TEXT,
+  first_seen_at TEXT NOT NULL,
+  last_seen_any_event_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+INSERT INTO nodes(node_id,long_name,first_seen_at,last_seen_any_event_at,updated_at)
+VALUES
+  ('!pre00001','Pre-existing','2026-05-01T00:00:00Z','2026-05-10T00:00:00Z','2026-05-10T00:00:00Z'),
+  ('!pre00002','Also pre-existing','2026-05-02T00:00:00Z','2026-05-11T00:00:00Z','2026-05-11T00:00:00Z');
+`)
+	if err != nil {
+		t.Fatalf("seed v21 schema: %v", err)
+	}
+
+	if err := Apply(ctx, db, nil); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	var version int
+	if err := db.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
+		t.Fatalf("read user_version: %v", err)
+	}
+	if version != 22 {
+		t.Fatalf("expected user_version=22, got %d", version)
+	}
+
+	hasCol, err := tableHasColumn(ctx, db, "nodes", "last_map_report_at")
+	if err != nil {
+		t.Fatalf("check nodes.last_map_report_at: %v", err)
+	}
+	if !hasCol {
+		t.Fatalf("nodes.last_map_report_at column should exist")
+	}
+
+	// Pre-existing rows have NULL last_map_report_at — the migration
+	// must not backfill from any other signal (see comment on the
+	// migration for why).
+	rows, err := db.QueryContext(ctx, `SELECT node_id, last_map_report_at FROM nodes ORDER BY node_id`)
+	if err != nil {
+		t.Fatalf("query nodes: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	wantNodes := map[string]bool{"!pre00001": true, "!pre00002": true}
+	for rows.Next() {
+		var nodeID string
+		var seenAt sql.NullString
+		if err := rows.Scan(&nodeID, &seenAt); err != nil {
+			t.Fatalf("scan node: %v", err)
+		}
+		if !wantNodes[nodeID] {
+			t.Errorf("unexpected node %q in v22 schema", nodeID)
+
+			continue
+		}
+		delete(wantNodes, nodeID)
+		if seenAt.Valid {
+			t.Errorf("node %q: expected NULL last_map_report_at (no backfill), got %q", nodeID, seenAt.String)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate nodes: %v", err)
+	}
+	if len(wantNodes) != 0 {
+		t.Errorf("missing seeded nodes in post-migration table: %v", wantNodes)
+	}
+
+	// No index on last_map_report_at (scan-dominated workload — see
+	// migration comment).
+	exists, err := indexExists(ctx, db, "idx_nodes_last_map_report_at")
+	if err != nil {
+		t.Fatalf("check idx_nodes_last_map_report_at: %v", err)
+	}
+	if exists {
+		t.Fatalf("idx_nodes_last_map_report_at should not exist")
+	}
+
+	// Re-applying migrations on an already-V22 schema is a no-op.
+	if err := Apply(ctx, db, nil); err != nil {
+		t.Fatalf("re-apply migrations on V22 schema: %v", err)
 	}
 }

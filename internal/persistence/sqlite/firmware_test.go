@@ -27,8 +27,19 @@ func newFirmwareTestStore(t *testing.T) *Store {
 
 // seedNode inserts one node row at the given times. firmwareVersion is
 // the version string used to create a firmware_versions row and set the
-// node's firmware_version_id FK.
+// node's firmware_version_id FK. The seeded node has a recent
+// last_map_report_at so it passes the staleness filter used by the
+// firmware stats queries — staleness is exercised explicitly by
+// seedNodeAt / the dedicated _ExcludesStaleNodes tests.
 func seedNode(t *testing.T, ctx context.Context, s *Store, nodeID string, firmwareVersion string) {
+	t.Helper()
+	now := time.Now().UTC()
+	seedNodeAt(t, ctx, s, nodeID, firmwareVersion, &now)
+}
+
+// seedNodeAt is the same as seedNode but lets the caller pin
+// last_map_report_at. Use nil to leave the column NULL.
+func seedNodeAt(t *testing.T, ctx context.Context, s *Store, nodeID string, firmwareVersion string, lastMapReportAt *time.Time) {
 	t.Helper()
 	if firmwareVersion != "" {
 		if _, err := s.UpsertFirmwareVersion(ctx, firmwareVersion, time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)); err != nil {
@@ -54,6 +65,11 @@ func seedNode(t *testing.T, ctx context.Context, s *Store, nodeID string, firmwa
 			t.Fatalf("set firmware_version_id on %q: %v", nodeID, err)
 		}
 	}
+	if lastMapReportAt != nil {
+		if err := s.UpdateNodeLastMapReportAt(ctx, nodeID, *lastMapReportAt); err != nil {
+			t.Fatalf("set last_map_report_at on %q: %v", nodeID, err)
+		}
+	}
 }
 
 func TestFirmwareVersionSnapshot_OrdersByCountAndExcludesNULL(t *testing.T) {
@@ -66,7 +82,7 @@ func TestFirmwareVersionSnapshot_OrdersByCountAndExcludesNULL(t *testing.T) {
 	seedNode(t, ctx, s, "!charlie", "2.7.10")
 	seedNode(t, ctx, s, "!delta", "")
 
-	snap, err := s.FirmwareVersionSnapshot(ctx)
+	snap, err := s.FirmwareVersionSnapshot(ctx, 14*24*time.Hour)
 	if err != nil {
 		t.Fatalf("snapshot: %v", err)
 	}
@@ -98,10 +114,10 @@ func TestFirmwareVersionHistory_ZeroPadsMissingWeeksAndKeepsOther(t *testing.T) 
 	// missing and must be padded with zeros. Top-2 + "other" → 3 columns.
 	week0 := time.Date(2026, 5, 4, 0, 0, 0, 0, time.UTC) // Monday
 	week3 := week0.AddDate(0, 0, 21)
-	if _, err := s.RecordFirmwareHistoryWeek(ctx, week0, week0); err != nil {
+	if _, err := s.RecordFirmwareHistoryWeek(ctx, week0, week0, 14*24*time.Hour); err != nil {
 		t.Fatalf("record week0: %v", err)
 	}
-	if _, err := s.RecordFirmwareHistoryWeek(ctx, week3, week3); err != nil {
+	if _, err := s.RecordFirmwareHistoryWeek(ctx, week3, week3, 14*24*time.Hour); err != nil {
 		t.Fatalf("record week3: %v", err)
 	}
 
@@ -171,7 +187,7 @@ func TestRecordFirmwareHistoryWeek_FirstWriterWins(t *testing.T) {
 
 	// First write establishes Monday's state.
 	firstObserved := week.Add(2 * time.Hour)
-	inserted, err := s.RecordFirmwareHistoryWeek(ctx, week, firstObserved)
+	inserted, err := s.RecordFirmwareHistoryWeek(ctx, week, firstObserved, 14*24*time.Hour)
 	if err != nil {
 		t.Fatalf("first snapshot: %v", err)
 	}
@@ -183,7 +199,7 @@ func TestRecordFirmwareHistoryWeek_FirstWriterWins(t *testing.T) {
 	// for the same week must NOT overwrite the row.
 	seedNode(t, ctx, s, "!alpha", "2.7.10")
 	secondObserved := week.AddDate(0, 0, 2) // Wednesday of the same week
-	inserted, err = s.RecordFirmwareHistoryWeek(ctx, week, secondObserved)
+	inserted, err = s.RecordFirmwareHistoryWeek(ctx, week, secondObserved, 14*24*time.Hour)
 	if err != nil {
 		t.Fatalf("second snapshot: %v", err)
 	}
@@ -264,5 +280,84 @@ func TestFirmwareHistoryResult_TypeStability(t *testing.T) {
 		TopN:           1,
 		Versions:       []string{"x"},
 		VersionsByWeek: [][]int{{1}},
+	}
+}
+
+// TestFirmwareVersionSnapshot_ExcludesStaleNodes pins the read-side
+// staleness filter for the snapshot bar chart: a node whose
+// last_map_report_at is older than maxAge (or NULL) is excluded from
+// "today's distribution," even though nodes.firmware_version_id is set.
+func TestFirmwareVersionSnapshot_ExcludesStaleNodes(t *testing.T) {
+	ctx := context.Background()
+	s := newFirmwareTestStore(t)
+
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	fresh := now.Add(-1 * time.Hour)       // well within 14d
+	stale := now.Add(-30 * 24 * time.Hour) // outside 14d
+	maxAge := 14 * 24 * time.Hour
+
+	seedNodeAt(t, ctx, s, "!fresh", "2.6.5", &fresh)
+	seedNodeAt(t, ctx, s, "!stale", "2.6.5", &stale)
+	seedNodeAt(t, ctx, s, "!never", "2.7.10", nil) // never sent a MapReport
+
+	snap, err := s.FirmwareVersionSnapshot(ctx, maxAge)
+	if err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+	if len(snap) != 1 {
+		t.Fatalf("expected only the fresh node to count, got %d rows: %+v", len(snap), snap)
+	}
+	if snap[0].Version != "2.6.5" || snap[0].Count != 1 {
+		t.Fatalf("expected single 2.6.5 count=1 (only !fresh), got %+v", snap[0])
+	}
+}
+
+// TestRecordFirmwareHistoryWeek_ExcludesStaleNodes pins the write-side
+// staleness gate for the history area chart: at the moment the weekly
+// snapshot job runs, a node whose last_map_report_at is older than
+// maxAge (or NULL) must NOT be inserted into node_firmware_history. The
+// history read path itself does no filtering (see plan, section 4), so
+// rows already in the table stay — only new writes are gated.
+func TestRecordFirmwareHistoryWeek_ExcludesStaleNodes(t *testing.T) {
+	ctx := context.Background()
+	s := newFirmwareTestStore(t)
+
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	fresh := now.Add(-1 * time.Hour)
+	stale := now.Add(-30 * 24 * time.Hour)
+	maxAge := 14 * 24 * time.Hour
+
+	seedNodeAt(t, ctx, s, "!fresh", "2.6.5", &fresh)
+	seedNodeAt(t, ctx, s, "!stale", "2.6.5", &stale)
+	seedNodeAt(t, ctx, s, "!never", "2.7.10", nil)
+
+	week := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC) // Monday
+	inserted, err := s.RecordFirmwareHistoryWeek(ctx, week, now, maxAge)
+	if err != nil {
+		t.Fatalf("record week: %v", err)
+	}
+	if inserted != 1 {
+		t.Fatalf("expected exactly 1 row inserted (only !fresh), got %d", inserted)
+	}
+
+	rows, err := s.db.QueryContext(ctx, `SELECT node_id FROM node_firmware_history WHERE week_start = ?`, "2026-06-15")
+	if err != nil {
+		t.Fatalf("query history rows: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var seen []string
+	for rows.Next() {
+		var n string
+		if err := rows.Scan(&n); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		seen = append(seen, n)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate: %v", err)
+	}
+	if len(seen) != 1 || seen[0] != "!fresh" {
+		t.Fatalf("expected only !fresh row, got %v", seen)
 	}
 }

@@ -19,7 +19,8 @@ type FakeStore struct {
 	ResolveNodeDisplayFn        func(context.Context, string) (string, error)
 	UpsertFirmwareVersionFn     func(context.Context, string, time.Time) (int64, error)
 	UpdateNodeFirmwareVersionFn func(context.Context, string, int64, time.Time) error
-	RecordFirmwareHistoryWeekFn func(context.Context, time.Time, time.Time) (int64, error)
+	UpdateNodeLastMapReportAtFn func(context.Context, string, time.Time) error
+	RecordFirmwareHistoryWeekFn func(context.Context, time.Time, time.Time, time.Duration) (int64, error)
 
 	GetMapNodesFn             func(context.Context, repo.MapNodeQuery) ([]repo.MapNode, error)
 	ListNodesFn               func(context.Context, repo.NodeListQuery) ([]repo.NodeSummary, error)
@@ -29,7 +30,7 @@ type FakeStore struct {
 	ListLogEventsFn           func(context.Context, domain.LogEventQuery) ([]domain.LogEventView, error)
 	ActivityBucketsFn         func(context.Context, domain.ActivityQuery) ([]domain.ActivityBucket, error)
 	StatsFn                   func(context.Context, time.Duration) (domain.Stats, error)
-	FirmwareVersionSnapshotFn func(context.Context) ([]repo.FirmwareVersionCount, error)
+	FirmwareVersionSnapshotFn func(context.Context, time.Duration) ([]repo.FirmwareVersionCount, error)
 	FirmwareVersionHistoryFn  func(context.Context, time.Time, int, int) (repo.FirmwareHistoryResult, error)
 	LastFirmwareHistoryWeekFn func(context.Context) (time.Time, error)
 }
@@ -115,10 +116,19 @@ func (f *FakeStore) UpdateNodeFirmwareVersion(ctx context.Context, nodeID string
 	return nil
 }
 
+// UpdateNodeLastMapReportAt implements repo.WriteStore.
+func (f *FakeStore) UpdateNodeLastMapReportAt(ctx context.Context, nodeID string, observedAt time.Time) error {
+	if f.UpdateNodeLastMapReportAtFn != nil {
+		return f.UpdateNodeLastMapReportAtFn(ctx, nodeID, observedAt)
+	}
+
+	return nil
+}
+
 // RecordFirmwareHistoryWeek implements repo.WriteStore.
-func (f *FakeStore) RecordFirmwareHistoryWeek(ctx context.Context, weekStart time.Time, observedAt time.Time) (int64, error) {
+func (f *FakeStore) RecordFirmwareHistoryWeek(ctx context.Context, weekStart time.Time, observedAt time.Time, maxAge time.Duration) (int64, error) {
 	if f.RecordFirmwareHistoryWeekFn != nil {
-		return f.RecordFirmwareHistoryWeekFn(ctx, weekStart, observedAt)
+		return f.RecordFirmwareHistoryWeekFn(ctx, weekStart, observedAt, maxAge)
 	}
 
 	return 0, nil
@@ -197,9 +207,9 @@ func (f *FakeStore) Stats(ctx context.Context, threshold time.Duration) (domain.
 }
 
 // FirmwareVersionSnapshot implements repo.ReadStore.
-func (f *FakeStore) FirmwareVersionSnapshot(ctx context.Context) ([]repo.FirmwareVersionCount, error) {
+func (f *FakeStore) FirmwareVersionSnapshot(ctx context.Context, maxAge time.Duration) ([]repo.FirmwareVersionCount, error) {
 	if f.FirmwareVersionSnapshotFn != nil {
-		return f.FirmwareVersionSnapshotFn(ctx)
+		return f.FirmwareVersionSnapshotFn(ctx, maxAge)
 	}
 
 	return nil, nil
