@@ -366,7 +366,7 @@ describe('StatsPage Software section', () => {
     })
   })
 
-  it('renders the snapshot bar chart and history area chart with cursor sync key', async () => {
+  it('renders the snapshot bar chart and history area chart without syncing cursors', async () => {
     render(<StatsPage initialFirmwareSnapshot={firmwareSnapshot()} initialFirmwareHistory={firmwareHistory()} />)
 
     await screen.findByRole('heading', { name: 'Software' })
@@ -379,12 +379,12 @@ describe('StatsPage Software section', () => {
     const snapshot = uplotMock.options[chartsCount - 2]
     const history = uplotMock.options[chartsCount - 1]
 
-    // Snapshot: ordinal x axis (distr=2), bars path builder, sync key.
+    // Snapshot: ordinal x axis (distr=2), bars path builder, no sync key.
     // uPlot uses distr=4 for arcsinh; that warps the version index spacing
     // and makes bars render as wide, uneven blocks instead of columns.
     expect(snapshot?.scales?.x?.distr).toBe(2)
     expect(snapshot?.scales?.x?.time).toBe(false)
-    expect(snapshot?.cursor?.sync?.key).toBe('stats-firmware')
+    expect(snapshot?.cursor?.sync).toBeUndefined()
     expect(snapshot?.series?.[1]?.paths).toBeDefined()
     // No rotation: shortVersionLabel caps labels at ~12 chars, so they
     // fit horizontally and rotation was causing the rightmost labels
@@ -400,7 +400,7 @@ describe('StatsPage Software section', () => {
     expect(uplotMock.data[chartsCount - 2]?.[1]).toEqual([7, 3, 2])
 
     // History: index-based x, multi-series, four columns + x.
-    expect(history?.cursor?.sync?.key).toBe('stats-firmware')
+    expect(history?.cursor?.sync).toBeUndefined()
     expect(history?.series?.slice(1).map((series) => series.label)).toEqual(['2.6.5', '2.7.10', '2.7.15', '(other)'])
     expect(history && uplotMock.data[chartsCount - 1]?.[0]).toEqual([0, 1, 2, 3, 4, 5, 6, 7])
     expect(uplotMock.data[chartsCount - 1]?.[1]).toEqual([10, 12, 15, 8, 5, 3, 2, 18])

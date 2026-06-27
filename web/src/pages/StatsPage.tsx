@@ -436,8 +436,7 @@ function FirmwareSnapshotChart({ versions }: { versions: FirmwareVersionCount[] 
       cursor: {
         show: true,
         drag: { x: false, y: false },
-        points: { show: true, size: 5 },
-        sync: { key: 'stats-firmware' }
+        points: { show: true, size: 5 }
       },
       scales: {
         // distr: 2 is the ordinal x scale in uPlot — bars sit on integer
@@ -637,8 +636,7 @@ function FirmwareHistoryChart({ history }: { history: FirmwareHistory }): JSX.El
       cursor: {
         show: true,
         drag: { x: false, y: false },
-        points: { show: true, size: 4 },
-        sync: { key: 'stats-firmware' }
+        points: { show: true, size: 4 }
       },
       scales: {
         x: { time: false },
