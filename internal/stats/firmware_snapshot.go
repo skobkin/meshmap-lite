@@ -54,7 +54,17 @@ type FirmwareWriter interface {
 // the same fallback in firmwareSnapshot; both sites must agree or
 // the snapshot endpoint and the weekly writer will silently disagree
 // about which nodes are "active" — see CodeX review of PR #111.
-const defaultFirmwareMaxAge = 14 * 24 * time.Hour
+const (
+	defaultFirmwareMaxAge = 14 * 24 * time.Hour
+	snapshotRetryDelay    = time.Hour
+)
+
+type firmwareSnapshotRunStatus uint8
+
+const (
+	firmwareSnapshotDone firmwareSnapshotRunStatus = iota
+	firmwareSnapshotRetry
+)
 
 // FirmwareSnapshotJob runs the weekly INSERT OR IGNORE snapshot for the
 // node_firmware_history table. It catches up on the current week on
@@ -70,6 +80,7 @@ type FirmwareSnapshotJob struct {
 	now        func() time.Time
 	onSnapshot OnSnapshotFunc
 	maxAge     time.Duration
+	retryDelay time.Duration
 }
 
 // NewFirmwareSnapshotJob constructs a job. store is required.
@@ -99,6 +110,7 @@ func NewFirmwareSnapshotJob(opts FirmwareSnapshotOptions) *FirmwareSnapshotJob {
 		now:        now,
 		onSnapshot: opts.OnSnapshot,
 		maxAge:     maxAge,
+		retryDelay: snapshotRetryDelay,
 	}
 }
 
@@ -106,18 +118,13 @@ func NewFirmwareSnapshotJob(opts FirmwareSnapshotOptions) *FirmwareSnapshotJob {
 // immediately and then sleeps until the next Monday 00:00 UTC, repeating
 // forever (until ctx is cancelled).
 func (j *FirmwareSnapshotJob) Start(ctx context.Context) {
-	if err := j.runOnce(ctx); err != nil {
-		j.logger.Warn("firmware snapshot catch-up failed", "err", err)
-	}
-
 	for {
-		now := j.now()
-		next := nextMondayUTC(now)
-		wait := next.Sub(now)
-		if wait < 0 {
-			wait = time.Hour
+		status, err := j.runOnceResult(ctx)
+		if err != nil {
+			j.logger.Warn("firmware snapshot failed", "err", err)
 		}
 
+		wait := j.nextWait(status, err)
 		timer := time.NewTimer(wait)
 		select {
 		case <-ctx.Done():
@@ -126,9 +133,6 @@ func (j *FirmwareSnapshotJob) Start(ctx context.Context) {
 
 			return
 		case <-timer.C:
-			if err := j.runOnce(ctx); err != nil {
-				j.logger.Warn("firmware snapshot failed", "err", err)
-			}
 		}
 	}
 }
@@ -136,12 +140,18 @@ func (j *FirmwareSnapshotJob) Start(ctx context.Context) {
 // runOnce performs one snapshot for the current week if it has not yet
 // been written.
 func (j *FirmwareSnapshotJob) runOnce(ctx context.Context) error {
+	_, err := j.runOnceResult(ctx)
+
+	return err
+}
+
+func (j *FirmwareSnapshotJob) runOnceResult(ctx context.Context) (firmwareSnapshotRunStatus, error) {
 	now := j.now()
 	currentWeek := WeekStartOf(now)
 
 	last, err := j.store.LastFirmwareHistoryWeek(ctx)
 	if err != nil {
-		return err
+		return firmwareSnapshotDone, err
 	}
 
 	// If we already have a row for the current week (or a future one,
@@ -152,13 +162,13 @@ func (j *FirmwareSnapshotJob) runOnce(ctx context.Context) error {
 			"last_week", last.Format("2006-01-02"),
 		)
 
-		return nil
+		return firmwareSnapshotDone, nil
 	}
 
 	observed := now
 	inserted, err := j.store.RecordFirmwareHistoryWeek(ctx, currentWeek, observed, j.maxAge)
 	if err != nil {
-		return err
+		return firmwareSnapshotDone, err
 	}
 
 	// Only announce the write and invalidate caches when a row was
@@ -167,14 +177,16 @@ func (j *FirmwareSnapshotJob) runOnce(ctx context.Context) error {
 	// misleading and the OnSnapshot callback (which clears the
 	// firmware response caches) would be a no-op since the data on
 	// disk didn't change. Demoted to Debug so the absence of rows is
-	// still observable for ops triage.
+	// still observable for ops triage. Return a retry status so a
+	// startup before fresh MapReports arrive does not skip the entire
+	// current week.
 	if inserted == 0 {
 		j.logger.Debug("firmware snapshot skipped: no active nodes",
 			"week_start", currentWeek.Format("2006-01-02"),
 			"max_age", j.maxAge,
 		)
 
-		return nil
+		return firmwareSnapshotRetry, nil
 	}
 
 	j.logger.Info("firmware snapshot written",
@@ -186,7 +198,25 @@ func (j *FirmwareSnapshotJob) runOnce(ctx context.Context) error {
 		j.onSnapshot()
 	}
 
-	return nil
+	return firmwareSnapshotDone, nil
+}
+
+func (j *FirmwareSnapshotJob) nextWait(status firmwareSnapshotRunStatus, err error) time.Duration {
+	if status == firmwareSnapshotRetry || err != nil {
+		if j.retryDelay > 0 {
+			return j.retryDelay
+		}
+
+		return snapshotRetryDelay
+	}
+
+	now := j.now()
+	wait := nextMondayUTC(now).Sub(now)
+	if wait < 0 {
+		return time.Hour
+	}
+
+	return wait
 }
 
 // nextMondayUTC returns the Monday 00:00 UTC strictly after t.

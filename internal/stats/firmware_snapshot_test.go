@@ -27,11 +27,11 @@ type fakeStore struct {
 	lastError   error
 
 	// insertZero forces RecordFirmwareHistoryWeek to return 0 rows.
-	// Set this to simulate the empty-fleet / all-stale-fleet case
-	// where the SQL store's INSERT OR IGNORE matches zero rows. The
-	// default (false) keeps the historical "always inserted one row"
-	// behaviour so existing tests don't need to change.
-	insertZero bool
+	// insertedRows, when set, returns a sequence of row counts. Both
+	// simulate the empty-fleet / all-stale-fleet case where the SQL
+	// store's INSERT OR IGNORE matches zero rows.
+	insertZero   bool
+	insertedRows []int64
 }
 
 type recordedCall struct {
@@ -47,12 +47,19 @@ func (f *fakeStore) RecordFirmwareHistoryWeek(_ context.Context, weekStart, obse
 		return 0, f.recordError
 	}
 	f.recorded = append(f.recorded, recordedCall{WeekStart: weekStart, ObservedAt: observedAt, MaxAge: maxAge})
-	f.lastWeek = weekStart
-	if f.insertZero {
-		return 0, nil
+
+	inserted := int64(1)
+	if len(f.insertedRows) > 0 {
+		inserted = f.insertedRows[0]
+		f.insertedRows = f.insertedRows[1:]
+	} else if f.insertZero {
+		inserted = 0
+	}
+	if inserted > 0 {
+		f.lastWeek = weekStart
 	}
 
-	return 1, nil
+	return inserted, nil
 }
 
 func (f *fakeStore) LastFirmwareHistoryWeek(_ context.Context) (time.Time, error) {
@@ -240,6 +247,9 @@ func TestRunOnce_NoCallbackWhenZeroRowsInserted(t *testing.T) {
 	if len(store.recorded) != 1 {
 		t.Errorf("expected the record call to still happen (the writer itself is cheap), got %d", len(store.recorded))
 	}
+	if !store.lastWeek.IsZero() {
+		t.Errorf("expected zero-row insert not to mark the current week as written, got %s", store.lastWeek)
+	}
 }
 
 // TestRunOnce_PassesMaxAgeToWriter pins that the staleness window
@@ -337,6 +347,60 @@ func TestStart_CatchesUpAndRespectsContextCancel(t *testing.T) {
 
 		return len(fs.recorded) == 1
 	}, 100*time.Millisecond, "catch-up record call")
+
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatalf("Start did not exit after context cancel")
+	}
+}
+
+// TestStart_RetriesEmptyCurrentWeekSnapshot covers the cold-start
+// migration case where nodes.last_map_report_at is still NULL for
+// every row. The first current-week INSERT matches zero rows, but
+// MapReports can arrive later in the same week; Start must retry
+// before the next Monday so that week is still captured.
+func TestStart_RetriesEmptyCurrentWeekSnapshot(t *testing.T) {
+	store := &fakeStore{insertedRows: []int64{0, 1}}
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC) // Wednesday
+	currentWeek := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
+
+	wrote := make(chan struct{})
+	var wroteOnce sync.Once
+	job := NewFirmwareSnapshotJob(FirmwareSnapshotOptions{
+		Store: store,
+		Now:   func() time.Time { return now },
+		OnSnapshot: func() {
+			wroteOnce.Do(func() {
+				close(wrote)
+			})
+		},
+	})
+	job.retryDelay = 5 * time.Millisecond
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan struct{})
+	go func() {
+		job.Start(ctx)
+		close(done)
+	}()
+
+	waitFor(t, func() bool {
+		store.mu.Lock()
+		defer store.mu.Unlock()
+
+		return len(store.recorded) >= 2 && store.lastWeek.Equal(currentWeek)
+	}, 200*time.Millisecond, "retry record call")
+
+	select {
+	case <-wrote:
+	case <-time.After(100 * time.Millisecond):
+		t.Fatalf("expected OnSnapshot callback after retry inserts rows")
+	}
 
 	cancel()
 

@@ -35,5 +35,5 @@ export function renderScalar(value: RenderedScalar | undefined): JSX.Element | s
     return value
   }
 
-  return <span aria-hidden="true" title={value.label}>{value.emoji}</span>
+  return <span aria-label={value.label} role="img" title={value.label}>{value.emoji}</span>
 }
