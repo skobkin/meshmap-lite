@@ -409,6 +409,26 @@ describe('StatsPage Software section', () => {
     expect(history?.series?.[2]?.fill).toBeUndefined()
   })
 
+  it('renders exactly one Software section, one 24 hours, and one 7 days after data loads', async () => {
+    // Regression for the v0.31.0 stats-page duplication bug. Before the
+    // fix, the unconditional <SoftwareSection /> plus the conditional
+    // <p> ↔ <ActivitySection>[] swap at the same parent position caused
+    // Preact to accumulate empty SoftwareSection instances across the
+    // initial data-load churn (the screenshot showed ~13 empty cards
+    // stacked at the top of the page).
+    render(<StatsPage />)
+
+    await screen.findByRole('heading', { name: 'Software' })
+
+    expect(screen.getAllByRole('heading', { name: 'Software', level: 2 })).toHaveLength(1)
+    expect(screen.getAllByRole('heading', { name: '24 hours', level: 2 })).toHaveLength(1)
+    expect(screen.getAllByRole('heading', { name: '7 days', level: 2 })).toHaveLength(1)
+    // Sanity: each ActivitySection renders 4 charts, the Software section renders 2.
+    expect(screen.getAllByLabelText(/packet counts$/)).toHaveLength(8)
+    expect(screen.getAllByLabelText('Firmware version distribution')).toHaveLength(1)
+    expect(screen.getAllByLabelText('Firmware version history')).toHaveLength(1)
+  })
+
   it('renders every version label and a sane y range for production-shape data (4 versions with hash suffixes)', async () => {
     // Mirrors the live fleet shape the screenshot regression came from:
     // 4 versions, two of them carrying modern Meshtastic commit hashes.

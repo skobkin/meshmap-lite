@@ -898,10 +898,14 @@ export function StatsPage({ initialStats, initialFirmwareSnapshot, initialFirmwa
   return (
     <section className="stats-layout container-fluid">
       {loadError && <p className="load-error">{loadError} <button className="outline secondary" onClick={retry}>Retry</button></p>}
-      {stats
-        ? stats.periods.map((period) => <ActivitySection key={period.key} period={period} />)
-        : <p className="node-list-empty">{loadError ? 'Failed to load activity stats.' : 'Loading activity stats.'}</p>}
-      <SoftwareSection snapshot={firmwareSnapshot} history={firmwareHistory} />
+      <div className="stats-activity-area">
+        {stats
+          ? stats.periods.map((period) => <ActivitySection key={period.key} period={period} />)
+          : <p className="node-list-empty">{loadError ? 'Failed to load activity stats.' : 'Loading activity stats.'}</p>}
+      </div>
+      {firmwareSnapshot && firmwareHistory
+        ? <SoftwareSection key="software" snapshot={firmwareSnapshot} history={firmwareHistory} />
+        : <p className="node-list-empty">{loadError ? 'Failed to load firmware data.' : 'Loading firmware data.'}</p>}
     </section>
   )
 }
