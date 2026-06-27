@@ -75,7 +75,7 @@ func (s *Store) UpdateNodeFirmwareVersion(ctx context.Context, nodeID string, ve
 func (s *Store) RecordFirmwareHistoryWeek(ctx context.Context, weekStart time.Time, observedAt time.Time, maxAge time.Duration) (int64, error) {
 	weekStartText := weekStart.UTC().Format("2006-01-02")
 	obsText := observedAt.UTC().Format(time.RFC3339Nano)
-	cutoff := time.Now().UTC().Add(-maxAge).Format(time.RFC3339Nano)
+	cutoff := observedAt.UTC().Add(-maxAge).Format(time.RFC3339Nano)
 	res, err := s.db.ExecContext(ctx, `
 INSERT OR IGNORE INTO node_firmware_history (node_id, firmware_version_id, week_start, observed_at)
 SELECT n.node_id, n.firmware_version_id, ?, ?

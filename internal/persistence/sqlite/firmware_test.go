@@ -291,7 +291,7 @@ func TestFirmwareVersionSnapshot_ExcludesStaleNodes(t *testing.T) {
 	ctx := context.Background()
 	s := newFirmwareTestStore(t)
 
-	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	now := time.Now().UTC()
 	fresh := now.Add(-1 * time.Hour)       // well within 14d
 	stale := now.Add(-30 * 24 * time.Hour) // outside 14d
 	maxAge := 14 * 24 * time.Hour
@@ -322,17 +322,17 @@ func TestRecordFirmwareHistoryWeek_ExcludesStaleNodes(t *testing.T) {
 	ctx := context.Background()
 	s := newFirmwareTestStore(t)
 
-	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
-	fresh := now.Add(-1 * time.Hour)
-	stale := now.Add(-30 * 24 * time.Hour)
 	maxAge := 14 * 24 * time.Hour
+	observedAt := time.Now().UTC().Add(-30 * 24 * time.Hour)
+	fresh := observedAt.Add(-1 * time.Hour)
+	stale := observedAt.Add(-30 * 24 * time.Hour)
 
 	seedNodeAt(t, ctx, s, "!fresh", "2.6.5", &fresh)
 	seedNodeAt(t, ctx, s, "!stale", "2.6.5", &stale)
 	seedNodeAt(t, ctx, s, "!never", "2.7.10", nil)
 
 	week := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC) // Monday
-	inserted, err := s.RecordFirmwareHistoryWeek(ctx, week, now, maxAge)
+	inserted, err := s.RecordFirmwareHistoryWeek(ctx, week, observedAt, maxAge)
 	if err != nil {
 		t.Fatalf("record week: %v", err)
 	}
