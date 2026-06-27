@@ -183,6 +183,25 @@ function formatNodeCount(value: number): string {
   return `${value} ${value === 1 ? 'node' : 'nodes'}`
 }
 
+function firmwareWeekDate(history: FirmwareHistory, weekIndex: number): Date {
+  const weekStart = history.week_starts[weekIndex]
+  if (typeof weekStart === 'string') {
+    const date = new Date(weekStart)
+    if (Number.isFinite(date.getTime())) {
+      return date
+    }
+  }
+
+  return new Date(Date.now() - (history.weeks - 1 - weekIndex) * 7 * 24 * 60 * 60 * 1000)
+}
+
+function formatFirmwareWeekDate(date: Date, options: Intl.DateTimeFormatOptions): string {
+  return date.toLocaleDateString(undefined, {
+    ...options,
+    timeZone: 'UTC'
+  })
+}
+
 function integerSplits(max: number): number[] {
   const ceiling = Number.isFinite(max) ? Math.max(1, Math.ceil(max)) : 1
   if (ceiling <= 6) {
@@ -606,11 +625,8 @@ function FirmwareHistoryChart({ history }: { history: FirmwareHistory }): JSX.El
         // previous one). Falls back to the old computation only if a
         // rolled-back API version is mid-deploy and didn't ship
         // week_starts; same end result for the user.
-        const weekStart = history.week_starts[x]
-        const weekDate = typeof weekStart === 'string'
-          ? new Date(weekStart)
-          : new Date(Date.now() - (history.weeks - 1 - x) * 7 * 24 * 60 * 60 * 1000)
-        const weekLabel = weekDate.toLocaleDateString(undefined, {
+        const weekDate = firmwareWeekDate(history, x)
+        const weekLabel = formatFirmwareWeekDate(weekDate, {
           month: 'short',
           day: 'numeric',
           year: 'numeric'
@@ -660,12 +676,9 @@ function FirmwareHistoryChart({ history }: { history: FirmwareHistory }): JSX.El
             // (not from Date.now(), which would label the prior
             // month on a Sunday response of a Monday-generated
             // cached payload).
-            const weekStart = history.week_starts[tick]
-            const date = typeof weekStart === 'string'
-              ? new Date(weekStart)
-              : new Date(Date.now() - (history.weeks - 1 - tick) * 7 * 24 * 60 * 60 * 1000)
+            const date = firmwareWeekDate(history, tick)
 
-            return date.toLocaleDateString(undefined, { month: 'short', year: '2-digit' })
+            return formatFirmwareWeekDate(date, { month: 'short', year: '2-digit' })
           })
         },
         {

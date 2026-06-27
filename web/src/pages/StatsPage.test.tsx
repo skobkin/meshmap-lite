@@ -599,6 +599,40 @@ describe('StatsPage Software section', () => {
     expect(tickLabels[0]).toContain('Apr')
   })
 
+  it('formats UTC history week labels without shifting them into the local timezone', async () => {
+    vi.stubEnv('TZ', 'America/New_York')
+
+    try {
+      const history = firmwareHistory()
+      history.week_starts = history.week_starts.map((weekStart, index) => (
+        index === 7 ? '2026-06-01T00:00:00Z' : weekStart
+      ))
+
+      render(<StatsPage initialFirmwareSnapshot={firmwareSnapshot()} initialFirmwareHistory={history} />)
+
+      await screen.findByRole('heading', { name: 'Software' })
+
+      const historyIndex = uplotMock.options.length - 1
+      const chart = uplotMock.options[historyIndex]
+      const tickLabels = (chart?.axes?.[0]?.values?.({}, [7], 0, 0, 0) ?? []).map(String)
+
+      expect(tickLabels[0]).toContain('Jun')
+      expect(tickLabels[0]).not.toContain('May')
+
+      await act(async () => {
+        chart?.plugins?.[0]?.hooks?.setCursor?.({
+          cursor: { idx: 7 },
+          data: uplotMock.data[historyIndex] ?? []
+        })
+      })
+
+      expect(screen.getByText((text) => text.startsWith('Week of Jun 1, 2026 ·'))).toBeTruthy()
+      expect(screen.queryByText((text) => text.startsWith('Week of May 31, 2026 ·'))).toBeNull()
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
   it('renders the "(other)" series last in the legend', async () => {
     render(<StatsPage initialFirmwareSnapshot={firmwareSnapshot()} initialFirmwareHistory={firmwareHistory()} />)
 
