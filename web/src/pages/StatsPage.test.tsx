@@ -971,7 +971,7 @@ describe('StatsPage Hardware section', () => {
     })
   })
 
-  it('keeps dense hardware history hover details bounded', async () => {
+  it('shows dense hardware history hover details in the chart header', async () => {
     const denseHistory = denseHardwareHistory()
     apiMock.hardwareHistory.mockResolvedValue(denseHistory)
 
@@ -992,13 +992,22 @@ describe('StatsPage Hardware section', () => {
       })
     })
 
-    const tooltip = screen.getByText(/\+12 more$/)
+    const hardwareSection = screen.getByRole('heading', { name: 'Hardware', level: 2 }).closest('section')
+    if (!(hardwareSection instanceof HTMLElement)) {
+      throw new Error('Hardware section not found')
+    }
+    const tooltips = Array.from(hardwareSection.querySelectorAll<HTMLElement>('.activity-tooltip'))
+    const tooltip = tooltips.find((entry) => entry.textContent.includes('T_BEAM: 15 nodes'))
+
+    if (!tooltip) {
+      throw new Error('Hardware history tooltip not found')
+    }
 
     expect(tooltip.textContent).toContain('Total: 136 nodes')
     expect(tooltip.textContent).toContain('HELTEC_MESH_POCKET: 4 nodes')
-    expect(tooltip.textContent).not.toContain('T_BEAM: 15 nodes')
-    expect(tooltip.getAttribute('title')).toContain('T_BEAM: 15 nodes')
-    expect(tooltip.getAttribute('title')).toContain('(other): 16 nodes')
+    expect(tooltip.textContent).toContain('T_BEAM: 15 nodes')
+    expect(tooltip.textContent).toContain('(other): 16 nodes')
+    expect(tooltip.textContent).not.toContain('+12 more')
   })
 
   it('shows the hovered hardware snapshot count', async () => {

@@ -1238,8 +1238,8 @@ body {
   line-height: 1.2;
   text-align: right;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .activity-tooltip.muted {

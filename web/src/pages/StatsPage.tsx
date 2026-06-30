@@ -206,18 +206,14 @@ interface HistoryTooltipLine {
   value: number
 }
 
-function historyTooltip(lines: HistoryTooltipLine[], visibleLimit = 4): { title: string; value: string } {
+function historyTooltip(lines: HistoryTooltipLine[]): { title: string; value: string } {
   const total = lines.reduce((sum, line) => sum + line.value, 0)
-  const visible = lines.slice(0, visibleLimit).map((line) => `${line.label}: ${formatNodeCount(line.value)}`)
-  const hidden = lines.length - visible.length
-  const summary = [`Total: ${formatNodeCount(total)}`, ...visible]
-  if (hidden > 0) {
-    summary.push(`+${hidden} more`)
-  }
+  const detail = lines.map((line) => `${line.label}: ${formatNodeCount(line.value)}`)
+  const summary = [`Total: ${formatNodeCount(total)}`, ...detail].join(' · ')
 
   return {
-    title: lines.map((line) => `${line.label}: ${formatNodeCount(line.value)}`).join(' · '),
-    value: summary.join(' · ')
+    title: summary,
+    value: summary
   }
 }
 
