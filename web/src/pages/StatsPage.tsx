@@ -3,7 +3,7 @@ import uPlot from 'uplot'
 
 import { api } from '../api/client'
 
-import type { ActivityBucket, ActivityPeriod, ActivityStats, FirmwareHistory, FirmwareSnapshot, FirmwareVersionCount } from '../api/types'
+import type { ActivityBucket, ActivityPeriod, ActivityStats, FirmwareHistory, FirmwareSnapshot, FirmwareVersionCount, HardwareHistory, HardwareModelCount, HardwareSnapshot } from '../api/types'
 import type { JSX } from 'preact'
 
 type ActivityMetricKey = 'text_messages' | 'pki' | 'node_info' | 'telemetry' | 'neighbor_info' | 'range_test' | 'traceroute'
@@ -32,6 +32,9 @@ const fallbackChartWidth = 360
 // first poll completes.
 const firmwareSnapshotDefaultTTL = 60 * 60 * 1000 // 1h
 const firmwareHistoryDefaultTTL = 24 * 60 * 60 * 1000 // 24h
+// Same role as the firmware defaults above, for the hardware endpoints.
+const hardwareSnapshotDefaultTTL = 60 * 60 * 1000 // 1h
+const hardwareHistoryDefaultTTL = 24 * 60 * 60 * 1000 // 24h
 
 function pollDelaySeconds(ttlSeconds: number): number {
   // Clamp to a sane floor so a misconfigured TTL of 0 doesn't
@@ -65,6 +68,8 @@ interface Props {
   initialStats?: ActivityStats
   initialFirmwareSnapshot?: FirmwareSnapshot
   initialFirmwareHistory?: FirmwareHistory
+  initialHardwareSnapshot?: HardwareSnapshot
+  initialHardwareHistory?: HardwareHistory
 }
 
 function isAbortError(err: unknown): boolean {
@@ -183,7 +188,15 @@ function formatNodeCount(value: number): string {
   return `${value} ${value === 1 ? 'node' : 'nodes'}`
 }
 
-function firmwareWeekDate(history: FirmwareHistory, weekIndex: number): Date {
+// weekAxis is the structural slice of the firmware/hardware history payloads
+// that week math depends on. Both FirmwareHistory and HardwareHistory satisfy
+// it, so the two chart families can share one week-label implementation.
+interface weekAxis {
+  week_starts: string[]
+  weeks: number
+}
+
+function firmwareWeekDate(history: weekAxis, weekIndex: number): Date {
   const weekStart = history.week_starts[weekIndex]
   if (typeof weekStart === 'string') {
     const date = new Date(weekStart)
@@ -237,6 +250,18 @@ export function shortVersionLabel(version: string | undefined): string {
   const truncated = noHash.slice(0, 12).replace(/\.$/, '')
 
   return `${truncated}…`
+}
+
+// shortModelLabel formats a hardware board model string for the snapshot
+// chart's x axis. Unlike shortVersionLabel it only caps length — board
+// models ("heltec-v3", "t-beam", "rak4631") don't carry commit hashes, so
+// hash-stripping would mangle legitimate values. The full string is still
+// on hover via the tooltip.
+export function shortModelLabel(model: string | undefined): string {
+  if (!model) {return ''}
+  if (model.length <= 12) {return model}
+
+  return `${model.slice(0, 12)}…`
 }
 
 function ActivityChart({ buckets, metric, periodKey }: { buckets: ActivityBucket[]; metric: ActivityMetric; periodKey: string }): JSX.Element {
@@ -767,11 +792,330 @@ function SoftwareSection({ snapshot, history }: { snapshot?: FirmwareSnapshot; h
   )
 }
 
-export function StatsPage({ initialStats, initialFirmwareSnapshot, initialFirmwareHistory }: Props): JSX.Element {
+// HardwareSnapshotChart renders the current fleet hardware-model distribution
+// as a bar chart. Mirrors FirmwareSnapshotChart; only the label formatter
+// (shortModelLabel vs shortVersionLabel) and copy differ.
+function HardwareSnapshotChart({ models }: { models: HardwareModelCount[] }): JSX.Element {
+  const rootRef = useRef<HTMLDivElement>(null)
+  const plotRef = useRef<uPlot>()
+  const [tooltip, setTooltip] = useState<ChartTooltip | null>(null)
+  const data = useMemo<uPlot.AlignedData>(() => {
+    if (models.length === 0) {return [[], []]}
+
+    return [models.map((_, index) => index), models.map((entry) => entry.count)]
+  }, [models])
+  const total = useMemo(() => models.reduce((sum, entry) => sum + entry.count, 0), [models])
+
+  const cursorPlugin = useMemo<uPlot.Plugin>(() => ({
+    hooks: {
+      setCursor: (plot) => {
+        const idx = plot.cursor.idx
+        if (idx === null || idx === undefined || idx < 0 || idx >= models.length) {
+          setTooltip(null)
+
+          return
+        }
+
+        const counts = plot.data[1]
+        const value = counts?.[idx]
+        const entry = models[idx]
+        if (typeof value !== 'number' || !entry) {
+          setTooltip(null)
+
+          return
+        }
+
+        setTooltip({
+          time: entry.model,
+          value: formatNodeCount(value)
+        })
+      }
+    }
+  }), [models])
+
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root || models.length === 0) {return undefined}
+
+    const colors = chartColors(root)
+    const barColor = colors.lines[0]
+    const plot = new uPlot({
+      width: chartWidth(root),
+      height: chartHeight,
+      legend: { show: false },
+      cursor: {
+        show: true,
+        drag: { x: false, y: false },
+        points: { show: true, size: 5 }
+      },
+      scales: {
+        x: { distr: 2, time: false, range: (_plot, min, max) => [min - 0.5, max + 0.5] },
+        y: { range: (_plot, _min, max) => [0, Number.isFinite(max) ? Math.max(1, Math.ceil(max)) : 1] }
+      },
+      axes: [
+        {
+          stroke: colors.axis,
+          grid: { stroke: colors.grid, width: 1 },
+          ticks: { stroke: colors.grid, width: 1 },
+          border: { stroke: colors.grid, width: 1 },
+          size: 28,
+          space: 60,
+          splits: () => models.map((_model, index) => index),
+          filter: (_plot, splits) => splits,
+          // shortModelLabel caps length only (no hash stripping — board
+          // models don't carry commit hashes); the tooltip still shows the
+          // full model string.
+          values: (_plot, ticks) => ticks.map((tick) => shortModelLabel(models[Math.round(tick)]?.model))
+        },
+        {
+          stroke: colors.axis,
+          label: 'Nodes',
+          labelGap: 4,
+          labelSize: 20,
+          size: 42,
+          grid: { stroke: colors.grid, width: 1 },
+          ticks: { stroke: colors.grid, width: 1 },
+          border: { stroke: colors.grid, width: 1 },
+          splits: (_plot, _axisIndex, _scaleMin, scaleMax) => integerSplits(scaleMax),
+          values: (_plot, ticks) => ticks.map((tick) => String(Math.round(tick)))
+        }
+      ],
+      series: [
+        {},
+        {
+          label: 'Nodes',
+          stroke: barColor,
+          fill: colors.fill,
+          width: 1,
+          points: { show: false },
+          paths: uPlot.paths.bars?.({
+            size: [0.6, Infinity, 1]
+          })
+        }
+      ],
+      plugins: [cursorPlugin]
+    }, data, root)
+    plotRef.current = plot
+
+    const resize = (): void => {
+      plot.setSize({ width: chartWidth(root), height: chartHeight })
+    }
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(resize) : undefined
+    observer?.observe(root)
+
+    return () => {
+      observer?.disconnect()
+      plot.destroy()
+      plotRef.current = undefined
+    }
+  }, [cursorPlugin, data, models])
+
+  useEffect(() => {
+    plotRef.current?.setData(data)
+  }, [data])
+
+  return (
+    <article className="firmware-chart" data-chart="hardware-snapshot">
+      <header>
+        <h3>Hardware models</h3>
+        <span className={tooltip ? 'activity-tooltip' : 'activity-tooltip muted'}>
+          {tooltip ? `${tooltip.time} · ${tooltip.value}` : models.length === 0 ? 'No hardware models reported' : 'Hover for details'}
+        </span>
+      </header>
+      <div className="firmware-chart-canvas" ref={rootRef} aria-label="Hardware model distribution" />
+      {models.length === 0
+        ? <p className="activity-empty">No nodes have reported a hardware model yet.</p>
+        : <p className="firmware-summary">{formatNodeCount(total)} reporting a hardware model.</p>}
+    </article>
+  )
+}
+
+// HardwareHistoryChart renders the weekly hardware-model time series as a
+// stacked area chart. Mirrors FirmwareHistoryChart; reads history.models /
+// history.models_by_week instead of the firmware equivalents.
+function HardwareHistoryChart({ history }: { history: HardwareHistory }): JSX.Element {
+  const rootRef = useRef<HTMLDivElement>(null)
+  const plotRef = useRef<uPlot>()
+  const [tooltip, setTooltip] = useState<ChartTooltip | null>(null)
+
+  const data = useMemo<uPlot.AlignedData>(() => {
+    const xs = Array.from({ length: history.weeks }, (_unused, i) => i)
+    const series = history.models_by_week
+    const padded = series.map((row) => {
+      if (row.length >= history.weeks) {return row.slice(0, history.weeks)}
+
+      return [...row, ...Array.from({ length: history.weeks - row.length }, () => 0)]
+    })
+
+    return [xs, ...padded]
+  }, [history])
+
+  const cursorPlugin = useMemo<uPlot.Plugin>(() => ({
+    hooks: {
+      setCursor: (plot) => {
+        const idx = plot.cursor.idx
+        if (idx === null || idx === undefined || idx < 0 || idx >= history.weeks) {
+          setTooltip(null)
+
+          return
+        }
+        const xs = plot.data[0]
+        const x = xs[idx]
+        if (typeof x !== 'number') {
+          setTooltip(null)
+
+          return
+        }
+        const lines = history.models.map((model, seriesIdx) => {
+          const value = plot.data[seriesIdx + 1]?.[idx]
+
+          return typeof value === 'number' && value > 0
+            ? `${model}: ${formatNodeCount(value)}`
+            : null
+        }).filter((value): value is string => value !== null)
+        if (lines.length === 0) {
+          setTooltip(null)
+
+          return
+        }
+
+        const weekDate = firmwareWeekDate(history, x)
+        const weekLabel = formatFirmwareWeekDate(weekDate, {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric'
+        })
+
+        setTooltip({
+          time: `Week of ${weekLabel}`,
+          value: lines.join(' · ')
+        })
+      }
+    }
+  }), [history])
+
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root || history.models.length === 0 || history.weeks === 0) {return undefined}
+
+    const colors = chartColors(root)
+    const plot = new uPlot({
+      width: chartWidth(root),
+      height: chartHeight,
+      legend: { show: false },
+      cursor: {
+        show: true,
+        drag: { x: false, y: false },
+        points: { show: true, size: 4 }
+      },
+      scales: {
+        x: { time: false },
+        y: { range: (_plot, _min, max) => [0, Math.max(1, Math.ceil(max))] }
+      },
+      axes: [
+        {
+          stroke: colors.axis,
+          grid: { stroke: colors.grid, width: 1 },
+          ticks: { stroke: colors.grid, width: 1 },
+          border: { stroke: colors.grid, width: 1 },
+          space: 64,
+          values: (_plot, ticks) => ticks.map((tick) => {
+            const date = firmwareWeekDate(history, tick)
+
+            return formatFirmwareWeekDate(date, { month: 'short', year: '2-digit' })
+          })
+        },
+        {
+          stroke: colors.axis,
+          label: 'Nodes',
+          labelGap: 4,
+          labelSize: 20,
+          size: 42,
+          grid: { stroke: colors.grid, width: 1 },
+          ticks: { stroke: colors.grid, width: 1 },
+          border: { stroke: colors.grid, width: 1 },
+          splits: (_plot, _axisIndex, _scaleMin, scaleMax) => integerSplits(scaleMax),
+          values: (_plot, ticks) => ticks.map((tick) => String(Math.round(tick)))
+        }
+      ],
+      series: [
+        {},
+        ...history.models.map((model, index) => ({
+          label: model,
+          stroke: colors.lines[index % colors.lines.length],
+          fill: index === 0 ? colors.fill : undefined,
+          width: 1,
+          points: { show: false }
+        }))
+      ],
+      plugins: [cursorPlugin]
+    }, data, root)
+    plotRef.current = plot
+
+    const resize = (): void => {
+      plot.setSize({ width: chartWidth(root), height: chartHeight })
+    }
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(resize) : undefined
+    observer?.observe(root)
+
+    return () => {
+      observer?.disconnect()
+      plot.destroy()
+      plotRef.current = undefined
+    }
+  }, [cursorPlugin, data, history])
+
+  useEffect(() => {
+    plotRef.current?.setData(data)
+  }, [data])
+
+  return (
+    <article className="firmware-chart" data-chart="hardware-history">
+      <header>
+        <h3>Hardware adoption over time</h3>
+        <span className={tooltip ? 'activity-tooltip' : 'activity-tooltip muted'}>
+          {tooltip ? `${tooltip.time} · ${tooltip.value}` : 'Hover for details'}
+        </span>
+      </header>
+      <div className="firmware-chart-canvas" ref={rootRef} aria-label="Hardware model history" />
+      {history.models.length === 0
+        ? <p className="activity-empty">No hardware history recorded yet.</p>
+        : (
+          <div className="chart-legend">
+            {history.models.map((model, index) => (
+              <span key={model} className="chart-legend-item">
+                <span className="chart-legend-swatch" style={{ background: lineColors()[index % lineColors().length] }} />
+                {model}
+              </span>
+            ))}
+          </div>
+        )}
+    </article>
+  )
+}
+
+function HardwareSection({ snapshot, history }: { snapshot?: HardwareSnapshot; history?: HardwareHistory }): JSX.Element {
+  return (
+    <section className="stats-section stats-section-hardware" aria-labelledby="stats-hardware">
+      <div className="stats-section-heading">
+        <h2 id="stats-hardware">Hardware</h2>
+        <p>Hardware model distribution</p>
+      </div>
+      <div className="firmware-grid">
+        <HardwareSnapshotChart models={snapshot?.models ?? []} />
+        <HardwareHistoryChart history={history ?? { generated_at: '', cache_ttl_seconds: 0, weeks: 0, top: 0, models: [], models_by_week: [], week_starts: [] }} />
+      </div>
+    </section>
+  )
+}
+
+export function StatsPage({ initialStats, initialFirmwareSnapshot, initialFirmwareHistory, initialHardwareSnapshot, initialHardwareHistory }: Props): JSX.Element {
   const [stats, setStats] = useState<ActivityStats | undefined>(initialStats)
   const [loadError, setLoadError] = useState('')
   const [firmwareSnapshot, setFirmwareSnapshot] = useState<FirmwareSnapshot | undefined>(initialFirmwareSnapshot)
   const [firmwareHistory, setFirmwareHistory] = useState<FirmwareHistory | undefined>(initialFirmwareHistory)
+  const [hardwareSnapshot, setHardwareSnapshot] = useState<HardwareSnapshot | undefined>(initialHardwareSnapshot)
+  const [hardwareHistory, setHardwareHistory] = useState<HardwareHistory | undefined>(initialHardwareHistory)
 
   const loadStats = useCallback((signal?: AbortSignal): Promise<void> => (
     api.statsActivity({ signal })
@@ -792,6 +1136,20 @@ export function StatsPage({ initialStats, initialFirmwareSnapshot, initialFirmwa
     api.firmwareHistory({ signal })
       .then((next) => {
         setFirmwareHistory(next)
+      })
+  ), [])
+
+  const loadHardwareSnapshot = useCallback((signal?: AbortSignal): Promise<void> => (
+    api.hardwareSnapshot({ signal })
+      .then((next) => {
+        setHardwareSnapshot(next)
+      })
+  ), [])
+
+  const loadHardwareHistory = useCallback((signal?: AbortSignal): Promise<void> => (
+    api.hardwareHistory({ signal })
+      .then((next) => {
+        setHardwareHistory(next)
       })
   ), [])
 
@@ -830,6 +1188,28 @@ export function StatsPage({ initialStats, initialFirmwareSnapshot, initialFirmwa
 
     return () => controller.abort()
   }, [loadFirmwareHistory])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    void loadHardwareSnapshot(controller.signal)
+      .catch((err) => {
+        if (isAbortError(err)) {return}
+        setLoadError('Failed to load hardware snapshot.')
+      })
+
+    return () => controller.abort()
+  }, [loadHardwareSnapshot])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    void loadHardwareHistory(controller.signal)
+      .catch((err) => {
+        if (isAbortError(err)) {return}
+        setLoadError('Failed to load hardware history.')
+      })
+
+    return () => controller.abort()
+  }, [loadHardwareHistory])
 
   useEffect(() => {
     if (!stats) {return undefined}
@@ -882,6 +1262,43 @@ export function StatsPage({ initialStats, initialFirmwareSnapshot, initialFirmwa
     return () => window.clearTimeout(timeout)
   }, [firmwareHistory, loadFirmwareHistory])
 
+  useEffect(() => {
+    // Honour the server's resolved TTL (echoed in `cache_ttl_seconds`) so an
+    // operator shortening web.stats.hardware.snapshot_cache_ttl actually
+    // picks up fresher data instead of the UI staying stale on a hard-coded
+    // 1h interval. Mirrors the firmware snapshot cadence.
+    const ttlMs = hardwareSnapshot && hardwareSnapshot.cache_ttl_seconds > 0
+      ? pollDelaySeconds(hardwareSnapshot.cache_ttl_seconds) * 1000
+      : hardwareSnapshotDefaultTTL
+    const timeout = window.setTimeout(() => {
+      void loadHardwareSnapshot()
+        .catch((err) => {
+          if (isAbortError(err)) {return}
+          setLoadError('Failed to refresh hardware snapshot.')
+        })
+    }, ttlMs)
+
+    return () => window.clearTimeout(timeout)
+  }, [hardwareSnapshot, loadHardwareSnapshot])
+
+  useEffect(() => {
+    // Same TTL-driven cadence as the snapshot endpoint — see the comment
+    // above. Operators tune web.stats.hardware.history_cache_ttl and the
+    // UI follows.
+    const ttlMs = hardwareHistory && hardwareHistory.cache_ttl_seconds > 0
+      ? pollDelaySeconds(hardwareHistory.cache_ttl_seconds) * 1000
+      : hardwareHistoryDefaultTTL
+    const timeout = window.setTimeout(() => {
+      void loadHardwareHistory()
+        .catch((err) => {
+          if (isAbortError(err)) {return}
+          setLoadError('Failed to refresh hardware history.')
+        })
+    }, ttlMs)
+
+    return () => window.clearTimeout(timeout)
+  }, [hardwareHistory, loadHardwareHistory])
+
   const retry = (): void => {
     setLoadError('')
     void loadStats().catch((err) => {
@@ -892,6 +1309,12 @@ export function StatsPage({ initialStats, initialFirmwareSnapshot, initialFirmwa
     })
     void loadFirmwareHistory().catch((err) => {
       if (!isAbortError(err)) {setLoadError('Failed to load firmware history.')}
+    })
+    void loadHardwareSnapshot().catch((err) => {
+      if (!isAbortError(err)) {setLoadError('Failed to load hardware snapshot.')}
+    })
+    void loadHardwareHistory().catch((err) => {
+      if (!isAbortError(err)) {setLoadError('Failed to load hardware history.')}
     })
   }
 
@@ -906,6 +1329,9 @@ export function StatsPage({ initialStats, initialFirmwareSnapshot, initialFirmwa
       {firmwareSnapshot && firmwareHistory
         ? <SoftwareSection key="software" snapshot={firmwareSnapshot} history={firmwareHistory} />
         : <p className="node-list-empty">{loadError ? 'Failed to load firmware data.' : 'Loading firmware data.'}</p>}
+      {hardwareSnapshot && hardwareHistory
+        ? <HardwareSection key="hardware" snapshot={hardwareSnapshot} history={hardwareHistory} />
+        : <p className="node-list-empty">{loadError ? 'Failed to load hardware data.' : 'Loading hardware data.'}</p>}
     </section>
   )
 }

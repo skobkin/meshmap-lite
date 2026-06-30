@@ -179,3 +179,37 @@ type firmwareHistoryPayload struct {
 	VersionsByWeek  [][]int     `json:"versions_by_week"`
 	WeekStarts      []time.Time `json:"week_starts"`
 }
+
+// hardwareSnapshotPayload is the response body of GET /api/v1/stats/hardware.
+// It mirrors firmwareSnapshotPayload; see that type's doc for the TTL contract.
+type hardwareSnapshotPayload struct {
+	GeneratedAt time.Time `json:"generated_at"`
+	// CacheTtlSeconds echoes the server's resolved cache TTL for this endpoint
+	// (the configured `web.stats.hardware.snapshot_cache_ttl`, normalized to a
+	// positive integer). Clients use it as the polling cadence.
+	CacheTtlSeconds     int                    `json:"cache_ttl_seconds"`
+	TotalNodesWithModel int                    `json:"total_nodes_with_model"`
+	Models              []hardwareModelPayload `json:"models"`
+}
+
+type hardwareModelPayload struct {
+	Model      string    `json:"model"`
+	Count      int       `json:"count"`
+	LastSeenAt time.Time `json:"last_seen_at,omitempty"`
+}
+
+// hardwareHistoryPayload is the response body of
+// GET /api/v1/stats/hardware/history. It mirrors firmwareHistoryPayload; see
+// that type's doc for the axis/ordering and CacheTtlSeconds contracts.
+// ModelsByWeek[i][j] is the count of devices on Models[i] at week index j
+// (j=0 is the oldest week, j=Weeks-1 is the newest). Missing weeks are
+// zero-filled so the chart's x-axis stays contiguous.
+type hardwareHistoryPayload struct {
+	GeneratedAt     time.Time   `json:"generated_at"`
+	CacheTtlSeconds int         `json:"cache_ttl_seconds"`
+	Weeks           int         `json:"weeks"`
+	Top             int         `json:"top"`
+	Models          []string    `json:"models"`
+	ModelsByWeek    [][]int     `json:"models_by_week"`
+	WeekStarts      []time.Time `json:"week_starts"`
+}

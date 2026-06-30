@@ -27,6 +27,7 @@ type Server struct {
 	topologyMu    sync.Mutex
 	topologyCache topologyEdgesCache
 	firmwareCache *ttlCache
+	hardwareCache *ttlCache
 	now           func() time.Time
 	updateMgr     *updatecheck.Manager
 }
@@ -56,6 +57,7 @@ func New(cfg Config, store repo.ReadStore, log *slog.Logger, ready func() bool, 
 		mqttStatus:    mqttStatus,
 		activityCache: make(map[string]activityPeriodCache),
 		firmwareCache: newTTLCache(now),
+		hardwareCache: newTTLCache(now),
 		now:           now,
 		updateMgr:     cfg.Updates,
 	}
@@ -70,6 +72,17 @@ func (s *Server) InvalidateFirmwareCaches() {
 		return
 	}
 	s.firmwareCache.Invalidate()
+}
+
+// InvalidateHardwareCaches clears the hardware snapshot/history caches.
+// Called from the scheduled weekly snapshot job after a successful
+// INSERT OR IGNORE so the freshly-written week is visible on the next
+// request without waiting for the TTL.
+func (s *Server) InvalidateHardwareCaches() {
+	if s.hardwareCache == nil {
+		return
+	}
+	s.hardwareCache.Invalidate()
 }
 
 // StartStatsTicker periodically emits runtime stats events.

@@ -138,6 +138,15 @@ func Run(configPath string) error {
 		},
 	})
 	go firmwareSnapshotJob.Start(ctx)
+	hardwareSnapshotJob := stats.NewHardwareSnapshotJob(stats.HardwareSnapshotOptions{
+		Store:  store,
+		Logger: logMgr.Logger("internal/stats"),
+		MaxAge: cfg.Web.Stats.Hardware.MaxAge,
+		OnSnapshot: func() {
+			api.InvalidateHardwareCaches()
+		},
+	})
+	go hardwareSnapshotJob.Start(ctx)
 	apiMux := api.Routes(hub, apidocs.Handler(apidocs.Options{
 		SpecURL: "/api/openapi.yaml",
 		Title:   buildinfo.AppName + " API",

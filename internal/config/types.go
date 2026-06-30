@@ -157,6 +157,7 @@ type LogConfig struct {
 type StatsConfig struct {
 	Activity StatsActivityConfig `koanf:"activity"`
 	Software StatsSoftwareConfig `koanf:"software"`
+	Hardware StatsHardwareConfig `koanf:"hardware"`
 }
 
 // StatsSoftwareConfig configures the "Software" section on StatsPage:
@@ -174,6 +175,25 @@ type StatsSoftwareConfig struct {
 	// once a row is in node_firmware_history, it stays (preserves historical
 	// data for nodes that recently went offline).
 	MapReportMaxAge time.Duration `koanf:"map_report_max_age"` // default 14d
+}
+
+// StatsHardwareConfig configures the "Hardware" section on StatsPage:
+// hardware model snapshot + history charts. Mirrors StatsSoftwareConfig; the
+// one divergence is the staleness column: hardware arrives with NodeInfo and
+// covers nearly every known node, so MaxAge gates nodes.last_seen_any_event_at
+// (the broadest liveness column) instead of last_map_report_at.
+type StatsHardwareConfig struct {
+	SnapshotCacheTTL time.Duration `koanf:"snapshot_cache_ttl"` // default 1h
+	HistoryCacheTTL  time.Duration `koanf:"history_cache_ttl"`  // default 24h
+	HistoryWeeks     int           `koanf:"history_weeks"`      // default 54
+	TopModels        int           `koanf:"top_models"`         // default 15
+	// MaxAge is the staleness window applied to nodes.last_seen_any_event_at
+	// in the hardware snapshot bar chart and the weekly history job. A node
+	// that hasn't been seen on any event in this duration is excluded from
+	// both. The history area chart's read path does NOT re-filter at query
+	// time — once a row is in node_hardware_history, it stays (preserves
+	// historical data for nodes that recently went offline).
+	MaxAge time.Duration `koanf:"max_age"` // default 14d
 }
 
 // StatsActivityConfig configures fixed activity chart periods.

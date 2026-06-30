@@ -61,15 +61,14 @@ VALUES(?,?,?,?,?,?,?)`, n.NodeID, previousLongName, previousShortName, nextLongN
 
 	if _, err := tx.ExecContext(ctx, `
 INSERT INTO nodes (
- node_id,node_num,long_name,short_name,role,board_model,lora_region,lora_frequency_desc,modem_preset,
+ node_id,node_num,long_name,short_name,role,lora_region,lora_frequency_desc,modem_preset,
  has_default_channel,has_opted_report_location,neighbor_nodes_count,mqtt_gateway_capable,first_seen_at,last_seen_any_event_at,last_seen_mqtt_gateway_at,last_mqtt_uploader_node_id,last_mqtt_uploader_at,last_seen_position_at,updated_at
-) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(node_id) DO UPDATE SET
  node_num=COALESCE(excluded.node_num,nodes.node_num),
  long_name=CASE WHEN excluded.long_name<>'' THEN excluded.long_name ELSE nodes.long_name END,
  short_name=CASE WHEN excluded.short_name<>'' THEN excluded.short_name ELSE nodes.short_name END,
  role=CASE WHEN excluded.role<>'' THEN excluded.role ELSE nodes.role END,
- board_model=CASE WHEN excluded.board_model<>'' THEN excluded.board_model ELSE nodes.board_model END,
  lora_region=CASE WHEN excluded.lora_region<>'' THEN excluded.lora_region ELSE nodes.lora_region END,
  lora_frequency_desc=CASE WHEN excluded.lora_frequency_desc<>'' THEN excluded.lora_frequency_desc ELSE nodes.lora_frequency_desc END,
  modem_preset=CASE WHEN excluded.modem_preset<>'' THEN excluded.modem_preset ELSE nodes.modem_preset END,
@@ -83,7 +82,7 @@ ON CONFLICT(node_id) DO UPDATE SET
  last_mqtt_uploader_at=COALESCE(excluded.last_mqtt_uploader_at,nodes.last_mqtt_uploader_at),
  last_seen_position_at=COALESCE(excluded.last_seen_position_at,nodes.last_seen_position_at),
  updated_at=excluded.updated_at
-	`, n.NodeID, ptrUint32(n.NodeNum), n.LongName, n.ShortName, n.Role, n.BoardModel,
+	`, n.NodeID, ptrUint32(n.NodeNum), n.LongName, n.ShortName, n.Role,
 		n.LoRaRegion, n.LoRaFrequencyDesc, n.ModemPreset, ptrBool(n.HasDefaultChannel), ptrBool(n.HasOptedReportLocation), ptrInt(n.NeighborNodesCount), ptrBool(n.MQTTGatewayCapable),
 		firstSeenAt, n.LastSeenAnyEventAt.UTC().Format(time.RFC3339Nano),
 		ptrTime(n.LastSeenMQTTGatewayAt), n.LastMQTTUploaderNodeID, ptrTime(n.LastMQTTUploaderAt), ptrTime(n.LastSeenPositionAt), n.UpdatedAt.UTC().Format(time.RFC3339Nano)); err != nil {
@@ -177,13 +176,14 @@ func (s *Store) GetMapNodes(ctx context.Context, q repo.MapNodeQuery) ([]repo.Ma
 	positionCutoff := cutoffParam(q.PositionObservedSince)
 	telemetryCutoff := cutoffParam(q.TelemetryObservedSince)
 	rows, err := s.db.QueryContext(ctx, `
-SELECT n.node_id,n.node_num,n.long_name,n.short_name,n.role,n.board_model,n.firmware_version_id,fv.version_string,n.lora_region,n.lora_frequency_desc,
+SELECT n.node_id,n.node_num,n.long_name,n.short_name,n.role,hm.model_string,n.firmware_version_id,fv.version_string,n.lora_region,n.lora_frequency_desc,
        n.modem_preset,n.has_default_channel,n.has_opted_report_location,n.neighbor_nodes_count,n.mqtt_gateway_capable,n.first_seen_at,n.last_seen_any_event_at,n.last_seen_mqtt_gateway_at,
        n.last_mqtt_uploader_node_id,nu.long_name,nu.short_name,n.last_mqtt_uploader_at,n.last_seen_position_at,n.updated_at,
        p.latitude,p.longitude,p.altitude_m,p.position_precision,p.source_kind,p.source_channel,p.mqtt_uploader_node_id,pu.long_name,pu.short_name,p.reported_at,p.observed_at,p.updated_at,
        t.node_id,t.power_voltage,t.power_battery_level,t.power_current,t.env_temperature_c,t.env_humidity,t.env_pressure_hpa,t.air_pm25,t.air_pm10,t.air_co2,t.air_iaq,t.util_ch_util,t.util_air_util_tx,t.dev_uptime_seconds,t.source_channel,t.mqtt_uploader_node_id,tu.long_name,tu.short_name,t.reported_at,t.observed_at,t.updated_at
 FROM nodes n
 LEFT JOIN firmware_versions fv ON fv.id = n.firmware_version_id
+LEFT JOIN hardware_models hm ON hm.id = n.hardware_model_id
 LEFT JOIN node_positions p ON p.node_id=n.node_id
 LEFT JOIN node_telemetry_snapshots t ON t.node_id=n.node_id AND (?='' OR t.observed_at>=?)
 LEFT JOIN nodes nu ON nu.node_id=n.last_mqtt_uploader_node_id
@@ -214,9 +214,10 @@ func (s *Store) ListNodes(ctx context.Context, q repo.NodeListQuery) ([]repo.Nod
 	rows, err := s.db.QueryContext(ctx, `
 SELECT n.node_id,n.long_name,n.short_name,n.last_seen_any_event_at,n.last_seen_position_at,n.last_seen_mqtt_gateway_at,
        n.last_mqtt_uploader_node_id,nu.long_name,nu.short_name,n.last_mqtt_uploader_at,
-       (p.node_id IS NOT NULL AND (?='' OR p.observed_at>=?)) has_position,n.role,n.board_model
+       (p.node_id IS NOT NULL AND (?='' OR p.observed_at>=?)) has_position,n.role,hm.model_string
 FROM nodes n
 LEFT JOIN node_positions p ON p.node_id=n.node_id
+LEFT JOIN hardware_models hm ON hm.id = n.hardware_model_id
 LEFT JOIN nodes nu ON nu.node_id=n.last_mqtt_uploader_node_id
 ORDER BY n.last_seen_any_event_at DESC`, positionCutoff, positionCutoff)
 	if err != nil {
@@ -262,12 +263,13 @@ func (s *Store) GetNodeDetails(ctx context.Context, q repo.NodeDetailsQuery) (re
 	var d repo.NodeDetails
 	positionCutoff := cutoffParam(q.PositionObservedSince)
 	rows, err := s.db.QueryContext(ctx, `
-SELECT n.node_id,n.node_num,n.long_name,n.short_name,n.role,n.board_model,n.firmware_version_id,fv.version_string,n.lora_region,n.lora_frequency_desc,
+SELECT n.node_id,n.node_num,n.long_name,n.short_name,n.role,hm.model_string,n.firmware_version_id,fv.version_string,n.lora_region,n.lora_frequency_desc,
        n.modem_preset,n.has_default_channel,n.has_opted_report_location,n.neighbor_nodes_count,n.mqtt_gateway_capable,n.first_seen_at,n.last_seen_any_event_at,n.last_seen_mqtt_gateway_at,
        n.last_mqtt_uploader_node_id,nu.long_name,nu.short_name,n.last_mqtt_uploader_at,n.last_seen_position_at,n.updated_at,
        p.latitude,p.longitude,p.altitude_m,p.position_precision,p.source_kind,p.source_channel,p.mqtt_uploader_node_id,pu.long_name,pu.short_name,p.reported_at,p.observed_at,p.updated_at
 FROM nodes n
 LEFT JOIN firmware_versions fv ON fv.id = n.firmware_version_id
+LEFT JOIN hardware_models hm ON hm.id = n.hardware_model_id
 LEFT JOIN node_positions p ON p.node_id=n.node_id AND (?='' OR p.observed_at>=?)
 LEFT JOIN nodes nu ON nu.node_id=n.last_mqtt_uploader_node_id
 LEFT JOIN nodes pu ON pu.node_id=p.mqtt_uploader_node_id

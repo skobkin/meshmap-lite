@@ -93,6 +93,19 @@ web:
       # Once a row is in node_firmware_history, it stays — the history area
       # chart's read path does not re-filter at query time.
       map_report_max_age: 336h  # 14d
+    hardware:
+      snapshot_cache_ttl: 1h    # how long the current-fleet model distribution is reused
+      history_cache_ttl: 24h    # how long the per-week model history chart is reused
+      history_weeks: 54         # default 1 year at weekly precision
+      top_models: 15            # models rendered individually; rest go into "(other)"
+      # Exclude nodes that haven't been seen on any event in this window from
+      # both the snapshot bar chart and the weekly history job (write-time
+      # gate). Hardware arrives with NodeInfo and covers nearly every known
+      # node, so this gates last_seen_any_event_at (the broadest liveness
+      # column), not the MapReport-only timestamp the software block uses.
+      # Once a row is in node_hardware_history, it stays — the history area
+      # chart's read path does not re-filter at query time.
+      max_age: 336h            # 14d
 
 logging:
   level: info

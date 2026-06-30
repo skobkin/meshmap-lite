@@ -317,6 +317,38 @@ export interface FirmwareHistory {
   week_starts: string[]
 }
 
+export interface HardwareModelCount {
+  model: string
+  count: number
+  last_seen_at: string
+}
+
+export interface HardwareSnapshot {
+  generated_at: string
+  // Server's resolved cache TTL for this endpoint, in seconds. See
+  // FirmwareSnapshot.cache_ttl_seconds for the rationale.
+  cache_ttl_seconds: number
+  total_nodes_with_model: number
+  models: HardwareModelCount[]
+}
+
+export interface HardwareHistory {
+  generated_at: string
+  // Server's resolved cache TTL for this endpoint, in seconds. See
+  // FirmwareSnapshot.cache_ttl_seconds for the rationale.
+  cache_ttl_seconds: number
+  weeks: number
+  top: number
+  // The last entry is "(other)" when there are models outside the top-N.
+  models: string[]
+  // models_by_week[i][j] is the count of nodes on models[i] at week j,
+  // j=0 is the oldest week, j=weeks-1 is the newest.
+  models_by_week: number[][]
+  // Resolved Monday 00:00 UTC of each column (RFC3339Nano), in oldest-first
+  // order. See FirmwareHistory.week_starts for why the chart anchors to this.
+  week_starts: string[]
+}
+
 export interface LogEvent {
   id: number
   observed_at: string

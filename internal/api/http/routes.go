@@ -21,6 +21,8 @@ func (s *Server) Routes(wsHandler, docsHandler http.Handler) http.Handler {
 	mux.Handle("/api/v1/stats/activity", http.HandlerFunc(s.statsActivity))
 	mux.Handle("/api/v1/stats/firmware", http.HandlerFunc(s.firmwareSnapshot))
 	mux.Handle("/api/v1/stats/firmware/history", http.HandlerFunc(s.firmwareHistory))
+	mux.Handle("/api/v1/stats/hardware", http.HandlerFunc(s.hardwareSnapshot))
+	mux.Handle("/api/v1/stats/hardware/history", http.HandlerFunc(s.hardwareHistory))
 	mux.Handle("/api/v1/topology/edges", http.HandlerFunc(s.topologyEdges))
 	mux.Handle("/api/v1/nodes", http.HandlerFunc(s.nodes))
 	mux.Handle("/api/v1/nodes/", http.HandlerFunc(s.nodeByID))

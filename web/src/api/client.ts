@@ -1,4 +1,4 @@
-import type { ActivityStats, ChannelItem, ChatEvent, FirmwareHistory, FirmwareSnapshot, InfoFormat, InfoResponse, LogEvent, MapNode, Meta, NodeDetails, NodeSummary, TopologyEdge, TopologyEdgesResponse, UpdatesResponse } from './types'
+import type { ActivityStats, ChannelItem, ChatEvent, FirmwareHistory, FirmwareSnapshot, HardwareHistory, HardwareSnapshot, InfoFormat, InfoResponse, LogEvent, MapNode, Meta, NodeDetails, NodeSummary, TopologyEdge, TopologyEdgesResponse, UpdatesResponse } from './types'
 
 interface RequestOptions {
   signal?: AbortSignal
@@ -77,6 +77,11 @@ export const api = {
   // parameters. Keeping this client signature parameterless matches that
   // contract and avoids spreading config-derived values through the API.
   firmwareHistory: (options?: RequestOptions) => request<FirmwareHistory>('/api/v1/stats/firmware/history', options),
+  // See firmwareSnapshot/firmwareHistory: the window shape is server-controlled
+  // via web.stats.hardware.history_weeks and web.stats.hardware.top_models; no
+  // query parameters.
+  hardwareSnapshot: (options?: RequestOptions) => request<HardwareSnapshot>('/api/v1/stats/hardware', options),
+  hardwareHistory: (options?: RequestOptions) => request<HardwareHistory>('/api/v1/stats/hardware/history', options),
   nodes: (options?: RequestOptions) => request<NodeSummary[]>('/api/v1/nodes', options),
   node: (id: string, options?: RequestOptions) => request<NodeDetails>(`/api/v1/nodes/${encodeURIComponent(id)}`, options)
 }

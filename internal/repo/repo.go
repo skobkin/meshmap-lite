@@ -20,6 +20,9 @@ type WriteStore interface {
 	UpdateNodeFirmwareVersion(ctx context.Context, nodeID string, versionID int64, observedAt time.Time) error
 	UpdateNodeLastMapReportAt(ctx context.Context, nodeID string, observedAt time.Time) error
 	RecordFirmwareHistoryWeek(ctx context.Context, weekStart time.Time, observedAt time.Time, maxAge time.Duration) (int64, error)
+	UpsertHardwareModel(ctx context.Context, model string, observedAt time.Time) (int64, error)
+	UpdateNodeHardwareModelID(ctx context.Context, nodeID string, modelID int64, observedAt time.Time) error
+	RecordHardwareHistoryWeek(ctx context.Context, weekStart time.Time, observedAt time.Time, maxAge time.Duration) (int64, error)
 }
 
 // ReadStore defines query operations used by HTTP and other read APIs.
@@ -35,6 +38,9 @@ type ReadStore interface {
 	FirmwareVersionSnapshot(ctx context.Context, maxAge time.Duration) ([]FirmwareVersionCount, error)
 	FirmwareVersionHistory(ctx context.Context, since time.Time, topN int, totalWeeks int) (FirmwareHistoryResult, error)
 	LastFirmwareHistoryWeek(ctx context.Context) (time.Time, error)
+	HardwareModelSnapshot(ctx context.Context, maxAge time.Duration) ([]HardwareModelCount, error)
+	HardwareModelHistory(ctx context.Context, since time.Time, topN int, totalWeeks int) (HardwareHistoryResult, error)
+	LastHardwareHistoryWeek(ctx context.Context) (time.Time, error)
 }
 
 // MapNodeQuery defines map snapshot visibility cutoffs.
@@ -168,4 +174,23 @@ type FirmwareHistoryResult struct {
 	Versions       []string
 	VersionsByWeek [][]int
 	WeekStarts     []time.Time
+}
+
+// HardwareModelCount is one row of the hardware snapshot distribution.
+type HardwareModelCount struct {
+	Model      string    `json:"model"`
+	Count      int       `json:"count"`
+	LastSeenAt time.Time `json:"last_seen_at"`
+}
+
+// HardwareHistoryResult is the dense, zero-padded shape served by the API.
+// It mirrors FirmwareHistoryResult; see that type's doc for the axis/ordering
+// contract. ModelsByWeek[i][j] is the count of devices on Models[i] at week
+// index j (j=0 oldest); callers MUST use WeekStarts for week-aligned display.
+type HardwareHistoryResult struct {
+	Weeks        int
+	TopN         int
+	Models       []string
+	ModelsByWeek [][]int
+	WeekStarts   []time.Time
 }

@@ -1200,6 +1200,20 @@ func (s *Service) handleNodeInfo(ctx context.Context, evt meshtastic.ParsedEvent
 			s.log.Error("update node firmware version failed", "node_id", evt.NodeID, "err", err)
 		}
 	}
+	// Hardware model is normalized into hardware_models (lookup) +
+	// nodes.hardware_model_id (FK), mirroring firmware. Unlike firmware, the
+	// model arrives with NodeInfo (and MapReport via report.GetHwModel()), so
+	// this hook covers nearly every node. UpsertNode does not write the model,
+	// so we update the FK here; empty stays NULL.
+	if in.BoardModel != "" {
+		modelID, err := s.store.UpsertHardwareModel(ctx, in.BoardModel, now)
+		if err != nil {
+			s.log.Error("upsert hardware model failed", "node_id", evt.NodeID, "err", err)
+			// Non-fatal: the node row is already persisted; just skip the FK update.
+		} else if err := s.store.UpdateNodeHardwareModelID(ctx, evt.NodeID, modelID, now); err != nil {
+			s.log.Error("update node hardware model failed", "node_id", evt.NodeID, "err", err)
+		}
+	}
 	s.emitter.Emit(domain.RealtimeEvent{Type: "node.upsert", TS: now, Payload: n})
 
 	return true
