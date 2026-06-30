@@ -51,10 +51,8 @@ func seedHardwareNodeAt(t *testing.T, ctx context.Context, s *Store, nodeID stri
 		}
 	}
 	updated := time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC)
-	seen := updated
-	if lastSeenAnyEventAt == nil {
-		seen = time.Time{}
-	} else {
+	seen := time.Time{}
+	if lastSeenAnyEventAt != nil {
 		seen = *lastSeenAnyEventAt
 	}
 	node := domain.Node{
