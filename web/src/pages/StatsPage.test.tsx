@@ -241,6 +241,44 @@ function hardwareHistory(): HardwareHistory {
   }
 }
 
+function denseHardwareHistory(): HardwareHistory {
+  const models = [
+    'HELTEC_V4',
+    'HELTEC_MESH_NODE_T114',
+    'HELTEC_V3',
+    'HELTEC_MESH_POCKET',
+    'HELTEC_VISION_MASTER_E213',
+    'HELTEC_WIRELESS_PAPER',
+    'T_ECHO',
+    'NRF52_PROMICRO_DIY',
+    'TRACKER_T1000_E',
+    'HELTEC_VISION_MASTER_E290',
+    'PRIVATE_HW',
+    'TLORA_T3_S3',
+    'TLORA_V2_1_1P6',
+    'RAK4631',
+    'T_BEAM',
+    '(other)'
+  ]
+
+  return {
+    generated_at: '2026-05-04T12:00:00Z',
+    cache_ttl_seconds: 86400,
+    weeks: 1,
+    top: 15,
+    models,
+    models_by_week: models.map((_model, index) => [index + 1]),
+    week_starts: ['2026-05-04T00:00:00Z']
+  }
+}
+
+function normalizeBackgroundColor(color: string | undefined): string {
+  const el = document.createElement('span')
+  el.style.background = color ?? ''
+
+  return el.style.background
+}
+
 describe('StatsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -897,12 +935,70 @@ describe('StatsPage Hardware section', () => {
     // in this block) renders its own "(other)" legend item that would
     // otherwise collide with the hardware legend query.
     const hardwareSection = screen.getByRole('heading', { name: 'Hardware', level: 2 }).closest('section')
-    const legendItems = within(hardwareSection as HTMLElement).getAllByText(/^(heltec-v3|tbeam|rak4631|\(other\))$/)
+    if (!(hardwareSection instanceof HTMLElement)) {
+      throw new Error('Hardware section not found')
+    }
+    const legendItems = within(hardwareSection).getAllByText(/^(heltec-v3|tbeam|rak4631|\(other\))$/)
     const labels = legendItems.map((el) => el.textContent)
 
     // The legend is rendered in the order the server returned, with the
     // aggregated "(other)" bucket trailing.
     expect(labels).toEqual(['heltec-v3', 'tbeam', 'rak4631', '(other)'])
+  })
+
+  it('uses distinct hardware history colors for the default top-N shape', async () => {
+    const denseHistory = denseHardwareHistory()
+    apiMock.hardwareHistory.mockResolvedValue(denseHistory)
+
+    render(<StatsPage initialHardwareSnapshot={hardwareSnapshot()} initialHardwareHistory={denseHistory} />)
+
+    await screen.findByRole('heading', { name: 'Hardware' })
+
+    const chartsCount = uplotMock.options.length
+    const history = uplotMock.options[chartsCount - 1]
+    const strokes = history?.series?.slice(1).map((series) => series.stroke) ?? []
+    const hardwareSection = screen.getByRole('heading', { name: 'Hardware', level: 2 }).closest('section')
+    if (!(hardwareSection instanceof HTMLElement)) {
+      throw new Error('Hardware section not found')
+    }
+    const swatches = Array.from(hardwareSection.querySelectorAll<HTMLElement>('.chart-legend-swatch'))
+
+    expect(strokes).toHaveLength(denseHistory.models.length)
+    expect(new Set(strokes)).toHaveLength(denseHistory.models.length)
+    expect(swatches).toHaveLength(denseHistory.models.length)
+    strokes.forEach((stroke, index) => {
+      expect(swatches[index]?.style.background).toBe(normalizeBackgroundColor(stroke))
+    })
+  })
+
+  it('keeps dense hardware history hover details bounded', async () => {
+    const denseHistory = denseHardwareHistory()
+    apiMock.hardwareHistory.mockResolvedValue(denseHistory)
+
+    render(<StatsPage initialHardwareSnapshot={hardwareSnapshot()} initialHardwareHistory={denseHistory} />)
+
+    await screen.findByRole('heading', { name: 'Hardware' })
+
+    const chartsCount = uplotMock.options.length
+    const history = uplotMock.options[chartsCount - 1]
+
+    await act(async () => {
+      history?.plugins?.[0]?.hooks?.setCursor?.({
+        cursor: { idx: 0 },
+        data: [
+          [0],
+          ...denseHistory.models.map((_model, index) => [index + 1])
+        ]
+      })
+    })
+
+    const tooltip = screen.getByText(/\+12 more$/)
+
+    expect(tooltip.textContent).toContain('Total: 136 nodes')
+    expect(tooltip.textContent).toContain('HELTEC_MESH_POCKET: 4 nodes')
+    expect(tooltip.textContent).not.toContain('T_BEAM: 15 nodes')
+    expect(tooltip.getAttribute('title')).toContain('T_BEAM: 15 nodes')
+    expect(tooltip.getAttribute('title')).toContain('(other): 16 nodes')
   })
 
   it('shows the hovered hardware snapshot count', async () => {

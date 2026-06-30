@@ -19,6 +19,7 @@ interface ActivityMetric {
 interface ChartTooltip {
   time: string
   value: string
+  title?: string
 }
 
 const chartHeight = 220
@@ -151,7 +152,19 @@ function lineColors(root?: Element): string[] {
     cssVar(el, '--pico-primary', '#339af0'),
     '#f59f00',
     '#51cf66',
-    '#e64980'
+    '#e64980',
+    '#22b8cf',
+    '#845ef7',
+    '#ff6b6b',
+    '#94d82d',
+    '#fcc419',
+    '#20c997',
+    '#be4bdb',
+    '#4dabf7',
+    '#ff922b',
+    '#69db7c',
+    '#f06595',
+    '#adb5bd'
   ]
 }
 
@@ -188,15 +201,35 @@ function formatNodeCount(value: number): string {
   return `${value} ${value === 1 ? 'node' : 'nodes'}`
 }
 
-// weekAxis is the structural slice of the firmware/hardware history payloads
+interface HistoryTooltipLine {
+  label: string
+  value: number
+}
+
+function historyTooltip(lines: HistoryTooltipLine[], visibleLimit = 4): { title: string; value: string } {
+  const total = lines.reduce((sum, line) => sum + line.value, 0)
+  const visible = lines.slice(0, visibleLimit).map((line) => `${line.label}: ${formatNodeCount(line.value)}`)
+  const hidden = lines.length - visible.length
+  const summary = [`Total: ${formatNodeCount(total)}`, ...visible]
+  if (hidden > 0) {
+    summary.push(`+${hidden} more`)
+  }
+
+  return {
+    title: lines.map((line) => `${line.label}: ${formatNodeCount(line.value)}`).join(' · '),
+    value: summary.join(' · ')
+  }
+}
+
+// WeekAxis is the structural slice of the firmware/hardware history payloads
 // that week math depends on. Both FirmwareHistory and HardwareHistory satisfy
 // it, so the two chart families can share one week-label implementation.
-interface weekAxis {
+interface WeekAxis {
   week_starts: string[]
   weeks: number
 }
 
-function firmwareWeekDate(history: weekAxis, weekIndex: number): Date {
+function firmwareWeekDate(history: WeekAxis, weekIndex: number): Date {
   const weekStart = history.week_starts[weekIndex]
   if (typeof weekStart === 'string') {
     const date = new Date(weekStart)
@@ -578,7 +611,7 @@ function FirmwareSnapshotChart({ versions }: { versions: FirmwareVersionCount[] 
     <article className="firmware-chart" data-chart="firmware-snapshot">
       <header>
         <h3>Firmware versions</h3>
-        <span className={tooltip ? 'activity-tooltip' : 'activity-tooltip muted'}>
+        <span className={tooltip ? 'activity-tooltip' : 'activity-tooltip muted'} title={tooltip?.title ?? tooltip?.value}>
           {tooltip ? `${tooltip.time} · ${tooltip.value}` : versions.length === 0 ? 'No firmware versions reported' : 'Hover for details'}
         </span>
       </header>
@@ -632,10 +665,8 @@ function FirmwareHistoryChart({ history }: { history: FirmwareHistory }): JSX.El
         const lines = history.versions.map((version, seriesIdx) => {
           const value = plot.data[seriesIdx + 1]?.[idx]
 
-          return typeof value === 'number' && value > 0
-            ? `${version}: ${formatNodeCount(value)}`
-            : null
-        }).filter((value): value is string => value !== null)
+          return typeof value === 'number' && value > 0 ? { label: version, value } : null
+        }).filter((value): value is HistoryTooltipLine => value !== null)
         if (lines.length === 0) {
           setTooltip(null)
 
@@ -656,10 +687,12 @@ function FirmwareHistoryChart({ history }: { history: FirmwareHistory }): JSX.El
           day: 'numeric',
           year: 'numeric'
         })
+        const tooltip = historyTooltip(lines)
 
         setTooltip({
           time: `Week of ${weekLabel}`,
-          value: lines.join(' · ')
+          value: tooltip.value,
+          title: tooltip.title
         })
       }
     }
@@ -756,7 +789,7 @@ function FirmwareHistoryChart({ history }: { history: FirmwareHistory }): JSX.El
     <article className="firmware-chart" data-chart="firmware-history">
       <header>
         <h3>Firmware adoption over time</h3>
-        <span className={tooltip ? 'activity-tooltip' : 'activity-tooltip muted'}>
+        <span className={tooltip ? 'activity-tooltip' : 'activity-tooltip muted'} title={tooltip?.title ?? tooltip?.value}>
           {tooltip ? `${tooltip.time} · ${tooltip.value}` : 'Hover for details'}
         </span>
       </header>
@@ -918,7 +951,7 @@ function HardwareSnapshotChart({ models }: { models: HardwareModelCount[] }): JS
     <article className="firmware-chart" data-chart="hardware-snapshot">
       <header>
         <h3>Hardware models</h3>
-        <span className={tooltip ? 'activity-tooltip' : 'activity-tooltip muted'}>
+        <span className={tooltip ? 'activity-tooltip' : 'activity-tooltip muted'} title={tooltip?.title ?? tooltip?.value}>
           {tooltip ? `${tooltip.time} · ${tooltip.value}` : models.length === 0 ? 'No hardware models reported' : 'Hover for details'}
         </span>
       </header>
@@ -969,10 +1002,8 @@ function HardwareHistoryChart({ history }: { history: HardwareHistory }): JSX.El
         const lines = history.models.map((model, seriesIdx) => {
           const value = plot.data[seriesIdx + 1]?.[idx]
 
-          return typeof value === 'number' && value > 0
-            ? `${model}: ${formatNodeCount(value)}`
-            : null
-        }).filter((value): value is string => value !== null)
+          return typeof value === 'number' && value > 0 ? { label: model, value } : null
+        }).filter((value): value is HistoryTooltipLine => value !== null)
         if (lines.length === 0) {
           setTooltip(null)
 
@@ -985,10 +1016,12 @@ function HardwareHistoryChart({ history }: { history: HardwareHistory }): JSX.El
           day: 'numeric',
           year: 'numeric'
         })
+        const tooltip = historyTooltip(lines)
 
         setTooltip({
           time: `Week of ${weekLabel}`,
-          value: lines.join(' · ')
+          value: tooltip.value,
+          title: tooltip.title
         })
       }
     }
@@ -1073,7 +1106,7 @@ function HardwareHistoryChart({ history }: { history: HardwareHistory }): JSX.El
     <article className="firmware-chart" data-chart="hardware-history">
       <header>
         <h3>Hardware adoption over time</h3>
-        <span className={tooltip ? 'activity-tooltip' : 'activity-tooltip muted'}>
+        <span className={tooltip ? 'activity-tooltip' : 'activity-tooltip muted'} title={tooltip?.title ?? tooltip?.value}>
           {tooltip ? `${tooltip.time} · ${tooltip.value}` : 'Hover for details'}
         </span>
       </header>
