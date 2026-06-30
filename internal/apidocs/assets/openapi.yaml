@@ -406,6 +406,53 @@ paths:
                 $ref: '#/components/schemas/FirmwareHistory'
         '500':
           $ref: '#/components/responses/InternalError'
+  /api/v1/stats/hardware:
+    get:
+      tags: [Stats]
+      summary: Fetch the hardware model snapshot
+      operationId: getStatsHardware
+      responses:
+        '200':
+          description: |
+            Current fleet distribution of hardware models (board models). A node
+            is excluded if it has no hardware model or hasn't been seen on any
+            event in `web.stats.hardware.max_age` (default 14d). Servers cache
+            the response for `web.stats.hardware.snapshot_cache_ttl` (default
+            1h) and invalidate it when the scheduled weekly snapshot job writes
+            a new week.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HardwareSnapshot'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /api/v1/stats/hardware/history:
+    get:
+      tags: [Stats]
+      summary: Fetch the weekly hardware model history
+      operationId: getStatsHardwareHistory
+      description: |
+        Window shape (number of weeks, top-N models) is fully config-driven
+        via `web.stats.hardware.history_weeks` (default 54) and
+        `web.stats.hardware.top_models` (default 15). The endpoint does not
+        accept query parameters so that the response stays cacheable behind a
+        single key and a malicious client cannot force oversized allocations
+        via a crafted `weeks` value.
+      responses:
+        '200':
+          description: |
+            Compact matrix of `models_by_week[i][j]` counts, where `i` is the
+            model index (matching the `models` array) and `j` is the week
+            index (`0` = oldest, `weeks-1` = newest). Missing weeks (for
+            example when the service was down) are padded with zero rows so
+            the chart x-axis stays contiguous. Cached for
+            `web.stats.hardware.history_cache_ttl` (default 24h).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HardwareHistory'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /api/v1/topology/edges:
     get:
       tags: [Topology]
@@ -1446,6 +1493,105 @@ components:
           description: |
             Resolved Monday 00:00 UTC of each column, in oldest-first order.
             Same length as the inner `versions_by_week` axis; clients MUST
+            use these for week-aligned display math (tooltip labels, axis
+            ticks) instead of re-deriving from `generated_at` and `weeks`,
+            because the response is cacheable and the browser's clock can
+            cross a Monday while the underlying data is still the previous
+            week.
+          items:
+            type: string
+            format: date-time
+    HardwareSnapshot:
+      type: object
+      required: [generated_at, cache_ttl_seconds, total_nodes_with_model, models]
+      properties:
+        generated_at:
+          type: string
+          format: date-time
+        cache_ttl_seconds:
+          type: integer
+          minimum: 1
+          description: |
+            Resolved cache TTL for this endpoint, in seconds. Echoes the
+            configured `web.stats.hardware.snapshot_cache_ttl` normalized
+            to a positive integer. Clients use it as the polling cadence
+            so an operator shortening the server-side TTL actually picks
+            up fresher data instead of the UI staying stale on a
+            hardcoded 1h interval.
+        total_nodes_with_model:
+          type: integer
+          minimum: 0
+        models:
+          type: array
+          items:
+            $ref: '#/components/schemas/HardwareModelCount'
+    HardwareModelCount:
+      type: object
+      required: [model, count, last_seen_at]
+      properties:
+        model:
+          type: string
+        count:
+          type: integer
+          minimum: 0
+        last_seen_at:
+          type: string
+          format: date-time
+    HardwareHistory:
+      type: object
+      required: [generated_at, cache_ttl_seconds, weeks, top, models, models_by_week, week_starts]
+      properties:
+        generated_at:
+          type: string
+          format: date-time
+        cache_ttl_seconds:
+          type: integer
+          minimum: 1
+          description: |
+            Resolved cache TTL for this endpoint, in seconds. Echoes the
+            configured `web.stats.hardware.history_cache_ttl` normalized
+            to a positive integer. Clients use it as the polling cadence
+            so an operator shortening the server-side TTL actually picks
+            up fresher data instead of the UI staying stale on a
+            hardcoded 24h interval.
+        weeks:
+          type: integer
+          minimum: 1
+          description: |
+            Number of weeks covered by `models_by_week`. Echoes the server's
+            resolved value (the configured `web.stats.hardware.history_weeks`,
+            normalized to a positive integer).
+        top:
+          type: integer
+          minimum: 1
+          description: |
+            Top-N models surfaced individually. Models outside this top-N
+            are aggregated into a trailing `(other)` series.
+        models:
+          type: array
+          description: |
+            Model strings in column order, matching the outer index of
+            `models_by_week`. The last entry is `"(other)"` when the server
+            reports models outside the top-N.
+          items:
+            type: string
+        models_by_week:
+          type: array
+          description: |
+            Per-model, per-week node counts. Outer index is the model
+            index (matching `models`); inner index is the week index
+            (`0` = oldest week, `weeks-1` = newest). Missing weeks are
+            zero-padded so the x-axis is contiguous.
+          items:
+            type: array
+            items:
+              type: integer
+              minimum: 0
+        week_starts:
+          type: array
+          description: |
+            Resolved Monday 00:00 UTC of each column, in oldest-first order.
+            Same length as the inner `models_by_week` axis; clients MUST
             use these for week-aligned display math (tooltip labels, axis
             ticks) instead of re-deriving from `generated_at` and `weeks`,
             because the response is cacheable and the browser's clock can

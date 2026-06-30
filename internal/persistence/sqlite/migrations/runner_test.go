@@ -1000,8 +1000,8 @@ INSERT INTO log_events(id, observed_at, node_id, event_kind, encrypted, channel_
 	if err := db.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
-	if version != 22 {
-		t.Fatalf("expected user_version=22, got %d", version)
+	if version != 23 {
+		t.Fatalf("expected user_version=23, got %d", version)
 	}
 
 	var eventKind int
@@ -1114,8 +1114,8 @@ INSERT INTO log_events(id, observed_at, node_id, event_kind, encrypted, channel_
 	if err := db.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
-	if version != 22 {
-		t.Fatalf("expected user_version=22, got %d", version)
+	if version != 23 {
+		t.Fatalf("expected user_version=23, got %d", version)
 	}
 
 	// Row 1: kind 8 with portnum_name=STORE_FORWARD_APP — promoted
@@ -1518,8 +1518,8 @@ VALUES
 	if err := db.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
-	if version != 22 {
-		t.Fatalf("expected user_version=22, got %d", version)
+	if version != 23 {
+		t.Fatalf("expected user_version=23, got %d", version)
 	}
 
 	// firmware_versions: three distinct strings, one row each.
@@ -1665,6 +1665,219 @@ ORDER BY n.node_id`)
 	}
 }
 
+// TestApply_NormalizesHardwareModels exercises the V23 data migration:
+// nodes.board_model TEXT is replaced by nodes.hardware_model_id INTEGER FK
+// pointing at the new normalized hardware_models lookup table (the full-mirror
+// of the V21 firmware normalization). The backfill must produce one row per
+// distinct model string with first_seen/last_seen aggregated from the source
+// nodes (MIN(first_seen_at) / MAX(updated_at)), and every node that previously
+// carried a board_model text value must end up with a non-NULL
+// hardware_model_id pointing at the right row.
+//
+// node_hardware_history is intentionally NOT backfilled — the next scheduled
+// weekly snapshot is the first writer.
+func TestApply_NormalizesHardwareModels(t *testing.T) {
+	ctx := context.Background()
+	db, err := sql.Open("sqlite", "file::memory:?cache=shared")
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	// Seed a v20-stamped schema with six nodes carrying three distinct
+	// board_model values and one node with a NULL board_model (must not
+	// appear in hardware_models after backfill).
+	_, err = db.ExecContext(ctx, `
+PRAGMA user_version = 20;
+CREATE TABLE nodes (
+  node_id TEXT PRIMARY KEY,
+  node_num INTEGER,
+  long_name TEXT,
+  short_name TEXT,
+  role TEXT,
+  board_model TEXT,
+  firmware_version TEXT,
+  lora_region TEXT,
+  lora_frequency_desc TEXT,
+  modem_preset TEXT,
+  has_default_channel INTEGER,
+  has_opted_report_location INTEGER,
+  neighbor_nodes_count INTEGER,
+  mqtt_gateway_capable INTEGER,
+  first_seen_at TEXT NOT NULL,
+  last_seen_any_event_at TEXT NOT NULL,
+  last_seen_mqtt_gateway_at TEXT,
+  last_mqtt_uploader_node_id TEXT,
+  last_mqtt_uploader_at TEXT,
+  last_seen_position_at TEXT,
+  updated_at TEXT NOT NULL
+);
+INSERT INTO nodes(node_id,long_name,board_model,first_seen_at,last_seen_any_event_at,updated_at)
+VALUES
+  ('!hw10001','Alpha',   'heltec-v3','2026-05-01T00:00:00Z','2026-05-10T00:00:00Z','2026-05-10T00:00:00Z'),
+  ('!hw10002','Bravo',   'heltec-v3','2026-05-02T00:00:00Z','2026-05-11T00:00:00Z','2026-05-11T00:00:00Z'),
+  ('!hw10003','Charlie', 'tbeam',    '2026-05-03T00:00:00Z','2026-05-12T00:00:00Z','2026-05-12T00:00:00Z'),
+  ('!hw10004','Delta',   'tbeam',    '2026-05-04T00:00:00Z','2026-05-13T00:00:00Z','2026-05-13T00:00:00Z'),
+  ('!hw10005','Echo',    'rak4631',  '2026-05-05T00:00:00Z','2026-05-14T00:00:00Z','2026-05-14T00:00:00Z'),
+  ('!hw10006','Foxtrot', NULL,       '2026-05-06T00:00:00Z','2026-05-15T00:00:00Z','2026-05-15T00:00:00Z');
+`)
+	if err != nil {
+		t.Fatalf("seed schema: %v", err)
+	}
+
+	if err := Apply(ctx, db, nil); err != nil {
+		t.Fatalf("apply migrations: %v", err)
+	}
+
+	var version int
+	if err := db.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
+		t.Fatalf("read user_version: %v", err)
+	}
+	if version != 23 {
+		t.Fatalf("expected user_version=23, got %d", version)
+	}
+
+	// hardware_models: three distinct strings, one row each, with
+	// first_seen_at = MIN(first_seen_at) and last_seen_at = MAX(updated_at).
+	type hwRow struct {
+		Model     string
+		FirstSeen string
+		LastSeen  string
+	}
+	rows, err := db.QueryContext(ctx, `SELECT model_string, first_seen_at, last_seen_at FROM hardware_models ORDER BY model_string`)
+	if err != nil {
+		t.Fatalf("query hardware_models: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var gotHardware []hwRow
+	for rows.Next() {
+		var r hwRow
+		if err := rows.Scan(&r.Model, &r.FirstSeen, &r.LastSeen); err != nil {
+			t.Fatalf("scan hardware_models: %v", err)
+		}
+		gotHardware = append(gotHardware, r)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate hardware_models: %v", err)
+	}
+
+	wantHardware := map[string]hwRow{
+		"heltec-v3": {Model: "heltec-v3", FirstSeen: "2026-05-01T00:00:00Z", LastSeen: "2026-05-11T00:00:00Z"},
+		"rak4631":   {Model: "rak4631", FirstSeen: "2026-05-05T00:00:00Z", LastSeen: "2026-05-14T00:00:00Z"},
+		"tbeam":     {Model: "tbeam", FirstSeen: "2026-05-03T00:00:00Z", LastSeen: "2026-05-13T00:00:00Z"},
+	}
+	if len(gotHardware) != len(wantHardware) {
+		t.Fatalf("expected %d hardware_models rows, got %d: %+v", len(wantHardware), len(gotHardware), gotHardware)
+	}
+	for _, got := range gotHardware {
+		want, ok := wantHardware[got.Model]
+		if !ok {
+			t.Errorf("unexpected hardware_model row %q", got.Model)
+
+			continue
+		}
+		if got.FirstSeen != want.FirstSeen {
+			t.Errorf("hardware_model %q: expected first_seen_at %q, got %q", got.Model, want.FirstSeen, got.FirstSeen)
+		}
+		if got.LastSeen != want.LastSeen {
+			t.Errorf("hardware_model %q: expected last_seen_at %q, got %q", got.Model, want.LastSeen, got.LastSeen)
+		}
+	}
+
+	// nodes.board_model column is gone (the full-mirror invariant).
+	hasTextCol, err := tableHasColumn(ctx, db, "nodes", "board_model")
+	if err != nil {
+		t.Fatalf("check nodes.board_model column: %v", err)
+	}
+	if hasTextCol {
+		t.Fatalf("nodes.board_model TEXT column should be dropped")
+	}
+
+	// nodes.hardware_model_id column exists.
+	hasIDCol, err := tableHasColumn(ctx, db, "nodes", "hardware_model_id")
+	if err != nil {
+		t.Fatalf("check nodes.hardware_model_id column: %v", err)
+	}
+	if !hasIDCol {
+		t.Fatalf("nodes.hardware_model_id column should exist")
+	}
+
+	// Every node with a model must now have a non-NULL FK pointing at the
+	// matching hardware_models row.
+	rows2, err := db.QueryContext(ctx, `
+SELECT n.node_id, n.hardware_model_id, hm.model_string
+FROM nodes n
+LEFT JOIN hardware_models hm ON hm.id = n.hardware_model_id
+ORDER BY n.node_id`)
+	if err != nil {
+		t.Fatalf("query nodes JOIN hardware_models: %v", err)
+	}
+	defer func() { _ = rows2.Close() }()
+
+	wantNodeModel := map[string]string{
+		"!hw10001": "heltec-v3",
+		"!hw10002": "heltec-v3",
+		"!hw10003": "tbeam",
+		"!hw10004": "tbeam",
+		"!hw10005": "rak4631",
+		"!hw10006": "", // NULL board_model → NULL FK after backfill
+	}
+	for rows2.Next() {
+		var nodeID string
+		var modelID sql.NullInt64
+		var modelString sql.NullString
+		if err := rows2.Scan(&nodeID, &modelID, &modelString); err != nil {
+			t.Fatalf("scan nodes JOIN: %v", err)
+		}
+		want, ok := wantNodeModel[nodeID]
+		if !ok {
+			t.Errorf("unexpected node %q", nodeID)
+
+			continue
+		}
+		if want == "" {
+			if modelID.Valid {
+				t.Errorf("node %q: expected NULL hardware_model_id, got %d", nodeID, modelID.Int64)
+			}
+
+			continue
+		}
+		if !modelID.Valid {
+			t.Errorf("node %q: expected hardware_model_id to be set, got NULL", nodeID)
+
+			continue
+		}
+		if !modelString.Valid || modelString.String != want {
+			t.Errorf("node %q: expected joined model_string %q, got %q", nodeID, want, modelString.String)
+		}
+	}
+	if err := rows2.Err(); err != nil {
+		t.Fatalf("iterate nodes JOIN: %v", err)
+	}
+
+	// node_hardware_history is intentionally NOT backfilled by the migration.
+	var historyCount int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM node_hardware_history`).Scan(&historyCount); err != nil {
+		t.Fatalf("count node_hardware_history: %v", err)
+	}
+	if historyCount != 0 {
+		t.Fatalf("node_hardware_history should be empty after migration, got %d rows", historyCount)
+	}
+
+	// hardware_models UNIQUE constraint is enforced.
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO hardware_models(model_string,first_seen_at,last_seen_at,created_at) VALUES (?,?,?,?)`,
+		"heltec-v3", "2026-06-01T00:00:00Z", "2026-06-01T00:00:00Z", "2026-06-01T00:00:00Z"); err == nil {
+		t.Fatalf("expected UNIQUE constraint on hardware_models.model_string to reject duplicate")
+	}
+
+	// Re-applying migrations on an already-V23 schema is a no-op.
+	if err := Apply(ctx, db, nil); err != nil {
+		t.Fatalf("re-apply migrations on V23 schema: %v", err)
+	}
+}
+
 // TestApply_AddsMapReportSeenAtColumn exercises the V22 schema migration:
 // nodes.last_map_report_at is added as a nullable TEXT column with no
 // backfill and no index. Existing nodes have no MapReport on file (they
@@ -1704,8 +1917,8 @@ VALUES
 	if err := db.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&version); err != nil {
 		t.Fatalf("read user_version: %v", err)
 	}
-	if version != 22 {
-		t.Fatalf("expected user_version=22, got %d", version)
+	if version != 23 {
+		t.Fatalf("expected user_version=23, got %d", version)
 	}
 
 	hasCol, err := tableHasColumn(ctx, db, "nodes", "last_map_report_at")

@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 
-import { act, render, screen, waitFor } from '@testing-library/preact'
+import { act, render, screen, waitFor, within } from '@testing-library/preact'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { StatsPage, nextBoundaryDelay, parseDurationMillis, shortVersionLabel } from './StatsPage'
+import { StatsPage, nextBoundaryDelay, parseDurationMillis, shortModelLabel, shortVersionLabel } from './StatsPage'
 
-import type { ActivityStats, FirmwareHistory, FirmwareSnapshot } from '../api/types'
+import type { ActivityStats, FirmwareHistory, FirmwareSnapshot, HardwareHistory, HardwareSnapshot } from '../api/types'
 
 type MockAxisValues = (plot: unknown, ticks: number[], axisIndex: number, foundSpace: number, foundIncr: number) => (number | string | null)[]
 type MockAxisSplits = (plot: unknown, axisIndex: number, scaleMin: number, scaleMax: number, foundIncr: number, foundSpace: number) => number[]
@@ -103,7 +103,9 @@ vi.mock('uplot', () => ({
 const apiMock = vi.hoisted(() => ({
   statsActivity: vi.fn(),
   firmwareSnapshot: vi.fn(),
-  firmwareHistory: vi.fn()
+  firmwareHistory: vi.fn(),
+  hardwareSnapshot: vi.fn(),
+  hardwareHistory: vi.fn()
 }))
 
 vi.mock('../api/client', () => ({
@@ -196,6 +198,49 @@ function firmwareHistory(): FirmwareHistory {
   }
 }
 
+function hardwareSnapshot(): HardwareSnapshot {
+  return {
+    generated_at: '2026-05-04T12:00:00Z',
+    cache_ttl_seconds: 3600,
+    total_nodes_with_model: 12,
+    models: [
+      { model: 'heltec-v3', count: 7, last_seen_at: '2026-05-04T11:00:00Z' },
+      { model: 'tbeam', count: 3, last_seen_at: '2026-05-04T11:30:00Z' },
+      { model: 'rak4631', count: 2, last_seen_at: '2026-05-04T11:45:00Z' }
+    ]
+  }
+}
+
+function hardwareHistory(): HardwareHistory {
+  // Mirrors firmwareHistory(): 8 weeks, 3 top models + "(other)". week_starts
+  // is identical so the week-anchoring assertions hold for hardware too.
+  const weekStarts = [
+    '2026-04-06T00:00:00Z',
+    '2026-04-13T00:00:00Z',
+    '2026-04-20T00:00:00Z',
+    '2026-04-27T00:00:00Z',
+    '2026-05-04T00:00:00Z',
+    '2026-05-11T00:00:00Z',
+    '2026-05-18T00:00:00Z',
+    '2026-05-25T00:00:00Z'
+  ]
+
+  return {
+    generated_at: '2026-05-04T12:00:00Z',
+    cache_ttl_seconds: 86400,
+    weeks: 8,
+    top: 3,
+    models: ['heltec-v3', 'tbeam', 'rak4631', '(other)'],
+    models_by_week: [
+      [10, 12, 15, 8, 5, 3, 2, 18],
+      [12, 13, 8, 5, 1, 3, 18, 2],
+      [12, 13, 8, 4, 4, 2, 12, 8],
+      [0, 0, 0, 0, 0, 0, 0, 1]
+    ],
+    week_starts: weekStarts
+  }
+}
+
 describe('StatsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -206,6 +251,11 @@ describe('StatsPage', () => {
     apiMock.statsActivity.mockResolvedValue(stats())
     apiMock.firmwareSnapshot.mockResolvedValue(firmwareSnapshot())
     apiMock.firmwareHistory.mockResolvedValue(firmwareHistory())
+    // The general page renders every section, so seed hardware too — but
+    // keep it out of the Software-only block below (empty there) so the
+    // firmware chart-count assertions stay scoped to firmware plots.
+    apiMock.hardwareSnapshot.mockResolvedValue(hardwareSnapshot())
+    apiMock.hardwareHistory.mockResolvedValue(hardwareHistory())
   })
 
   it('parses durations and calculates next bucket boundaries', () => {
@@ -220,7 +270,7 @@ describe('StatsPage', () => {
   })
 
   it('renders both activity sections and four charts per section in display order', async () => {
-    render(<StatsPage initialStats={stats()} initialFirmwareSnapshot={firmwareSnapshot()} initialFirmwareHistory={firmwareHistory()} />)
+    render(<StatsPage initialStats={stats()} initialFirmwareSnapshot={firmwareSnapshot()} initialFirmwareHistory={firmwareHistory()} initialHardwareSnapshot={hardwareSnapshot()} initialHardwareHistory={hardwareHistory()} />)
 
     await act(async () => {
       await Promise.resolve()
@@ -239,7 +289,9 @@ describe('StatsPage', () => {
       'PKI',
       'Others',
       'Firmware versions',
-      'Firmware adoption over time'
+      'Firmware adoption over time',
+      'Hardware models',
+      'Hardware adoption over time'
     ])
     expect(uplotMock.data[3]?.[1]).toEqual([3])
     expect(uplotMock.data[3]?.[2]).toEqual([0])
@@ -353,6 +405,12 @@ describe('StatsPage Software section', () => {
     apiMock.statsActivity.mockResolvedValue(stats())
     apiMock.firmwareSnapshot.mockResolvedValue(firmwareSnapshot())
     apiMock.firmwareHistory.mockResolvedValue(firmwareHistory())
+    // Empty hardware so the firmware section's chart-count assertions
+    // (which assume the last two uPlot instances are the firmware charts)
+    // stay scoped to firmware plots. Hardware coverage lives in its own
+    // describe block with full fixtures.
+    apiMock.hardwareSnapshot.mockResolvedValue({ generated_at: '2026-05-04T12:00:00Z', cache_ttl_seconds: 3600, total_nodes_with_model: 0, models: [] })
+    apiMock.hardwareHistory.mockResolvedValue({ generated_at: '2026-05-04T12:00:00Z', cache_ttl_seconds: 86400, weeks: 8, top: 3, models: [], models_by_week: [], week_starts: [] })
   })
 
   it('fetches firmwareSnapshot and firmwareHistory on mount', async () => {
@@ -681,5 +739,207 @@ describe('StatsPage Software section', () => {
     })
 
     expect(screen.getByText(/2\.7\.10 · 3 nodes$/)).toBeTruthy()
+  })
+})
+
+describe('StatsPage Hardware section', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    uplotMock.data = []
+    uplotMock.options = []
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-05-04T12:01:00Z'))
+    apiMock.statsActivity.mockResolvedValue(stats())
+    apiMock.firmwareSnapshot.mockResolvedValue(firmwareSnapshot())
+    apiMock.firmwareHistory.mockResolvedValue(firmwareHistory())
+    apiMock.hardwareSnapshot.mockResolvedValue(hardwareSnapshot())
+    apiMock.hardwareHistory.mockResolvedValue(hardwareHistory())
+  })
+
+  it('fetches hardwareSnapshot and hardwareHistory on mount', async () => {
+    render(<StatsPage />)
+
+    await waitFor(() => {
+      expect(apiMock.hardwareSnapshot).toHaveBeenCalledTimes(1)
+    })
+    await waitFor(() => {
+      expect(apiMock.hardwareHistory).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('renders the snapshot bar chart and history area chart without syncing cursors', async () => {
+    render(<StatsPage initialHardwareSnapshot={hardwareSnapshot()} initialHardwareHistory={hardwareHistory()} />)
+
+    await screen.findByRole('heading', { name: 'Hardware' })
+    expect(screen.getByLabelText('Hardware model distribution')).toBeTruthy()
+    expect(screen.getByLabelText('Hardware model history')).toBeTruthy()
+
+    // The last two uPlot instances are the hardware charts (snapshot, then
+    // history) since hardware renders after software in display order.
+    const chartsCount = uplotMock.options.length
+    const snapshot = uplotMock.options[chartsCount - 2]
+    const history = uplotMock.options[chartsCount - 1]
+
+    // Snapshot: ordinal x axis (distr=2), bars path builder, no sync key —
+    // same shape as the firmware snapshot chart.
+    expect(snapshot?.scales?.x?.distr).toBe(2)
+    expect(snapshot?.scales?.x?.time).toBe(false)
+    expect(snapshot?.cursor?.sync).toBeUndefined()
+    expect(snapshot?.series?.[1]?.paths).toBeDefined()
+    // shortModelLabel leaves short board models intact on the x axis (no
+    // hash stripping — board models don't carry commit hashes).
+    const snapshotXValues = snapshot?.axes?.[0]?.values?.({}, [0, 1, 2], 0, 0, 0) ?? []
+    expect(snapshotXValues.map(String)).toEqual(['heltec-v3', 'tbeam', 'rak4631'])
+    expect(snapshot && uplotMock.data[chartsCount - 2]?.[0]).toEqual([0, 1, 2])
+    expect(uplotMock.data[chartsCount - 2]?.[1]).toEqual([7, 3, 2])
+
+    // History: index-based x, multi-series, four columns + x.
+    expect(history?.cursor?.sync).toBeUndefined()
+    expect(history?.series?.slice(1).map((series) => series.label)).toEqual(['heltec-v3', 'tbeam', 'rak4631', '(other)'])
+    expect(history && uplotMock.data[chartsCount - 1]?.[0]).toEqual([0, 1, 2, 3, 4, 5, 6, 7])
+    expect(uplotMock.data[chartsCount - 1]?.[1]).toEqual([10, 12, 15, 8, 5, 3, 2, 18])
+    // Bottom series carries the area fill so the stacked effect is readable.
+    expect(history?.series?.[1]?.fill).toBe('rgb(51 154 240 / 10%)')
+    expect(history?.series?.[2]?.fill).toBeUndefined()
+  })
+
+  it('renders exactly one Hardware section after data loads (no ghost accumulation)', async () => {
+    // Regression sibling to the v0.31.0 software-section duplication bug
+    // (commit 564957e): the conditional section swap must not accumulate
+    // empty HardwareSection instances across the initial data-load churn.
+    render(<StatsPage />)
+
+    await screen.findByRole('heading', { name: 'Hardware' })
+
+    expect(screen.getAllByRole('heading', { name: 'Hardware', level: 2 })).toHaveLength(1)
+    expect(screen.getAllByLabelText('Hardware model distribution')).toHaveLength(1)
+    expect(screen.getAllByLabelText('Hardware model history')).toHaveLength(1)
+  })
+
+  it('shows empty-state placeholder when snapshot has no models', async () => {
+    const emptySnapshot: HardwareSnapshot = {
+      generated_at: '2026-05-04T12:00:00Z',
+      cache_ttl_seconds: 3600,
+      total_nodes_with_model: 0,
+      models: []
+    }
+    // The component re-loads on mount — match the mock to the empty
+    // fixture so the polling effect can't overwrite it with the default.
+    apiMock.hardwareSnapshot.mockResolvedValue(emptySnapshot)
+
+    render(<StatsPage initialHardwareSnapshot={emptySnapshot} initialHardwareHistory={hardwareHistory()} />)
+
+    await screen.findByRole('heading', { name: 'Hardware' })
+    expect(screen.getByText('No nodes have reported a hardware model yet.')).toBeTruthy()
+  })
+
+  it('shows empty-state placeholder when history has no models', async () => {
+    const emptyHistory: HardwareHistory = {
+      generated_at: '2026-05-04T12:00:00Z',
+      cache_ttl_seconds: 86400,
+      weeks: 8,
+      top: 3,
+      models: [],
+      models_by_week: [],
+      week_starts: []
+    }
+    apiMock.hardwareHistory.mockResolvedValue(emptyHistory)
+
+    render(<StatsPage initialHardwareSnapshot={hardwareSnapshot()} initialHardwareHistory={emptyHistory} />)
+
+    await screen.findByRole('heading', { name: 'Hardware' })
+    expect(screen.getByText('No hardware history recorded yet.')).toBeTruthy()
+  })
+
+  it('refreshes the hardware snapshot every hour', async () => {
+    render(<StatsPage />)
+
+    await waitFor(() => {
+      expect(apiMock.hardwareSnapshot).toHaveBeenCalledTimes(1)
+    })
+
+    // Just before 1h — no refresh.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60 * 60 * 1000 - 1)
+    })
+    expect(apiMock.hardwareSnapshot).toHaveBeenCalledTimes(1)
+
+    // Past 1h — refresh fires.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000)
+    })
+    await waitFor(() => {
+      expect(apiMock.hardwareSnapshot).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  it('refreshes the hardware history every 24h', async () => {
+    render(<StatsPage />)
+
+    await waitFor(() => {
+      expect(apiMock.hardwareHistory).toHaveBeenCalledTimes(1)
+    })
+
+    // Past 24h — refresh fires.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000 + 1_000)
+    })
+    await waitFor(() => {
+      expect(apiMock.hardwareHistory).toHaveBeenCalledTimes(2)
+    })
+  })
+
+  it('renders the "(other)" series last in the legend', async () => {
+    render(<StatsPage initialHardwareSnapshot={hardwareSnapshot()} initialHardwareHistory={hardwareHistory()} />)
+
+    await screen.findByRole('heading', { name: 'Hardware' })
+    // Scope to the hardware section: the firmware section (also seeded full
+    // in this block) renders its own "(other)" legend item that would
+    // otherwise collide with the hardware legend query.
+    const hardwareSection = screen.getByRole('heading', { name: 'Hardware', level: 2 }).closest('section')
+    const legendItems = within(hardwareSection as HTMLElement).getAllByText(/^(heltec-v3|tbeam|rak4631|\(other\))$/)
+    const labels = legendItems.map((el) => el.textContent)
+
+    // The legend is rendered in the order the server returned, with the
+    // aggregated "(other)" bucket trailing.
+    expect(labels).toEqual(['heltec-v3', 'tbeam', 'rak4631', '(other)'])
+  })
+
+  it('shows the hovered hardware snapshot count', async () => {
+    render(<StatsPage initialHardwareSnapshot={hardwareSnapshot()} initialHardwareHistory={hardwareHistory()} />)
+
+    await screen.findByRole('heading', { name: 'Hardware' })
+
+    const chartsCount = uplotMock.options.length
+    const snapshot = uplotMock.options[chartsCount - 2]
+
+    await act(async () => {
+      snapshot?.plugins?.[0]?.hooks?.setCursor?.({
+        cursor: { idx: 1 },
+        data: [[0, 1, 2], [7, 3, 2]]
+      })
+    })
+
+    expect(screen.getByText(/tbeam · 3 nodes$/)).toBeTruthy()
+  })
+})
+
+describe('shortModelLabel', () => {
+  it('returns short board models unchanged', () => {
+    expect(shortModelLabel('heltec-v3')).toBe('heltec-v3')
+    expect(shortModelLabel('tbeam')).toBe('tbeam')
+    expect(shortModelLabel('rak4631')).toBe('rak4631')
+  })
+
+  it('caps long board models without stripping anything (no commit hashes on hardware)', () => {
+    // Unlike shortVersionLabel, there is no hash-stripping step — board
+    // models are truncated to 12 chars with an ellipsis only.
+    expect(shortModelLabel('heltec-wireless-tracker')).toBe('heltec-wirel…')
+    expect(shortModelLabel('rak-wismeshtastic-core-s3')).toBe('rak-wismesht…')
+  })
+
+  it('returns an empty string for missing input', () => {
+    expect(shortModelLabel(undefined)).toBe('')
+    expect(shortModelLabel('')).toBe('')
   })
 })

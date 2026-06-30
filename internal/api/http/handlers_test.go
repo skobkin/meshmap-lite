@@ -1313,3 +1313,394 @@ func TestFirmwareSnapshotHandler_DefaultsMapReportMaxAgeWhenZero(t *testing.T) {
 		t.Errorf("expected store to receive 14d default, got %s", observed)
 	}
 }
+
+// hardwareStatsConfig is the Hardware analogue of firmwareSoftwareConfig:
+// production-default-shaped config so the cache/window tests observe real
+// values — their effect on the cache is tested directly in cache_test.go.
+// Note MaxAge gates last_seen_any_event_at (not last_map_report_at).
+var hardwareStatsConfig = config.StatsHardwareConfig{
+	SnapshotCacheTTL: time.Hour,
+	HistoryCacheTTL:  24 * time.Hour,
+	HistoryWeeks:     54,
+	TopModels:        15,
+	MaxAge:           14 * 24 * time.Hour,
+}
+
+func TestHardwareSnapshotHandler_ReturnsModelsAndTotal(t *testing.T) {
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	store := &testkit.FakeStore{
+		HardwareModelSnapshotFn: func(_ context.Context, _ time.Duration) ([]repo.HardwareModelCount, error) {
+			return []repo.HardwareModelCount{
+				{Model: "heltec-v3", Count: 3, LastSeenAt: now.Add(-1 * time.Hour)},
+				{Model: "tbeam", Count: 2, LastSeenAt: now.Add(-2 * time.Hour)},
+				{Model: "rak4631", Count: 1, LastSeenAt: now.Add(-24 * time.Hour)},
+			}, nil
+		},
+	}
+	srv := New(Config{Web: config.WebConfig{Stats: config.StatsConfig{Hardware: hardwareStatsConfig}}},
+		store, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil, nil)
+	srv.now = func() time.Time { return now }
+	srv.hardwareCache.now = func() time.Time { return now }
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/stats/hardware", nil)
+	rec := httptest.NewRecorder()
+	srv.hardwareSnapshot(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	var payload hardwareSnapshotPayload
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload.TotalNodesWithModel != 6 {
+		t.Errorf("expected total_nodes_with_model 6, got %d", payload.TotalNodesWithModel)
+	}
+	if len(payload.Models) != 3 {
+		t.Fatalf("expected 3 models, got %d", len(payload.Models))
+	}
+	if payload.Models[0].Model != "heltec-v3" || payload.Models[0].Count != 3 {
+		t.Errorf("expected first model heltec-v3 count 3, got %+v", payload.Models[0])
+	}
+	if !payload.GeneratedAt.Equal(now) {
+		t.Errorf("expected generated_at %s, got %s", now, payload.GeneratedAt)
+	}
+	// The handler echoes the resolved TTL so the client can poll on the
+	// operator's cadence rather than a hardcoded 1h.
+	if payload.CacheTtlSeconds != 3600 {
+		t.Errorf("expected cache_ttl_seconds 3600 (1h default), got %d", payload.CacheTtlSeconds)
+	}
+}
+
+func TestHardwareSnapshotHandler_ReusesCacheUntilTTL(t *testing.T) {
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	calls := 0
+	store := &testkit.FakeStore{
+		HardwareModelSnapshotFn: func(_ context.Context, _ time.Duration) ([]repo.HardwareModelCount, error) {
+			calls++
+
+			return []repo.HardwareModelCount{{Model: "heltec-v3", Count: calls, LastSeenAt: now}}, nil
+		},
+	}
+	srv := New(Config{Web: config.WebConfig{Stats: config.StatsConfig{Hardware: hardwareStatsConfig}}},
+		store, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil, nil)
+	srv.now = func() time.Time { return now }
+	srv.hardwareCache.now = func() time.Time { return now }
+
+	hit := func() hardwareSnapshotPayload {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/stats/hardware", nil)
+		rec := httptest.NewRecorder()
+		srv.hardwareSnapshot(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("unexpected status: %d", rec.Code)
+		}
+		var payload hardwareSnapshotPayload
+		if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+
+		return payload
+	}
+
+	first := hit()
+	if first.Models[0].Count != 1 {
+		t.Fatalf("expected count 1, got %d", first.Models[0].Count)
+	}
+
+	second := hit()
+	if calls != 1 {
+		t.Fatalf("expected cache reuse (one store call), got %d", calls)
+	}
+	if second.Models[0].Count != 1 {
+		t.Fatalf("expected cached count 1, got %d", second.Models[0].Count)
+	}
+
+	// Advance past the snapshot TTL — next request must recompute.
+	advanced := now.Add(2 * time.Hour)
+	srv.now = func() time.Time { return advanced }
+	srv.hardwareCache.now = func() time.Time { return advanced }
+	third := hit()
+	if calls != 2 {
+		t.Fatalf("expected cache expiry to trigger store call, got %d calls", calls)
+	}
+	if third.Models[0].Count != 2 {
+		t.Fatalf("expected fresh count 2 after expiry, got %d", third.Models[0].Count)
+	}
+}
+
+func TestHardwareSnapshotHandler_InvalidateBustsCache(t *testing.T) {
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	calls := 0
+	store := &testkit.FakeStore{
+		HardwareModelSnapshotFn: func(_ context.Context, _ time.Duration) ([]repo.HardwareModelCount, error) {
+			calls++
+
+			return []repo.HardwareModelCount{{Model: "heltec-v3", Count: calls, LastSeenAt: now}}, nil
+		},
+	}
+	srv := New(Config{Web: config.WebConfig{Stats: config.StatsConfig{Hardware: hardwareStatsConfig}}},
+		store, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil, nil)
+	srv.now = func() time.Time { return now }
+	srv.hardwareCache.now = func() time.Time { return now }
+
+	hit := func() {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/stats/hardware", nil)
+		rec := httptest.NewRecorder()
+		srv.hardwareSnapshot(rec, req)
+	}
+
+	hit()
+	hit()
+	if calls != 1 {
+		t.Fatalf("expected cache reuse before invalidation, got %d calls", calls)
+	}
+
+	// Scheduled-job callback hits the cache.
+	srv.InvalidateHardwareCaches()
+
+	hit()
+	if calls != 2 {
+		t.Fatalf("expected invalidation to trigger a store call, got %d calls", calls)
+	}
+}
+
+// TestHardwareHistoryHandler_RespectsConfig pins the window math from a single
+// source of truth: config. The endpoint does not accept ?weeks or ?top, so the
+// values seen by the store are exactly hardwareStatsConfig.{HistoryWeeks,
+// TopModels}. For now = 2026-06-21 (Sunday) the current week is 2026-06-15
+// (Mon), so weeks=54 → since = 2026-06-15 - 53*7d = 2025-06-09 (Mon).
+func TestHardwareHistoryHandler_RespectsConfig(t *testing.T) {
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	store := &testkit.FakeStore{
+		HardwareModelHistoryFn: func(_ context.Context, since time.Time, topN, totalWeeks int) (repo.HardwareHistoryResult, error) {
+			wantSince := time.Date(2025, 6, 9, 0, 0, 0, 0, time.UTC)
+			if !since.Equal(wantSince) {
+				t.Errorf("unexpected since: got %s, want %s", since, wantSince)
+			}
+			if topN != 15 {
+				t.Errorf("expected top=15 (config default), got %d", topN)
+			}
+			if totalWeeks != 54 {
+				t.Errorf("expected weeks=54 (config default), got %d", totalWeeks)
+			}
+
+			return repo.HardwareHistoryResult{
+				Weeks: totalWeeks,
+				TopN:  topN,
+				Models: []string{
+					"heltec-v3", "tbeam", "rak4631", "t-echo", "station-g1",
+				},
+				ModelsByWeek: [][]int{
+					make([]int, totalWeeks),
+					make([]int, totalWeeks),
+					make([]int, totalWeeks),
+					make([]int, totalWeeks),
+					make([]int, totalWeeks),
+				},
+			}, nil
+		},
+	}
+	srv := New(Config{Web: config.WebConfig{Stats: config.StatsConfig{Hardware: hardwareStatsConfig}}},
+		store, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil, nil)
+	srv.now = func() time.Time { return now }
+	srv.hardwareCache.now = func() time.Time { return now }
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/stats/hardware/history", nil)
+	rec := httptest.NewRecorder()
+	srv.hardwareHistory(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	var payload hardwareHistoryPayload
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload.Weeks != 54 || payload.Top != 15 {
+		t.Fatalf("unexpected payload metadata: %+v", payload)
+	}
+	if len(payload.Models) != 5 {
+		t.Fatalf("expected 5 models, got %d", len(payload.Models))
+	}
+	if len(payload.ModelsByWeek) != 5 || len(payload.ModelsByWeek[0]) != 54 {
+		t.Fatalf("unexpected models_by_week shape: %d series x %d weeks",
+			len(payload.ModelsByWeek), len(payload.ModelsByWeek[0]))
+	}
+	// The handler echoes the resolved TTL so the client can poll on the
+	// operator's cadence rather than a hardcoded 24h.
+	if payload.CacheTtlSeconds != 86400 {
+		t.Errorf("expected cache_ttl_seconds 86400 (24h default), got %d", payload.CacheTtlSeconds)
+	}
+}
+
+// TestHardwareHistoryHandler_IncludesCurrentWeek pins the window math in
+// hardwareHistory: the current week must land at the LAST column, not fall off
+// the end. The fix (shared with firmware) anchors since to the Monday of the
+// current week minus (weeks-1)*7 days. The bug only manifested mid-week, so the
+// test exercises several `now` positions.
+func TestHardwareHistoryHandler_IncludesCurrentWeek(t *testing.T) {
+	cases := []struct {
+		name  string
+		now   time.Time
+		weeks int
+	}{
+		// 2026-06-15 is a Monday.
+		{"Monday of current week, 4 weeks", time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC), 4},
+		{"Wednesday of current week, 4 weeks", time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC), 4},
+		{"Sunday of current week, 4 weeks", time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC), 4},
+		{"Saturday of current week, 4 weeks", time.Date(2026, 6, 20, 23, 59, 59, 0, time.UTC), 4},
+		{"Sunday, 1 week window", time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC), 1},
+		{"Sunday, 54 weeks window", time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC), 54},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			now := tc.now
+			cfg := hardwareStatsConfig
+			cfg.HistoryWeeks = tc.weeks
+			store := &testkit.FakeStore{
+				HardwareModelHistoryFn: func(_ context.Context, since time.Time, _, totalWeeks int) (repo.HardwareHistoryResult, error) {
+					if totalWeeks != tc.weeks {
+						t.Errorf("expected weeks=%d, got %d", tc.weeks, totalWeeks)
+					}
+					// The Monday of `now`'s week, regardless of where in the
+					// week `now` sits.
+					wantCurrentWeek := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
+					wantSince := wantCurrentWeek.AddDate(0, 0, -7*(tc.weeks-1))
+					if !since.Equal(wantSince) {
+						t.Errorf("since=%s, want %s (currentWeek - %d weeks)", since, wantSince, tc.weeks-1)
+					}
+
+					modelsByWeek := make([]int, tc.weeks)
+					for i := range modelsByWeek {
+						modelsByWeek[i] = 1
+					}
+
+					return repo.HardwareHistoryResult{
+						Weeks:        tc.weeks,
+						TopN:         1,
+						Models:       []string{"heltec-v3"},
+						ModelsByWeek: [][]int{modelsByWeek},
+					}, nil
+				},
+			}
+			srv := New(Config{Web: config.WebConfig{Stats: config.StatsConfig{Hardware: cfg}}},
+				store, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil, nil)
+			srv.now = func() time.Time { return now }
+			srv.hardwareCache.now = func() time.Time { return now }
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/stats/hardware/history", nil)
+			rec := httptest.NewRecorder()
+			srv.hardwareHistory(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("unexpected status: %d body=%s", rec.Code, rec.Body.String())
+			}
+			var payload hardwareHistoryPayload
+			if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			if len(payload.ModelsByWeek) != 1 || len(payload.ModelsByWeek[0]) != tc.weeks {
+				t.Fatalf("unexpected payload shape: %d series x %d weeks (want 1 x %d)",
+					len(payload.ModelsByWeek), len(payload.ModelsByWeek[0]), tc.weeks)
+			}
+		})
+	}
+}
+
+// TestHardwareSnapshotHandler_PassesMaxAgeToStore verifies the snapshot handler
+// threads web.stats.hardware.max_age straight through to the store as the
+// staleness cutoff (applied to last_seen_any_event_at, the broadest liveness
+// column — unlike firmware's last_map_report_at).
+func TestHardwareSnapshotHandler_PassesMaxAgeToStore(t *testing.T) {
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	var observed time.Duration
+	store := &testkit.FakeStore{
+		HardwareModelSnapshotFn: func(_ context.Context, maxAge time.Duration) ([]repo.HardwareModelCount, error) {
+			observed = maxAge
+
+			return []repo.HardwareModelCount{{Model: "heltec-v3", Count: 1, LastSeenAt: now}}, nil
+		},
+	}
+	cfg := hardwareStatsConfig
+	cfg.MaxAge = 7 * 24 * time.Hour
+	srv := New(Config{Web: config.WebConfig{Stats: config.StatsConfig{Hardware: cfg}}},
+		store, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil, nil)
+	srv.now = func() time.Time { return now }
+	srv.hardwareCache.now = func() time.Time { return now }
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/stats/hardware", nil)
+	rec := httptest.NewRecorder()
+	srv.hardwareSnapshot(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	if observed != 7*24*time.Hour {
+		t.Errorf("expected store to receive 7d maxAge, got %s", observed)
+	}
+}
+
+// TestHardwareSnapshotHandler_DefaultsMaxAgeWhenZero pins the fallback: if an
+// operator sets max_age to 0 (or omits it), the handler must default to 14d so
+// the hardware stats don't suddenly exclude every node.
+func TestHardwareSnapshotHandler_DefaultsMaxAgeWhenZero(t *testing.T) {
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	var observed time.Duration
+	store := &testkit.FakeStore{
+		HardwareModelSnapshotFn: func(_ context.Context, maxAge time.Duration) ([]repo.HardwareModelCount, error) {
+			observed = maxAge
+
+			return []repo.HardwareModelCount{{Model: "heltec-v3", Count: 1, LastSeenAt: now}}, nil
+		},
+	}
+	cfg := hardwareStatsConfig
+	cfg.MaxAge = 0
+	srv := New(Config{Web: config.WebConfig{Stats: config.StatsConfig{Hardware: cfg}}},
+		store, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil, nil)
+	srv.now = func() time.Time { return now }
+	srv.hardwareCache.now = func() time.Time { return now }
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/stats/hardware", nil)
+	rec := httptest.NewRecorder()
+	srv.hardwareSnapshot(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	if observed != 14*24*time.Hour {
+		t.Errorf("expected store to receive 14d default, got %s", observed)
+	}
+}
+
+// TestHardwareSnapshotHandler_EchoesResolvedTTL pins that the snapshot endpoint
+// echoes the operator's resolved TTL (not a hardcoded default) so the UI polls
+// on the operator's cadence. Mirrors the firmware PR #111 regression guard.
+func TestHardwareSnapshotHandler_EchoesResolvedTTL(t *testing.T) {
+	now := time.Date(2026, 6, 21, 12, 0, 0, 0, time.UTC)
+	cfg := hardwareStatsConfig
+	cfg.SnapshotCacheTTL = 5 * time.Minute // short, to prove the echo isn't just the default
+	store := &testkit.FakeStore{
+		HardwareModelSnapshotFn: func(_ context.Context, _ time.Duration) ([]repo.HardwareModelCount, error) {
+			return []repo.HardwareModelCount{{Model: "heltec-v3", Count: 1, LastSeenAt: now}}, nil
+		},
+	}
+	srv := New(Config{Web: config.WebConfig{Stats: config.StatsConfig{Hardware: cfg}}},
+		store, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, nil, nil)
+	srv.now = func() time.Time { return now }
+	srv.hardwareCache.now = func() time.Time { return now }
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/stats/hardware", nil)
+	rec := httptest.NewRecorder()
+	srv.hardwareSnapshot(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", rec.Code)
+	}
+	var payload hardwareSnapshotPayload
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload.CacheTtlSeconds != 300 {
+		t.Errorf("expected cache_ttl_seconds 300 (5m resolved), got %d", payload.CacheTtlSeconds)
+	}
+}

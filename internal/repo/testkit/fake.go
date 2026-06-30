@@ -21,6 +21,9 @@ type FakeStore struct {
 	UpdateNodeFirmwareVersionFn func(context.Context, string, int64, time.Time) error
 	UpdateNodeLastMapReportAtFn func(context.Context, string, time.Time) error
 	RecordFirmwareHistoryWeekFn func(context.Context, time.Time, time.Time, time.Duration) (int64, error)
+	UpsertHardwareModelFn       func(context.Context, string, time.Time) (int64, error)
+	UpdateNodeHardwareModelIDFn func(context.Context, string, int64, time.Time) error
+	RecordHardwareHistoryWeekFn func(context.Context, time.Time, time.Time, time.Duration) (int64, error)
 
 	GetMapNodesFn             func(context.Context, repo.MapNodeQuery) ([]repo.MapNode, error)
 	ListNodesFn               func(context.Context, repo.NodeListQuery) ([]repo.NodeSummary, error)
@@ -33,6 +36,9 @@ type FakeStore struct {
 	FirmwareVersionSnapshotFn func(context.Context, time.Duration) ([]repo.FirmwareVersionCount, error)
 	FirmwareVersionHistoryFn  func(context.Context, time.Time, int, int) (repo.FirmwareHistoryResult, error)
 	LastFirmwareHistoryWeekFn func(context.Context) (time.Time, error)
+	HardwareModelSnapshotFn   func(context.Context, time.Duration) ([]repo.HardwareModelCount, error)
+	HardwareModelHistoryFn    func(context.Context, time.Time, int, int) (repo.HardwareHistoryResult, error)
+	LastHardwareHistoryWeekFn func(context.Context) (time.Time, error)
 }
 
 // UpsertNode implements repo.WriteStore.
@@ -134,6 +140,33 @@ func (f *FakeStore) RecordFirmwareHistoryWeek(ctx context.Context, weekStart tim
 	return 0, nil
 }
 
+// UpsertHardwareModel implements repo.WriteStore.
+func (f *FakeStore) UpsertHardwareModel(ctx context.Context, model string, observedAt time.Time) (int64, error) {
+	if f.UpsertHardwareModelFn != nil {
+		return f.UpsertHardwareModelFn(ctx, model, observedAt)
+	}
+
+	return 0, nil
+}
+
+// UpdateNodeHardwareModelID implements repo.WriteStore.
+func (f *FakeStore) UpdateNodeHardwareModelID(ctx context.Context, nodeID string, modelID int64, observedAt time.Time) error {
+	if f.UpdateNodeHardwareModelIDFn != nil {
+		return f.UpdateNodeHardwareModelIDFn(ctx, nodeID, modelID, observedAt)
+	}
+
+	return nil
+}
+
+// RecordHardwareHistoryWeek implements repo.WriteStore.
+func (f *FakeStore) RecordHardwareHistoryWeek(ctx context.Context, weekStart time.Time, observedAt time.Time, maxAge time.Duration) (int64, error) {
+	if f.RecordHardwareHistoryWeekFn != nil {
+		return f.RecordHardwareHistoryWeekFn(ctx, weekStart, observedAt, maxAge)
+	}
+
+	return 0, nil
+}
+
 // GetMapNodes implements repo.ReadStore.
 func (f *FakeStore) GetMapNodes(ctx context.Context, q repo.MapNodeQuery) ([]repo.MapNode, error) {
 	if f.GetMapNodesFn != nil {
@@ -228,6 +261,33 @@ func (f *FakeStore) FirmwareVersionHistory(ctx context.Context, since time.Time,
 func (f *FakeStore) LastFirmwareHistoryWeek(ctx context.Context) (time.Time, error) {
 	if f.LastFirmwareHistoryWeekFn != nil {
 		return f.LastFirmwareHistoryWeekFn(ctx)
+	}
+
+	return time.Time{}, nil
+}
+
+// HardwareModelSnapshot implements repo.ReadStore.
+func (f *FakeStore) HardwareModelSnapshot(ctx context.Context, maxAge time.Duration) ([]repo.HardwareModelCount, error) {
+	if f.HardwareModelSnapshotFn != nil {
+		return f.HardwareModelSnapshotFn(ctx, maxAge)
+	}
+
+	return nil, nil
+}
+
+// HardwareModelHistory implements repo.ReadStore.
+func (f *FakeStore) HardwareModelHistory(ctx context.Context, since time.Time, topN int, totalWeeks int) (repo.HardwareHistoryResult, error) {
+	if f.HardwareModelHistoryFn != nil {
+		return f.HardwareModelHistoryFn(ctx, since, topN, totalWeeks)
+	}
+
+	return repo.HardwareHistoryResult{}, nil
+}
+
+// LastHardwareHistoryWeek implements repo.ReadStore.
+func (f *FakeStore) LastHardwareHistoryWeek(ctx context.Context) (time.Time, error) {
+	if f.LastHardwareHistoryWeekFn != nil {
+		return f.LastHardwareHistoryWeekFn(ctx)
 	}
 
 	return time.Time{}, nil
