@@ -1,3 +1,6 @@
+> [!WARNING]
+> For reasons beyond my control, project development has been frozen for who knows how long.
+
 # MeshMap Lite
 
 [![status-badge](https://ci.skobk.in/api/badges/6/status.svg?events=push%2Ctag)](https://ci.skobk.in/repos/6)
